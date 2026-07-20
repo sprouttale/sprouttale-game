@@ -623,7 +623,7 @@ export default function App() {
   // Synchronize Editor States with window.editorConfig
   useEffect(() => {
     (window as any).editorConfig = {
-      active: isEditorOpen || isAnimalEditorOpen,
+      active: isEditorOpen || isTerrainEditorOpen || isAnimalEditorOpen,
       tool: activeEditorTool,
       selectedAsset: selectedPaletteAsset,
       gridSnap: editorGridSnap,
@@ -644,10 +644,10 @@ export default function App() {
     };
 
     if (room) {
-      room.send("editor_mode", { active: isEditorOpen || isAnimalEditorOpen });
+      room.send("editor_mode", { active: isEditorOpen || isTerrainEditorOpen || isAnimalEditorOpen });
     }
   }, [
-    isEditorOpen, isAnimalEditorOpen, activeEditorTool, selectedPaletteAsset, editorGridSnap, editorDepthLayer,
+    isEditorOpen, isTerrainEditorOpen, isAnimalEditorOpen, activeEditorTool, selectedPaletteAsset, editorGridSnap, editorDepthLayer,
     selectedObject, selectedTile, room, editorSolidWidth, editorSolidHeight,
     editorSolidOffsetX, editorSolidOffsetY, pathDrawingTargetId, tempPathPoints,
     brushIsSolid, brushIsWater, brushIsClimbable, copiedTileTemplate

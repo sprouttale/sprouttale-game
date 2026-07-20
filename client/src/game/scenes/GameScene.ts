@@ -3921,16 +3921,7 @@ export class GameScene extends Phaser.Scene {
       sprite.lastY = sprite.container.y;
     });
 
-    // 3. Smooth camera follow for local player
-    if (this.localSprite) {
-      const zoom = this.cameras.main.zoom;
-      const camW = this.cameras.main.width / zoom;
-      const camH = this.cameras.main.height / zoom;
-      this.cameras.main.setScroll(
-        this.localSprite.container.x - camW / 2,
-        this.localSprite.container.y - camH / 2
-      );
-    }
+    // 3. Camera follow is handled by Phaser's startFollow() called at spawn time
   }
 
   // -------------------------------------------------------------------------
@@ -4228,7 +4219,8 @@ export class GameScene extends Phaser.Scene {
 
     if (isLocal) {
       this.localSprite = sprite;
-      this.cameras.main.centerOn(data.x, data.y);
+      // Use Phaser's built-in startFollow — handles zoom, bounds, and smooth lerp automatically
+      this.cameras.main.startFollow(sprite.container, true, 0.1, 0.1);
     }
   }
 

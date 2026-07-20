@@ -500,7 +500,7 @@ export default function App() {
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [isTerrainEditorOpen, setIsTerrainEditorOpen] = useState(false);
   const [isAnimalEditorOpen, setIsAnimalEditorOpen] = useState(false);
-  const [activeEditorTool, setActiveEditorTool] = useState<"brush" | "eraser" | "select" | "solid" | "pipette">("brush");
+  const [activeEditorTool, setActiveEditorTool] = useState<"brush" | "eraser" | "select" | "solid" | "pipette" | "fill_region">("brush");
   const [selectedPaletteAsset, setSelectedPaletteAsset] = useState<string>("test_block");
   const [editorCategory, setEditorCategory] = useState<"gif" | "dekorasyon" | "ev" | "zemin" | "indoor" | "tree" | "plant" | "mine" | "enemy" | "merchant" | "waterfall" | "box" | "trunks" | "big_old_tree" | "bushes" | "animal" | "decor2">("gif");
   const [wfTheme, setWfTheme] = useState<"summer" | "deepforest" | "fall" | "spring">("summer");
@@ -527,6 +527,7 @@ export default function App() {
   const [selectedObject, setSelectedObject] = useState<any | null>(null);
   const [undoStack, setUndoStack] = useState<any[]>([]);
   const [redoStack, setRedoStack] = useState<any[]>([]);
+  const [copiedTileTemplate, setCopiedTileTemplate] = useState<any | null>(null);
 
   useEffect(() => {
     localStorage.setItem("player_gold", gold.toString());
@@ -592,7 +593,8 @@ export default function App() {
       brushIsWater: brushIsWater,
       brushIsClimbable: brushIsClimbable,
       pathDrawingTargetId: pathDrawingTargetId,
-      tempPathPoints: tempPathPoints
+      tempPathPoints: tempPathPoints,
+      copiedTileTemplate: copiedTileTemplate
     };
 
     if (room) {
@@ -602,7 +604,7 @@ export default function App() {
     isEditorOpen, isAnimalEditorOpen, activeEditorTool, selectedPaletteAsset, editorGridSnap, editorDepthLayer,
     selectedObject, selectedTile, room, editorSolidWidth, editorSolidHeight,
     editorSolidOffsetX, editorSolidOffsetY, pathDrawingTargetId, tempPathPoints,
-    brushIsSolid, brushIsWater, brushIsClimbable
+    brushIsSolid, brushIsWater, brushIsClimbable, copiedTileTemplate
   ]);
 
   // Handle selected object updates from Phaser
@@ -996,6 +998,9 @@ export default function App() {
           } else if (e.code === "KeyD") {
             e.preventDefault();
             setActiveEditorTool("pipette");
+          } else if (e.code === "KeyF") {
+            e.preventDefault();
+            setActiveEditorTool("fill_region");
           }
         } else {
           // Normal game controls
@@ -2723,8 +2728,38 @@ export default function App() {
               >
                 🧪 Damlalık (D)
               </button>
+              <button 
+                onClick={() => setActiveEditorTool("fill_region")}
+                className={`editor-tool-select ${activeEditorTool === "fill_region" ? "active" : ""}`}
+                style={{ gridColumn: "1 / -1" }}
+                title="Bir karo şablonu kopyalayın, sonra bu araçla sürükleyip alan doldurun"
+              >
+                🗂️ Alan Doldur (F)
+              </button>
             </div>
           </div>
+
+          {/* Copied Tile Template Panel */}
+          {copiedTileTemplate && (
+            <div style={{ borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: "10px", marginTop: "4px" }}>
+              <div style={{ fontSize: "11px", fontWeight: "bold", marginBottom: "6px", color: "#f9ca24" }}>📋 KOPYALANAN KARO ŞABLonu</div>
+              <div style={{ background: "rgba(249,202,36,0.08)", border: "1px solid rgba(249,202,36,0.3)", borderRadius: "6px", padding: "8px", fontSize: "11px", color: "#eccc68" }}>
+                <div style={{ marginBottom: "4px" }}>🎨 <strong>{copiedTileTemplate.assetId}</strong></div>
+                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                  {copiedTileTemplate.isSolid && <span style={{ background: "rgba(255,71,87,0.3)", padding: "1px 6px", borderRadius: "3px" }}>🧱 Engel</span>}
+                  {copiedTileTemplate.isWater && <span style={{ background: "rgba(30,136,229,0.3)", padding: "1px 6px", borderRadius: "3px" }}>🌊 Su</span>}
+                  {copiedTileTemplate.isClimbable && <span style={{ background: "rgba(46,204,113,0.3)", padding: "1px 6px", borderRadius: "3px" }}>🪜 Tırmanma</span>}
+                  <span style={{ background: "rgba(255,255,255,0.1)", padding: "1px 6px", borderRadius: "3px" }}>{copiedTileTemplate.depthLayer}</span>
+                </div>
+              </div>
+              <button
+                onClick={() => { setCopiedTileTemplate(null); setActiveEditorTool("brush"); }}
+                style={{ marginTop: "6px", width: "100%", padding: "4px", fontSize: "11px", background: "rgba(255,71,87,0.15)", border: "1px solid rgba(255,71,87,0.4)", color: "#ff4757", borderRadius: "4px", cursor: "pointer" }}
+              >
+                ✕ Şablonu Temizle
+              </button>
+            </div>
+          )}
 
           {/* Global Brush Settings */}
           <div style={{ borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: "12px" }}>
@@ -4969,6 +5004,33 @@ export default function App() {
                       </div>
                     )}
                   </div>
+
+                  {/* Copy as Template Button */}
+                  <button
+                    onClick={() => {
+                      setCopiedTileTemplate({
+                        assetId: selectedObject.assetId,
+                        isSolid: Boolean(selectedObject.isSolid),
+                        isWater: Boolean(selectedObject.isWater),
+                        isClimbable: Boolean(selectedObject.isClimbable),
+                        depthLayer: selectedObject.depthLayer || "same",
+                        tileX: selectedObject.tileX !== undefined ? selectedObject.tileX : -1,
+                        tileY: selectedObject.tileY !== undefined ? selectedObject.tileY : -1,
+                        tileW: selectedObject.tileW !== undefined ? selectedObject.tileW : 0,
+                        tileH: selectedObject.tileH !== undefined ? selectedObject.tileH : 0,
+                        frameRate: selectedObject.frameRate !== undefined ? selectedObject.frameRate : 6,
+                        solidWidth: selectedObject.solidWidth || 0,
+                        solidHeight: selectedObject.solidHeight || 0,
+                        solidOffsetX: selectedObject.solidOffsetX || 0,
+                        solidOffsetY: selectedObject.solidOffsetY || 0,
+                      });
+                      setActiveEditorTool("fill_region");
+                    }}
+                    className="editor-btn-small"
+                    style={{ background: "rgba(249,202,36,0.15)", color: "#f9ca24", borderColor: "#f9ca24", marginTop: "8px", width: "100%" }}
+                  >
+                    📋 Karo Şablonu Olarak Kopyala → Alan Doldur
+                  </button>
 
                   {/* Delete Button */}
                   <button

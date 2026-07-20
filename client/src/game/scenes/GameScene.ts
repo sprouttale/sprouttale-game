@@ -263,6 +263,8 @@ export class GameScene extends Phaser.Scene {
   private editorPreviewTree!: Phaser.GameObjects.Sprite;
   private editorPreviewTreeWater2!: Phaser.GameObjects.Sprite;
   private editorPreviewPlant!: Phaser.GameObjects.Sprite;
+  private fillRegionGfx!: Phaser.GameObjects.Graphics;
+  private fillRegionStart: { x: number; y: number } | null = null;
   private placedObjectSprites = new Map<string, Phaser.GameObjects.Rectangle | Phaser.GameObjects.Sprite>();
 
   constructor() {
@@ -2271,6 +2273,9 @@ export class GameScene extends Phaser.Scene {
     this.editorOutline = this.add.graphics();
     this.editorOutline.setDepth(9999); // Top layer
 
+    this.fillRegionGfx = this.add.graphics();
+    this.fillRegionGfx.setDepth(10000);
+
     this.editorPreviewRect = this.add.rectangle(0, 0, 32, 32, 0x00d2d3, 0.4);
     this.editorPreviewRect.setStrokeStyle(1.5, 0x00d2d3, 1);
     this.editorPreviewRect.setVisible(false);
@@ -2581,6 +2586,24 @@ export class GameScene extends Phaser.Scene {
       if (pointer.isDown && isBrush) {
         this.tryPlaceObjectAt(targetX, targetY);
       }
+
+      // Draw fill_region selection rectangle while dragging
+      if (config.tool === "fill_region" && pointer.isDown && this.fillRegionStart) {
+        const sx = this.fillRegionStart.x;
+        const sy = this.fillRegionStart.y;
+        const rx = Math.min(sx, targetX);
+        const ry = Math.min(sy, targetY);
+        const rw = Math.abs(targetX - sx);
+        const rh = Math.abs(targetY - sy);
+        this.fillRegionGfx.clear();
+        this.fillRegionGfx.fillStyle(0xf9ca24, 0.12);
+        this.fillRegionGfx.fillRect(rx, ry, rw, rh);
+        this.fillRegionGfx.lineStyle(2, 0xf9ca24, 0.9);
+        this.fillRegionGfx.strokeRect(rx, ry, rw, rh);
+      } else if (config.tool !== "fill_region") {
+        this.fillRegionGfx.clear();
+        this.fillRegionStart = null;
+      }
     });
 
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer, currentlyOver: any[]) => {
@@ -2605,6 +2628,12 @@ export class GameScene extends Phaser.Scene {
       }
 
       const clickedSprite = currentlyOver[0];
+
+      // fill_region: record start position and prevent other actions
+      if (config.tool === "fill_region") {
+        this.fillRegionStart = { x: targetX, y: targetY };
+        return;
+      }
 
       if (config.tool === "brush" && !clickedSprite) {
         this.tryPlaceObjectAt(targetX, targetY);
@@ -2753,6 +2782,70 @@ export class GameScene extends Phaser.Scene {
       if (e.detail && e.detail.x !== undefined && e.detail.y !== undefined) {
         this.cameras.main.pan(e.detail.x, e.detail.y, 400, "Power2");
       }
+    });
+
+    // fill_region: on pointerup, fill the dragged rectangle with the copied tile template
+    this.input.on("pointerup", (pointer: Phaser.Input.Pointer) => {
+      const config = (window as any).editorConfig;
+      if (!config || !config.active || config.tool !== "fill_region") return;
+      if (!this.fillRegionStart || !config.copiedTileTemplate) {
+        this.fillRegionStart = null;
+        this.fillRegionGfx.clear();
+        return;
+      }
+
+      const worldPoint = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
+      let endX = worldPoint.x;
+      let endY = worldPoint.y;
+
+      const snap = config.snapSize ?? 16;
+      endX = Math.round(endX / snap) * snap;
+      endY = Math.round(endY / snap) * snap;
+
+      const startX = Math.round(this.fillRegionStart.x / snap) * snap;
+      const startY = Math.round(this.fillRegionStart.y / snap) * snap;
+
+      const minX = Math.min(startX, endX);
+      const maxX = Math.max(startX, endX);
+      const minY = Math.min(startY, endY);
+      const maxY = Math.max(startY, endY);
+
+      const tmpl = config.copiedTileTemplate;
+
+      // Compute step size = snap or tile size from template
+      const stepX = (tmpl.tileW && tmpl.tileW > 0) ? tmpl.tileW : snap;
+      const stepY = (tmpl.tileH && tmpl.tileH > 0) ? tmpl.tileH : snap;
+
+      for (let cx = minX; cx <= maxX; cx += stepX) {
+        for (let cy = minY; cy <= maxY; cy += stepY) {
+          if (this.room) {
+            this.room.send("place_object", {
+              assetId: tmpl.assetId,
+              x: cx,
+              y: cy,
+              scaleX: 1,
+              scaleY: 1,
+              rotation: 0,
+              depthLayer: tmpl.depthLayer || "same",
+              isSolid: tmpl.isSolid || false,
+              isWater: tmpl.isWater || false,
+              isClimbable: tmpl.isClimbable || false,
+              tileX: tmpl.tileX ?? -1,
+              tileY: tmpl.tileY ?? -1,
+              tileW: tmpl.tileW ?? 0,
+              tileH: tmpl.tileH ?? 0,
+              frameRate: tmpl.frameRate ?? 6,
+              solidWidth: tmpl.solidWidth ?? 0,
+              solidHeight: tmpl.solidHeight ?? 0,
+              solidOffsetX: tmpl.solidOffsetX ?? 0,
+              solidOffsetY: tmpl.solidOffsetY ?? 0,
+            });
+          }
+        }
+      }
+
+      this.fillRegionStart = null;
+      this.fillRegionGfx.clear();
     });
 
     this.sceneReady = true;

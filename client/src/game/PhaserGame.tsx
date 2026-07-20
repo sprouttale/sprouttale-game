@@ -8,7 +8,11 @@ import type { CharacterSelectData } from "../ui/CharacterSelect";
 // Constants
 // ---------------------------------------------------------------------------
 
-const COLYSEUS_ENDPOINT = "ws://localhost:2567";
+const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+const COLYSEUS_ENDPOINT = isLocal
+  ? "ws://localhost:2567"
+  : `${wsProtocol}//${window.location.host}`;
 const ROOM_TYPE = "game_room";
 
 // Suppress unused import warning — these are exported for consumers

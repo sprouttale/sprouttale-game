@@ -5017,17 +5017,14 @@ private tryPlaceObjectAt(x: number, y: number): void {
             assetId = `terrain_${tilesetKey}_${col}_${row}_${tileW}_${tileH}`;
           }
 
-          // Overwrite existing tile if assetId is different, skip if same
+          // Stack tiles: only skip if the exact same asset already exists here
           let skip = false;
           this.room.state.mapObjects.forEach((obj: any) => {
             if (Math.round(obj.x) === Math.round(tileX) &&
                 Math.round(obj.y) === Math.round(tileY) &&
-                obj.depthLayer === config.depthLayer) {
-              if (obj.assetId === assetId) {
-                skip = true;
-              } else {
-                this.room.send("delete_object", { id: obj.id });
-              }
+                obj.depthLayer === config.depthLayer &&
+                obj.assetId === assetId) {
+              skip = true;
             }
           });
           if (skip) continue;
@@ -5071,15 +5068,13 @@ private tryPlaceObjectAt(x: number, y: number): void {
     }
 
     // ── Single-tile placement (existing behaviour) ───────────────────────────
-    // Overwrite existing tile if assetId is different, skip if same
+    // Stack tiles: only skip if the exact same asset already exists here
     let skip = false;
     const finalDepthLayer = (config.selectedAsset === "tilled_soil_dry" || config.selectedAsset === "tilled_soil_wet") ? "below" : config.depthLayer;
     this.room.state.mapObjects.forEach((obj: any) => {
       if (Math.round(obj.x) === Math.round(x) && Math.round(obj.y) === Math.round(y) && obj.depthLayer === finalDepthLayer) {
         if (obj.assetId === config.selectedAsset) {
           skip = true;
-        } else {
-          this.room.send("delete_object", { id: obj.id });
         }
       }
     });

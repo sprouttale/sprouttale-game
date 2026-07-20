@@ -1280,23 +1280,29 @@ export class GameRoom extends Room<GameState> {
       let isOnClimbable = false;
 
       this.state.mapObjects.forEach((obj) => {
-        const w = (obj.solidWidth > 0) ? obj.solidWidth : (32 * obj.scaleX);
-        const h = (obj.solidHeight > 0) ? obj.solidHeight : (32 * obj.scaleY);
+        const tileW = (obj.solidWidth > 0) ? obj.solidWidth : ((obj.tileW > 0) ? obj.tileW : (32 * obj.scaleX));
+        const tileH = (obj.solidHeight > 0) ? obj.solidHeight : ((obj.tileH > 0) ? obj.tileH : (32 * obj.scaleY));
         const ox = obj.solidOffsetX || 0;
         const oy = obj.solidOffsetY || 0;
         
-        const objX = obj.x + ox;
-        const objY = obj.y + oy;
-        const objHalfW = w / 2;
-        const objHalfH = h / 2;
-        const playerHalf = 12;
+        const px = player.x;
+        const py = player.y;
 
-        if (
-          player.x + playerHalf > objX - objHalfW &&
-          player.x - playerHalf < objX + objHalfW &&
-          player.y + playerHalf > objY - objHalfH &&
-          player.y - playerHalf < objY + objHalfH
-        ) {
+        // Check overlap for top-left aligned objects (tiles) AND center aligned objects (sprites):
+        const minX1 = obj.x + ox - 8;
+        const maxX1 = obj.x + ox + tileW + 8;
+        const minY1 = obj.y + oy - 8;
+        const maxY1 = obj.y + oy + tileH + 8;
+
+        const minX2 = obj.x + ox - tileW / 2 - 8;
+        const maxX2 = obj.x + ox + tileW / 2 + 8;
+        const minY2 = obj.y + oy - tileH / 2 - 8;
+        const maxY2 = obj.y + oy + tileH / 2 + 8;
+
+        const overlapsTopLeft = (px >= minX1 && px <= maxX1 && py >= minY1 && py <= maxY1);
+        const overlapsCenter = (px >= minX2 && px <= maxX2 && py >= minY2 && py <= maxY2);
+
+        if (overlapsTopLeft || overlapsCenter) {
           if (obj.isWater) {
             isInWaterCustom = true;
           }
@@ -1311,7 +1317,7 @@ export class GameRoom extends Room<GameState> {
       const dist = Math.sqrt(dx * dx + dy * dy);
       const isHardcodedWater = dist < 300;
 
-      const isInWater = (isInWaterCustom || isHardcodedWater) && !isBroomstick && !isEditor;
+      const isInWater = (isInWaterCustom || isHardcodedWater) && !isBroomstick;
 
       if (isInWater) {
         const isGroundMount = player.equippedTool.startsWith("horse") || player.equippedTool.startsWith("bicycle") || player.equippedTool.startsWith("bear");
@@ -1327,7 +1333,7 @@ export class GameRoom extends Room<GameState> {
         }
       }
 
-      if (isOnClimbable && !isEditor && !isInWater) {
+      if (isOnClimbable && !isInWater) {
         if (player.action !== "climb") {
           player.action = "climb";
         }

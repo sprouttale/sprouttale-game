@@ -90,7 +90,7 @@ interface Props {
   selectedPaletteAsset: string;
   setSelectedPaletteAsset: (asset: string) => void;
 }
-type Tool  = "paint" | "erase" | "fill" | "picker";
+type Tool  = "paint" | "erase" | "fill" | "picker" | "move";
 type Layer = "below" | "same" | "above";
 
 export function TerrainEditorPanel({ isOpen, onClose, activeEditorTool, setActiveEditorTool, setSelectedPaletteAsset }: Props) {
@@ -98,12 +98,14 @@ export function TerrainEditorPanel({ isOpen, onClose, activeEditorTool, setActiv
     if (activeEditorTool === "eraser") return "erase";
     if (activeEditorTool === "fill_region") return "fill";
     if (activeEditorTool === "pipette") return "picker";
+    if (activeEditorTool === "select") return "move";
     return "paint";
   };
   const setLocalTool = (t: Tool) => {
     if (t === "erase") setActiveEditorTool("eraser");
     else if (t === "fill") setActiveEditorTool("fill_region");
     else if (t === "picker") setActiveEditorTool("pipette");
+    else if (t === "move") setActiveEditorTool("select");
     else setActiveEditorTool("brush");
   };
   const tool = getLocalTool();
@@ -258,7 +260,7 @@ export function TerrainEditorPanel({ isOpen, onClose, activeEditorTool, setActiv
       {/* Tools */}
       <div style={{padding:"9px 14px", borderBottom:"1px solid rgba(255,255,255,0.06)", flexShrink:0}}>
         <div style={{fontSize:"8px", color:"#636e72", marginBottom:"6px", textTransform:"uppercase"}}>Araçlar</div>
-        <div style={{display:"flex", gap:"5px"}}>{tbtn("paint","🖌️","Boya","P")}{tbtn("erase","🧹","Sil","E")}{tbtn("fill","🪣","Doldur","F")}{tbtn("picker","🔍","Seçici","D")}</div>
+        <div style={{display:"flex", gap:"5px", flexWrap:"wrap"}}>{tbtn("paint","🖌️","Boya","P")}{tbtn("erase","🧹","Sil","E")}{tbtn("move","🖐️","Taşı","S")}{tbtn("fill","🪣","Doldur","F")}{tbtn("picker","🔍","Seçici","D")}</div>
       </div>
 
       {/* Layer + Options */}

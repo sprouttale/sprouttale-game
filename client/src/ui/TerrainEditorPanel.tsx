@@ -99,6 +99,9 @@ export function TerrainEditorPanel({ isOpen, onClose }: Props) {
   const [snapToGrid,       setSnapToGrid]       = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
   const [gridSize,         setGridSize]         = useState<number>(16);
+  const [tileIsWater,      setTileIsWater]      = useState(false);
+  const [tileIsSolid,      setTileIsSolid]      = useState(false);
+  const [tileIsClimbable,  setTileIsClimbable]  = useState(false);
 
   const activeTileset   = TERRAIN_TILESETS.find(t => t.key === activeTilesetKey) ?? TERRAIN_TILESETS[0];
   const categories      = Array.from(new Set(TERRAIN_TILESETS.map(t => t.category)));
@@ -135,6 +138,10 @@ export function TerrainEditorPanel({ isOpen, onClose }: Props) {
       selectedAsset: assetId, selectedTile: { x:startCol*nativeTileW, y:startRow*nativeTileH, w:nativeTileW, h:nativeTileH },
       depthLayer: layer, snapSize: snapToGrid ? tw : 1, gridSnap: snapToGrid,
       tileScaleX, tileScaleY,
+      // Tile behavior flags — controlled by checkboxes in terrain panel
+      brushIsWater: tileIsWater,
+      brushIsSolid: tileIsSolid,
+      brushIsClimbable: tileIsClimbable,
       // Multi-tile brush data — GameScene loops through this grid on placement
       terrainBrush: isMultiTile ? {
         startCol: sel.startCol, startRow: sel.startRow,
@@ -145,7 +152,7 @@ export function TerrainEditorPanel({ isOpen, onClose }: Props) {
         animated,
       } : null,
     };
-  }, [activeTileset, activeTilesetKey, animated, layer, snapToGrid, tool, currentTileW, currentTileH]);
+  }, [activeTileset, activeTilesetKey, animated, layer, snapToGrid, tool, currentTileW, currentTileH, tileIsWater, tileIsSolid, tileIsClimbable]);
 
   // Auto-reset animation state and grid size when switching to a non-animated tileset
   useEffect(() => {
@@ -155,7 +162,7 @@ export function TerrainEditorPanel({ isOpen, onClose }: Props) {
     setGridSize(activeTileset.tileW);
   }, [activeTilesetKey, activeTileset]);
 
-  useEffect(() => { if (selection) applySelection(selection); }, [tool, layer, snapToGrid, animated]);
+  useEffect(() => { if (selection) applySelection(selection); }, [tool, layer, snapToGrid, animated, tileIsWater, tileIsSolid, tileIsClimbable]);
 
   const getTileAt = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -248,6 +255,34 @@ export function TerrainEditorPanel({ isOpen, onClose }: Props) {
                 <input type="checkbox" checked={animated} onChange={e=>setAnimated(e.target.checked)} />💧 Su Animasyonu
               </label>
             )}
+          </div>
+
+          {/* Tile Behavior Flags */}
+          <div style={{borderTop:"1px solid rgba(255,255,255,0.08)", paddingTop:"7px", marginTop:"2px"}}>
+            <div style={{fontSize:"8px", color:"#636e72", marginBottom:"5px", textTransform:"uppercase"}}>Karo Davranışı</div>
+            <div style={{display:"flex", gap:"10px", flexWrap:"wrap"}}>
+              <label style={{display:"flex", alignItems:"center", gap:"4px", fontSize:"9px", cursor:"pointer",
+                color:tileIsWater?"#54a0ff":"#a4b0be", fontWeight:tileIsWater?"bold":"normal"}}
+                title="Bu karonun üzerine gelince oyuncu yüzer">
+                <input type="checkbox" checked={tileIsWater} onChange={e=>{setTileIsWater(e.target.checked); if(e.target.checked){setTileIsSolid(false);}}} />
+                🌊 Su Alanı
+              </label>
+              <label style={{display:"flex", alignItems:"center", gap:"4px", fontSize:"9px", cursor:"pointer",
+                color:tileIsSolid?"#ff4757":"#a4b0be", fontWeight:tileIsSolid?"bold":"normal"}}
+                title="Bu karonun içinden geçilemez">
+                <input type="checkbox" checked={tileIsSolid} onChange={e=>{setTileIsSolid(e.target.checked); if(e.target.checked){setTileIsWater(false);}}} />
+                🧱 Engel
+              </label>
+              <label style={{display:"flex", alignItems:"center", gap:"4px", fontSize:"9px", cursor:"pointer",
+                color:tileIsClimbable?"#2ed573":"#a4b0be", fontWeight:tileIsClimbable?"bold":"normal"}}
+                title="Bu karonun üzerinde tırmanılabilir">
+                <input type="checkbox" checked={tileIsClimbable} onChange={e=>setTileIsClimbable(e.target.checked)} />
+                🪜 Tırmanma
+              </label>
+            </div>
+            {tileIsWater && <div style={{fontSize:"8px", color:"#54a0ff", marginTop:"4px", fontStyle:"italic"}}>✅ Bu karo üzerinde oyuncular yüzer</div>}
+            {tileIsSolid && <div style={{fontSize:"8px", color:"#ff4757", marginTop:"4px", fontStyle:"italic"}}>✅ Bu karo içinden geçilmez</div>}
+            {!tileIsWater && !tileIsSolid && !tileIsClimbable && <div style={{fontSize:"8px", color:"#636e72", marginTop:"4px", fontStyle:"italic"}}>Varsayılan: geçilebilir zemin (yüzme yok)</div>}
           </div>
         </div>
       </div>

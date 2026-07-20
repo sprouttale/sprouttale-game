@@ -1312,12 +1312,7 @@ export class GameRoom extends Room<GameState> {
         }
       });
 
-      const dx = player.x - 1500;
-      const dy = player.y - 1000;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const isHardcodedWater = dist < 300;
-
-      const isInWater = (isInWaterCustom || isHardcodedWater) && !isBroomstick;
+      const isInWater = isInWaterCustom && !isBroomstick;
 
       if (isInWater) {
         const isGroundMount = player.equippedTool.startsWith("horse") || player.equippedTool.startsWith("bicycle") || player.equippedTool.startsWith("bear");

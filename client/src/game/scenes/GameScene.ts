@@ -1696,8 +1696,18 @@ export class GameScene extends Phaser.Scene {
 
     // --- Camera setup -------------------------------------------------------
     this.cameras.main.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
-    this.cameras.main.setZoom(1);
+    this.cameras.main.setZoom(2);  // default 2x zoom
     this.cameras.main.centerOn(WORLD_WIDTH / 2, WORLD_HEIGHT / 2);
+
+    // --- Mouse wheel zoom ---------------------------------------------------
+    this.input.on("wheel", (_pointer: Phaser.Input.Pointer, _gameObjects: any[], _deltaX: number, deltaY: number) => {
+      const cam = this.cameras.main;
+      const currentZoom = cam.zoom;
+      // Scroll up = zoom in, scroll down = zoom out
+      const zoomFactor = deltaY > 0 ? 0.9 : 1.1;
+      const newZoom = Phaser.Math.Clamp(currentZoom * zoomFactor, 0.25, 6);
+      cam.setZoom(newZoom);
+    });
 
     // --- Input setup --------------------------------------------------------
     this.cursors = this.input.keyboard!.createCursorKeys();
@@ -3901,9 +3911,12 @@ export class GameScene extends Phaser.Scene {
 
     // 3. Smooth camera follow for local player
     if (this.localSprite) {
+      const zoom = this.cameras.main.zoom;
+      const camW = this.cameras.main.width / zoom;
+      const camH = this.cameras.main.height / zoom;
       this.cameras.main.setScroll(
-        this.localSprite.container.x - this.cameras.main.width  / 2,
-        this.localSprite.container.y - this.cameras.main.height / 2
+        this.localSprite.container.x - camW / 2,
+        this.localSprite.container.y - camH / 2
       );
     }
   }

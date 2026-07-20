@@ -3047,6 +3047,10 @@ export class GameScene extends Phaser.Scene {
         sprite.container.y = Phaser.Math.Linear(sprite.container.y, sprite.targetY, lerpFactor);
       }
 
+      // Update player depth dynamically by Y so they sort correctly against same-layer tiles.
+      // Use 2.5 base so player is always above below-layer tiles (max ~1.101) with safe margin.
+      sprite.container.setDepth(2.5 + sprite.container.y / 10000);
+
       // Get latest custom configurations from server state for this player
       const playerData = this.room?.state?.players?.get(sessionId);
 
@@ -4648,11 +4652,11 @@ export class GameScene extends Phaser.Scene {
       sprite.setDepth(1.1 + _subDepth);
       this.belowPlayerGroup.add(sprite);
     } else if (obj.depthLayer === "above") {
-      sprite.setDepth(3 + _subDepth);
+      sprite.setDepth(4 + _subDepth);
       this.abovePlayerGroup.add(sprite);
     } else {
-      // same level - dynamically sorted by Y coordinate + sub-depth
-      sprite.setDepth(2 + obj.y / 10000 + _subDepth);
+      // same level - sorts by Y (matches player depth formula: 2.5 + y/10000)
+      sprite.setDepth(2.5 + obj.y / 10000 + _subDepth);
       this.samePlayerGroup.add(sprite);
     }
 

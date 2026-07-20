@@ -117,23 +117,30 @@ export function TerrainEditorPanel({ isOpen, onClose }: Props) {
     if (!sel) return;
     const { startCol, startRow } = sel;
     const tw = currentTileW; const th = currentTileH;
+    const nativeTileW = activeTileset.tileW;
+    const nativeTileH = activeTileset.tileH;
+    // tileScale: how many times bigger than native tile the selected grid size is
+    const tileScaleX = tw / nativeTileW;
+    const tileScaleY = th / nativeTileH;
     const isAnim = animated && activeTileset.animatedRows !== undefined && startRow < (activeTileset.animatedRows ?? 0);
     let assetId: string;
     if (activeTilesetKey.startsWith("wf_")) {
       const theme = activeTilesetKey.replace("wf_", "");
-      assetId = `wf_${theme}_${startCol}_${startRow}_${tw}_${th}_${isAnim ? 1 : 0}`;
-    } else { assetId = `terrain_${activeTilesetKey}_${startCol}_${startRow}_${tw}_${th}`; }
+      assetId = `wf_${theme}_${startCol}_${startRow}_${nativeTileW}_${nativeTileH}_${isAnim ? 1 : 0}`;
+    } else { assetId = `terrain_${activeTilesetKey}_${startCol}_${startRow}_${nativeTileW}_${nativeTileH}`; }
     const existing = (window as any).editorConfig ?? {};
     const isMultiTile = sel.endCol > sel.startCol || sel.endRow > sel.startRow;
     (window as any).editorConfig = { ...existing, active:true,
       tool: tool==="erase" ? "eraser" : "brush",
-      selectedAsset: assetId, selectedTile: { x:startCol*tw, y:startRow*th, w:tw, h:th },
+      selectedAsset: assetId, selectedTile: { x:startCol*nativeTileW, y:startRow*nativeTileH, w:nativeTileW, h:nativeTileH },
       depthLayer: layer, snapSize: snapToGrid ? tw : 1, gridSnap: snapToGrid,
+      tileScaleX, tileScaleY,
       // Multi-tile brush data — GameScene loops through this grid on placement
       terrainBrush: isMultiTile ? {
         startCol: sel.startCol, startRow: sel.startRow,
         endCol:   sel.endCol,   endRow:   sel.endRow,
-        tileW: tw, tileH: th,
+        tileW: nativeTileW, tileH: nativeTileH,
+        tileScaleX, tileScaleY,
         tilesetKey: activeTilesetKey,
         animated,
       } : null,

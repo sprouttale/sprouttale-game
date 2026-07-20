@@ -4957,7 +4957,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private lastPlacedTime = 0;
-  private tryPlaceObjectAt(x: number, y: number): void {
+private tryPlaceObjectAt(x: number, y: number): void {
     const now = Date.now();
     if (now - this.lastPlacedTime < 120) return;
     this.lastPlacedTime = now;
@@ -4969,12 +4969,16 @@ export class GameScene extends Phaser.Scene {
     if (config.terrainBrush) {
       const tb = config.terrainBrush;
       const { startCol, startRow, endCol, endRow, tileW, tileH, tilesetKey, animated } = tb;
-      const snapPx = tileW; // each tile is tileW pixels wide
+      const scaleX = tb.tileScaleX ?? 1;
+      const scaleY = tb.tileScaleY ?? 1;
+      // Each tile step on map = native tile size * scale
+      const stepX = tileW * scaleX;
+      const stepY = tileH * scaleY;
 
       for (let row = startRow; row <= endRow; row++) {
         for (let col = startCol; col <= endCol; col++) {
-          const tileOffsetX = (col - startCol) * snapPx;
-          const tileOffsetY = (row - startRow) * snapPx;
+          const tileOffsetX = (col - startCol) * stepX;
+          const tileOffsetY = (row - startRow) * stepY;
           const tileX = x + tileOffsetX;
           const tileY = y + tileOffsetY;
 
@@ -5005,8 +5009,8 @@ export class GameScene extends Phaser.Scene {
             assetId,
             x: tileX,
             y: tileY,
-            scaleX: 1,
-            scaleY: 1,
+            scaleX,
+            scaleY,
             rotation: 0,
             flipX: false,
             flipY: false,
@@ -5047,14 +5051,19 @@ export class GameScene extends Phaser.Scene {
     });
     if (exists) return;
 
+    // For terrain tiles, apply scale from grid size selection
+    const isTerrain = config.selectedAsset && (config.selectedAsset.startsWith("terrain_") || config.selectedAsset.startsWith("wf_"));
+    const scaleX = isTerrain ? (config.tileScaleX ?? 1) : 1;
+    const scaleY = isTerrain ? (config.tileScaleY ?? 1) : 1;
+
     const objId = `obj_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
     const objData = {
       id: objId,
       assetId: config.selectedAsset,
       x: x,
       y: y,
-      scaleX: 1,
-      scaleY: 1,
+      scaleX: scaleX,
+      scaleY: scaleY,
       rotation: 0,
       flipX: false,
       flipY: false,

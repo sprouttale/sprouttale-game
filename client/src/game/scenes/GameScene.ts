@@ -2597,6 +2597,18 @@ export class GameScene extends Phaser.Scene {
         this.tryPlaceObjectAt(targetX, targetY);
       }
 
+      // Erasing continuously when dragging/holding mouse down
+      if (pointer.isDown && config.tool === "eraser") {
+        this.room.state.mapObjects.forEach((obj: any) => {
+          if (Math.round(obj.x) === Math.round(targetX) && Math.round(obj.y) === Math.round(targetY) && obj.depthLayer === config.depthLayer) {
+            window.dispatchEvent(new CustomEvent("editor_action_performed", {
+              detail: { type: "delete", id: obj.id, data: { ...obj } }
+            }));
+            this.room.send("delete_object", { id: obj.id });
+          }
+        });
+      }
+
       // Draw fill_region selection rectangle while dragging
       if (config.tool === "fill_region" && pointer.isDown && this.fillRegionStart) {
         const sx = this.fillRegionStart.x;
@@ -4976,7 +4988,7 @@ private tryPlaceObjectAt(x: number, y: number): void {
     this.lastPlacedTime = now;
 
     const config = (window as any).editorConfig;
-    if (!config) return;
+    if (!config || !config.selectedAsset) return;
 
     // ── Multi-tile terrain brush (from TerrainEditorPanel) ──────────────────
     if (config.terrainBrush) {

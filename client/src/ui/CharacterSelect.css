@@ -1,0 +1,515 @@
+/* =============================================================================
+   Character Selection Screen — Wizard Flow Layout
+   ============================================================================= */
+
+/* ── Backdrop ────────────────────────────────────────────────────────────── */
+.cs-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(ellipse at 50% 65%, #0f1a2e 0%, #060a10 100%);
+  z-index: 50;
+  overflow: hidden;
+}
+.cs-backdrop--exit { animation: cs-fade-out 0.8s ease forwards; }
+@keyframes cs-fade-out { to { opacity: 0; transform: scale(1.03); } }
+
+/* ── Particles ───────────────────────────────────────────────────────────── */
+.cs-particles { position: absolute; inset: 0; pointer-events: none; }
+.cs-particle {
+  position: absolute;
+  width: calc(2px + var(--i, 0) * 0.8px);
+  height: calc(2px + var(--i, 0) * 0.8px);
+  border-radius: 50%;
+  background: rgba(99, 102, 241, 0.35);
+  left: calc(var(--i, 0) * 5.2%);
+  animation: cs-float calc(7s + var(--i, 0) * 0.5s) ease-in-out infinite alternate;
+  animation-delay: calc(var(--i, 0) * -0.35s);
+}
+@keyframes cs-float {
+  from { transform: translateY(100vh); opacity: 0; }
+  10%  { opacity: 0.8; }
+  90%  { opacity: 0.3; }
+  to   { transform: translateY(-10vh); opacity: 0; }
+}
+
+/* ── Panel ───────────────────────────────────────────────────────────────── */
+.cs-panel {
+  position: relative;
+  width: min(840px, 96vw);
+  max-height: 94vh;
+  padding: 24px 32px;
+  border-radius: 20px;
+  background: rgba(10, 14, 26, 0.94);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid rgba(99, 102, 241, 0.22);
+  box-shadow: 0 8px 60px rgba(0,0,0,0.7), 0 0 80px rgba(99,102,241,0.05);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  animation: cs-panel-in 0.5s cubic-bezier(0.34,1.56,0.64,1) both;
+  overflow: hidden;
+}
+.cs-panel--exit { animation: cs-panel-out 0.5s ease forwards; }
+@keyframes cs-panel-in  { from { opacity:0; transform:translateY(28px) scale(0.95); } }
+@keyframes cs-panel-out { to   { opacity:0; transform:translateY(-16px) scale(0.97); } }
+
+/* ── Title ───────────────────────────────────────────────────────────────── */
+.cs-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.cs-title__icon {
+  font-size: 20px;
+  filter: drop-shadow(0 0 10px rgba(99,102,241,0.9));
+}
+.cs-title__text {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(10px, 2.2vw, 14px);
+  color: #e2e8f0;
+  letter-spacing: 2px;
+  text-shadow: 0 0 24px rgba(99,102,241,0.5);
+}
+
+/* ── Gender Pills ─────────────────────────────────────────────────────────── */
+.cs-gender-pills { display: flex; gap: 10px; }
+
+.cs-pill {
+  padding: 8px 24px;
+  border-radius: 999px;
+  border: 1px solid rgba(99,102,241,0.2);
+  background: transparent;
+  color: #64748b;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  letter-spacing: 0.5px;
+}
+.cs-pill:hover { color: #94a3b8; border-color: rgba(99,102,241,0.4); }
+.cs-pill--active { color: #f8fafc !important; font-weight: bold; }
+.cs-pill--male.cs-pill--active {
+  background: rgba(96,165,250,0.14);
+  border-color: #60a5fa;
+  box-shadow: 0 0 18px rgba(96,165,250,0.22);
+}
+.cs-pill--female.cs-pill--active {
+  background: rgba(244,114,182,0.14);
+  border-color: #f472b6;
+  box-shadow: 0 0 18px rgba(244,114,182,0.22);
+}
+
+/* ── Workspace ───────────────────────────────────────────────────────────── */
+.cs-creator-workspace {
+  display: flex;
+  width: 100%;
+  gap: 32px;
+  margin: 10px 0;
+  overflow: hidden;
+  align-items: stretch;
+}
+
+@media (max-width: 680px) {
+  .cs-creator-workspace {
+    flex-direction: column;
+    overflow-y: auto;
+    max-height: 50vh;
+  }
+}
+
+/* ── Left Side: Preview Area ─────────────────────────────────────────────── */
+.cs-preview-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  padding: 20px;
+}
+
+.cs-preview-area {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.cs-preview-glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -58%);
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  background: radial-gradient(circle,
+    rgba(var(--glow-color, "99,102,241"), 0.18) 0%,
+    transparent 70%
+  );
+  pointer-events: none;
+  animation: cs-glow-breathe 3s ease-in-out infinite;
+}
+@keyframes cs-glow-breathe {
+  0%, 100% { opacity: 0.8; transform: translate(-50%,-58%) scale(1); }
+  50%       { opacity: 1;   transform: translate(-50%,-58%) scale(1.1); }
+}
+
+.cs-preview-canvas {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  position: relative;
+  z-index: 1;
+  animation: cs-bounce 1.4s ease-in-out infinite;
+  filter: drop-shadow(0 8px 16px rgba(0,0,0,0.5));
+}
+@keyframes cs-bounce {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-6px); }
+}
+
+.cs-preview-shadow {
+  width: 100px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.35);
+  filter: blur(8px);
+  animation: cs-shadow-sync 1.4s ease-in-out infinite;
+}
+@keyframes cs-shadow-sync {
+  0%, 100% { transform: scaleX(1);    opacity: 0.35; }
+  50%       { transform: scaleX(0.75); opacity: 0.2; }
+}
+
+/* ── Right Side: Customization Panel (Wizard Steps + Options View) ────────── */
+.cs-customization-panel {
+  flex: 1.2;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow: hidden;
+}
+
+/* Wizard Steps Header */
+.cs-wizard-steps {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.05);
+  padding-bottom: 12px;
+  gap: 4px;
+}
+
+.cs-wizard-step {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 7px;
+  color: #334155;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.cs-wizard-step--active {
+  color: #a5b4fc;
+  text-shadow: 0 0 10px rgba(99, 102, 241, 0.4);
+}
+
+.cs-wizard-arrow {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9px;
+  color: #1e293b;
+  user-select: none;
+}
+
+/* Options View Box */
+.cs-customization-options {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow-y: auto;
+  padding-right: 8px;
+  min-height: 38vh;
+  max-height: 42vh;
+}
+
+/* ── Customization Sections ──────────────────────────────────────────────── */
+.cs-option-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cs-option-label {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 7px;
+  color: #475569;
+  letter-spacing: 2px;
+}
+
+/* Swatch Rows and Grids */
+.cs-swatch-row {
+  display: flex;
+  gap: 12px;
+}
+
+.cs-swatch-card {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  border-radius: 10px;
+  border: 2px solid rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.02);
+  cursor: pointer;
+  padding: 0;
+  overflow: hidden;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.cs-swatch-card:hover {
+  border-color: rgba(99, 102, 241, 0.4);
+  transform: translateY(-2px);
+}
+
+.cs-swatch-card--selected {
+  border-color: var(--active-border, #60a5fa) !important;
+  background: rgba(255, 255, 255, 0.05);
+  transform: scale(1.04);
+}
+
+.cs-swatch-canvas {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  width: 48px;
+  height: 48px;
+  display: block;
+}
+
+.cs-swatch-check {
+  position: absolute;
+  bottom: 2px;
+  right: 4px;
+  font-size: 9px;
+  color: #10b981;
+  font-weight: bold;
+  text-shadow: 0 0 6px rgba(16,185,129,0.8);
+  line-height: 1;
+  z-index: 5;
+}
+
+/* Hair grid (more items, needs wrapping grid) */
+.cs-hair-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  gap: 10px;
+}
+
+.cs-hair-grid .cs-swatch-card {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  flex-direction: column;
+}
+
+.cs-style-name {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 5px;
+  color: #475569;
+  margin-top: -4px;
+  margin-bottom: 2px;
+  text-transform: uppercase;
+  max-width: 90%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  z-index: 2;
+}
+.cs-swatch-card--selected .cs-style-name {
+  color: #e2e8f0;
+}
+
+/* Color Dot Selection Rows */
+.cs-color-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.cs-color-btn {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 8px 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cs-color-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(99, 102, 241, 0.3);
+}
+
+.cs-color-btn--selected {
+  border-color: var(--active-border, #60a5fa) !important;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.cs-color-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  flex-shrink: 0;
+}
+
+.cs-color-text {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 6px;
+  color: #64748b;
+}
+.cs-color-btn--selected .cs-color-text {
+  color: #e2e8f0;
+}
+
+/* ── Input Group ─────────────────────────────────────────────────────────── */
+.cs-input-group {
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cs-label {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 7px;
+  color: #475569;
+  letter-spacing: 2px;
+}
+
+.cs-input {
+  width: 100%;
+  padding: 13px 48px 13px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  background: rgba(10, 14, 26, 0.7);
+  color: #f1f5f9;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 11px;
+  letter-spacing: 1px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.cs-input::placeholder { color: #1e293b; }
+.cs-input:focus {
+  border-color: rgba(99, 102, 241, 0.55);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+.cs-input--error {
+  border-color: rgba(239,68,68,0.5) !important;
+  box-shadow: 0 0 0 3px rgba(239,68,68,0.08) !important;
+  animation: cs-shake 0.3s ease;
+}
+@keyframes cs-shake {
+  0%,100% { transform: translateX(0); }
+  25%      { transform: translateX(-4px); }
+  75%      { transform: translateX(4px); }
+}
+
+.cs-error {
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  color: #f87171;
+}
+
+.cs-char-count {
+  position: absolute;
+  bottom: 14px;
+  right: 14px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 7px;
+  color: #1e293b;
+  pointer-events: none;
+}
+
+/* ── Wizard Controls Action Bar ──────────────────────────────────────────── */
+.cs-wizard-controls {
+  width: 100%;
+  display: flex;
+  gap: 16px;
+  margin-top: 10px;
+  flex-shrink: 0;
+}
+
+.cs-wizard-btn {
+  padding: 15px;
+  border-radius: 12px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+.cs-wizard-btn--secondary {
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.02);
+  color: #64748b;
+  flex: 0.4;
+}
+
+.cs-wizard-btn--secondary:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #e2e8f0;
+}
+
+.cs-wizard-btn--primary {
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  color: #fff;
+  box-shadow: 0 4px 24px rgba(79,70,229,0.35);
+}
+
+.cs-wizard-btn--primary::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 60%);
+}
+
+.cs-wizard-btn--primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 36px rgba(79,70,229,0.55);
+}
+
+.cs-wizard-btn--primary:active:not(:disabled) { transform: translateY(0); }
+.cs-wizard-btn:disabled { opacity: 0.7; cursor: default; }
+
+.cs-wizard-btn--entering {
+  background: linear-gradient(135deg, #059669, #047857) !important;
+  box-shadow: 0 4px 24px rgba(5,150,105,0.4) !important;
+  animation: cs-enter-pulse 0.7s ease-in-out infinite alternate;
+}
+@keyframes cs-enter-pulse {
+  from { box-shadow: 0 4px 20px rgba(5,150,105,0.3); }
+  to   { box-shadow: 0 4px 44px rgba(5,150,105,0.6); }
+}

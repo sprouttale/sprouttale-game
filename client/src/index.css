@@ -1,0 +1,729 @@
+/* =============================================================================
+   MMORPG Client — Global Styles
+   Design system: dark retro-modern aesthetic
+   ============================================================================= */
+
+/* --- CSS Custom Properties (Design Tokens) -------------------------------- */
+:root {
+  /* Color Palette */
+  --color-bg-deep:      #0a0c14;
+  --color-bg-surface:   #111827;
+  --color-bg-elevated:  #1a2235;
+  --color-border:       rgba(99, 102, 241, 0.2);
+  --color-border-glow:  rgba(99, 102, 241, 0.6);
+
+  --color-primary:      #6366f1;  /* Indigo */
+  --color-primary-glow: rgba(99, 102, 241, 0.3);
+  --color-accent:       #10b981;  /* Emerald */
+  --color-danger:       #ef4444;
+  --color-warning:      #f59e0b;
+
+  --color-text-primary:   #f1f5f9;
+  --color-text-secondary: #94a3b8;
+  --color-text-muted:     #475569;
+
+  /* Typography */
+  --font-ui:    'Inter', system-ui, sans-serif;
+  --font-pixel: 'Press Start 2P', monospace;
+
+  /* Spacing */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+
+  /* Transitions */
+  --transition-fast:   0.15s ease;
+  --transition-normal: 0.25s ease;
+}
+
+/* --- Reset ---------------------------------------------------------------- */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden; /* Game takes full viewport */
+  background-color: var(--color-bg-deep);
+  color: var(--color-text-primary);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+}
+
+/* --- Scrollbar Styling ---------------------------------------------------- */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--color-bg-surface); }
+::-webkit-scrollbar-thumb {
+  background: var(--color-primary);
+  border-radius: 3px;
+}
+
+/* --- Utility Classes ------------------------------------------------------ */
+.glass {
+  background: rgba(17, 24, 39, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--color-border);
+}
+
+.glass:hover {
+  border-color: var(--color-border-glow);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideDownFade {
+  0%   { opacity: 0; transform: translate(-50%, -20px); }
+  15%  { opacity: 1; transform: translate(-50%, 0); }
+  85%  { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, -20px); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 8px var(--color-primary-glow); }
+  50%       { box-shadow: 0 0 20px var(--color-primary-glow), 0 0 40px rgba(99,102,241,0.15); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* --- Loading Screen ------------------------------------------------------- */
+.loading-screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  background: var(--color-bg-deep);
+  z-index: 100;
+}
+
+.loading-screen .logo {
+  font-family: var(--font-pixel);
+  font-size: clamp(16px, 3vw, 28px);
+  color: var(--color-primary);
+  text-shadow: 0 0 20px var(--color-primary-glow);
+  animation: pulse-glow 2s ease-in-out infinite;
+  letter-spacing: 2px;
+}
+
+.loading-screen .spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.loading-screen .status {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  font-family: var(--font-pixel);
+  letter-spacing: 1px;
+}
+
+/* --- Error Screen --------------------------------------------------------- */
+.error-screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: var(--color-bg-deep);
+  padding: 24px;
+}
+
+.error-screen h2 {
+  font-family: var(--font-pixel);
+  font-size: 16px;
+  color: var(--color-danger);
+}
+
+.error-screen p {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  text-align: center;
+  max-width: 480px;
+  line-height: 1.6;
+}
+
+.error-screen button {
+  padding: 10px 24px;
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-family: var(--font-pixel);
+  font-size: 10px;
+  cursor: pointer;
+  transition: opacity var(--transition-fast);
+}
+
+.error-screen button:hover { opacity: 0.85; }
+
+/* --- HUD (Heads-Up Display) ----------------------------------------------- */
+.hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none; /* Pass clicks through to the canvas */
+  z-index: 10;
+  animation: fadeIn 0.4s ease both;
+}
+
+/* Top-left: player info panel */
+.hud__player-info {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  pointer-events: auto;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  min-width: 180px;
+}
+
+.hud__player-name {
+  font-family: var(--font-pixel);
+  font-size: 9px;
+  color: var(--color-text-primary);
+  letter-spacing: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hud__player-color-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+  margin-right: 8px;
+  vertical-align: middle;
+  box-shadow: 0 0 6px currentColor;
+}
+
+.hud__coords {
+  font-family: var(--font-pixel);
+  font-size: 7px;
+  color: var(--color-text-muted);
+  margin-top: 6px;
+  letter-spacing: 0.5px;
+}
+
+/* Top-right: room info */
+.hud__room-info {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  pointer-events: auto;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  text-align: right;
+}
+
+.hud__room-label {
+  font-family: var(--font-pixel);
+  font-size: 7px;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.hud__room-players {
+  font-family: var(--font-pixel);
+  font-size: 9px;
+  color: var(--color-accent);
+  margin-top: 4px;
+}
+
+.hud__online-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  margin-right: 6px;
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Bottom-center: controls hint */
+.hud__controls {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-pixel);
+  font-size: 7px;
+  color: var(--color-text-muted);
+  letter-spacing: 0.5px;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: 80vw;
+  text-align: center;
+}
+
+.hud__key {
+  display: inline-block;
+  padding: 2px 6px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  margin: 0 2px;
+  color: var(--color-text-secondary);
+}
+
+/* Bottom-right: ping indicator */
+.hud__ping {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  pointer-events: auto;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-pixel);
+  font-size: 7px;
+  color: var(--color-text-muted);
+}
+
+.hud__ping-value {
+  color: var(--color-accent);
+}
+
+/* --- HUD Top Right Group -------------------------------------------------- */
+.hud__top-right-group {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+  pointer-events: auto;
+}
+
+/* Override absolute positioning of room info when inside the group */
+.hud__room-info {
+  position: static !important;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  text-align: right;
+}
+
+/* Shop Button Style */
+.hud__shop-btn {
+  background: rgba(17, 24, 39, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  font-family: var(--font-pixel);
+  font-size: 8px;
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all var(--transition-fast);
+}
+
+.hud__shop-btn:hover {
+  border-color: var(--color-border-glow);
+  background: rgba(99, 102, 241, 0.15);
+  box-shadow: 0 0 16px rgba(99, 102, 241, 0.2);
+  transform: translateY(-1px);
+}
+
+.hud__shop-btn:active {
+  transform: translateY(0);
+}
+
+.hud__shop-icon {
+  font-size: 11px;
+}
+
+/* --- Shop Overlay Modal -------------------------------------------------- */
+.shop-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 10, 16, 0.65);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.shop-modal {
+  width: min(540px, 94vw);
+  max-height: 84vh;
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  box-shadow:
+    0 12px 64px rgba(0,0,0,0.65),
+    0 0 0 1px rgba(99, 102, 241, 0.15);
+  animation: fadeIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  display: flex;
+  flex-direction: column;
+}
+
+.shop-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.05);
+  padding-bottom: 14px;
+  margin-bottom: 16px;
+  flex-shrink: 0;
+}
+
+.shop-modal__header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.shop-modal__title {
+  font-family: var(--font-pixel);
+  font-size: 10px;
+  color: #e2e8f0;
+  letter-spacing: 1.5px;
+  text-shadow: 0 0 16px rgba(99,102,241,0.4);
+}
+
+.shop-modal__gold {
+  font-family: var(--font-pixel);
+  font-size: 9px;
+  color: var(--color-warning);
+  text-shadow: 0 0 8px rgba(245,158,11,0.3);
+  background: rgba(245,158,11,0.08);
+  border: 1px solid rgba(245,158,11,0.2);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+}
+
+.shop-modal__close {
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: 18px;
+  cursor: pointer;
+  transition: color var(--transition-fast);
+}
+
+.shop-modal__close:hover {
+  color: var(--color-danger);
+}
+
+/* Tabs */
+.shop-modal__tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-shrink: 0;
+}
+
+.shop-modal__tab {
+  font-family: var(--font-pixel);
+  font-size: 8px;
+  padding: 8px 16px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.shop-modal__tab--active {
+  background: rgba(99, 102, 241, 0.12);
+  border-color: var(--color-primary);
+  color: var(--color-text-primary);
+  box-shadow: 0 0 10px rgba(99,102,241,0.15);
+}
+
+/* Grid */
+.shop-modal__grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  overflow-y: auto;
+  padding-right: 4px;
+  max-height: 52vh;
+}
+
+@media (max-width: 500px) {
+  .shop-modal__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Shop Item Card */
+.shop-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.01);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  transition: all var(--transition-fast);
+}
+
+.shop-item:hover {
+  border-color: rgba(99, 102, 241, 0.25);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.shop-item--equipped {
+  border-color: var(--color-accent) !important;
+  background: rgba(16, 185, 129, 0.04);
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.15);
+}
+
+.shop-item__preview {
+  width: 64px;
+  height: 64px;
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.02);
+}
+
+.shop-item__info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.shop-item__name {
+  font-family: var(--font-pixel);
+  font-size: 7px;
+  color: var(--color-text-primary);
+  line-height: 1.4;
+}
+
+.shop-item__cost {
+  font-family: var(--font-pixel);
+  font-size: 6px;
+  color: var(--color-text-muted);
+}
+.shop-item:hover .shop-item__cost {
+  color: var(--color-text-secondary);
+}
+
+.shop-item__action {
+  flex-shrink: 0;
+}
+
+.shop-item__btn {
+  font-family: var(--font-pixel);
+  font-size: 6px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border: 1px solid transparent;
+  outline: none;
+  min-width: 72px;
+  text-align: center;
+}
+
+.shop-item__btn--buy {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: #fff;
+  border-color: rgba(245, 158, 11, 0.2);
+}
+.shop-item__btn--buy:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 10px rgba(245, 158, 11, 0.35);
+}
+.shop-item__btn--buy:disabled {
+  background: #334155;
+  border-color: transparent;
+  color: #64748b;
+  cursor: default;
+}
+
+.shop-item__btn--equip {
+  background: rgba(99, 102, 241, 0.1);
+  border-color: var(--color-primary);
+  color: #e2e8f0;
+}
+.shop-item__btn--equip:hover {
+  background: var(--color-primary);
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 10px rgba(99, 102, 241, 0.35);
+}
+
+.shop-item__btn--equipped {
+  background: var(--color-accent);
+  color: #fff;
+  box-shadow: 0 2px 10px rgba(16, 185, 129, 0.35);
+}
+.shop-item__btn--equipped:hover {
+  background: var(--color-danger);
+  border-color: rgba(239, 68, 68, 0.2);
+  color: #fff;
+  box-shadow: 0 2px 10px rgba(239, 68, 68, 0.35);
+}
+
+/* --- HUD Inventory Button Style --- */
+.hud__inventory-btn {
+  background: rgba(17, 24, 39, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  font-family: var(--font-pixel);
+  font-size: 8px;
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all var(--transition-fast);
+}
+
+.hud__inventory-btn:hover {
+  border-color: var(--color-border-glow);
+  background: rgba(16, 185, 129, 0.15);
+  box-shadow: 0 0 16px rgba(16, 185, 129, 0.2);
+  transform: translateY(-1px);
+}
+
+.hud__inventory-btn:active {
+  transform: translateY(0);
+}
+
+/* --- HUD Equipped Tool Bar --- */
+.hud__equipped-tool {
+  position: absolute;
+  bottom: 60px; /* Above the move hint */
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-pixel);
+  font-size: 7px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--color-primary);
+  background: rgba(17, 24, 39, 0.85);
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.15);
+  pointer-events: auto;
+}
+
+.hud__equipped-label {
+  color: var(--color-text-muted);
+}
+
+.hud__equipped-name {
+  color: #fff;
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
+}
+
+.hud__use-btn {
+  background: var(--color-primary);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #fff;
+  padding: 4px 10px;
+  font-family: var(--font-pixel);
+  font-size: 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.hud__use-btn:hover {
+  background: var(--color-primary-hover);
+  box-shadow: 0 0 10px rgba(99, 102, 241, 0.4);
+  transform: scale(1.05);
+}
+
+.hud__use-btn:active {
+  transform: scale(1);
+}
+
+/* --- MAP EDITOR PANEL ---------------------------------------------------- */
+.map-editor-panel {
+  pointer-events: auto;
+  border: 1px solid rgba(0, 210, 211, 0.3) !important;
+  box-shadow: 0 4px 30px rgba(0, 210, 211, 0.15) !important;
+}
+
+.editor-btn-small {
+  background: #2f3542;
+  border: 1px solid #747d8c;
+  color: #f1f2f6;
+  padding: 6px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: bold;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.editor-btn-small:hover {
+  background: #57606f;
+  border-color: #ced6e0;
+}
+
+.editor-tool-select {
+  background: #2f3542;
+  border: 1px solid #57606f;
+  color: #ced6e0;
+  padding: 8px 6px;
+  font-family: inherit;
+  font-size: 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-align: left;
+}
+
+.editor-tool-select:hover {
+  background: #3e4452;
+  color: #fff;
+}
+
+.editor-tool-select.active {
+  background: rgba(0, 210, 211, 0.2);
+  border: 1px solid #00d2d3;
+  color: #00d2d3;
+  box-shadow: 0 0 10px rgba(0, 210, 211, 0.3);
+  font-weight: bold;
+}
+

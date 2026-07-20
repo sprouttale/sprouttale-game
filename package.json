@@ -1,0 +1,21 @@
+{
+  "name": "sprouttale-game",
+  "version": "1.0.0",
+  "description": "Sprout Tale - Multiplayer Pixel RPG & Farming Game",
+  "scripts": {
+    "postinstall": "npm run install-all",
+    "install-all": "npm --prefix client install && npm --prefix server install",
+    "build": "npm --prefix client run build && npm --prefix server run build",
+    "start": "npm --prefix server run start",
+    "dev": "npm --prefix server run dev"
+  },
+  "keywords": [
+    "game",
+    "mmorpg",
+    "phaser",
+    "colyseus",
+    "react"
+  ],
+  "author": "SproutTale Team",
+  "license": "ISC"
+}

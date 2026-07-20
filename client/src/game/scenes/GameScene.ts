@@ -4,8 +4,8 @@ import type { Room } from "colyseus.js";
 // ---------------------------------------------------------------------------
 // Constants — must match server-side values
 // ---------------------------------------------------------------------------
-export const WORLD_WIDTH  = 5000;
-export const WORLD_HEIGHT = 5000;
+export const WORLD_WIDTH  = 1500;
+export const WORLD_HEIGHT = 2500;
 
 /** Size of each grid cell in pixels */
 const GRID_SIZE = 16;
@@ -3951,24 +3951,6 @@ export class GameScene extends Phaser.Scene {
     this.groundLayer.lineStyle(3, 0x52b788, 0.8);
     this.groundLayer.strokeRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
     this.groundLayer.setDepth(0);
-
-    // Draw the swimming lake (blue water circle) near spawn center
-    const lakeX = WORLD_WIDTH / 2;
-    const lakeY = WORLD_HEIGHT / 2 - 500;
-    this.groundLayer.fillStyle(0x1e3799, 0.95); // Deep water blue
-    this.groundLayer.fillCircle(lakeX, lakeY, 300);
-    this.groundLayer.lineStyle(6, 0x4a69bd, 0.8); // Light blue shore outline
-    this.groundLayer.strokeCircle(lakeX, lakeY, 300);
-
-    // Add a text label in the middle of the lake
-    const lakeText = this.add.text(lakeX, lakeY, "🏞️ SWIMMING LAKE", {
-      fontFamily: "'Press Start 2P'",
-      fontSize: "10px",
-      color: "#4a69bd",
-      resolution: 2
-    });
-    lakeText.setOrigin(0.5, 0.5);
-    lakeText.setDepth(1);
   }
 
   // -------------------------------------------------------------------------

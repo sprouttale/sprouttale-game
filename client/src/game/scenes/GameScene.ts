@@ -1696,7 +1696,14 @@ export class GameScene extends Phaser.Scene {
 
     // --- Camera setup -------------------------------------------------------
     this.cameras.main.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
-    this.cameras.main.setZoom(2);  // default 2x zoom
+
+    const getMinZoom = () => {
+      const cam = this.cameras.main;
+      return Math.max(cam.width / WORLD_WIDTH, cam.height / WORLD_HEIGHT);
+    };
+
+    const initialZoom = Math.max(2, getMinZoom());
+    this.cameras.main.setZoom(initialZoom);
     this.cameras.main.centerOn(WORLD_WIDTH / 2, WORLD_HEIGHT / 2);
 
     // --- Mouse wheel zoom ---------------------------------------------------
@@ -1705,8 +1712,17 @@ export class GameScene extends Phaser.Scene {
       const currentZoom = cam.zoom;
       // Scroll up = zoom in, scroll down = zoom out
       const zoomFactor = deltaY > 0 ? 0.9 : 1.1;
-      const newZoom = Phaser.Math.Clamp(currentZoom * zoomFactor, 0.25, 6);
+      const minZoom = getMinZoom();
+      const newZoom = Phaser.Math.Clamp(currentZoom * zoomFactor, minZoom, 6);
       cam.setZoom(newZoom);
+    });
+
+    this.scale.on("resize", () => {
+      const cam = this.cameras.main;
+      const minZoom = getMinZoom();
+      if (cam.zoom < minZoom) {
+        cam.setZoom(minZoom);
+      }
     });
 
     // --- Input setup --------------------------------------------------------

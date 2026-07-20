@@ -2,6 +2,7 @@ import { Room, Client } from "colyseus";
 import { GameState, PlayerState, MapObject, EnemyState } from "../schema/GameState";
 import fs from "fs";
 import path from "path";
+import https from "https";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -1950,96 +1951,225 @@ export class GameRoom extends Room<GameState> {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Map Persistence: Local disk + GitHub repository backup
+  // Map data is stored locally AND synced to GitHub so it survives redeployments.
+  // ---------------------------------------------------------------------------
+
+  private readonly GITHUB_TOKEN   = process.env.GITHUB_TOKEN || "";
+  private readonly GITHUB_OWNER   = "sprouttale";
+  private readonly GITHUB_REPO    = "sprouttale-game";
+  private readonly GITHUB_PATH    = "server/map_save.json";
+  private githubFileSha: string   = "";   // needed for PUT (update) requests
+  private githubSaveTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** Serialize current map objects to plain JSON array */
+  private serializeMap(): any[] {
+    const objects: any[] = [];
+    this.state.mapObjects.forEach((obj) => {
+      objects.push({
+        id: obj.id, assetId: obj.assetId,
+        x: obj.x, y: obj.y,
+        scaleX: obj.scaleX, scaleY: obj.scaleY,
+        rotation: obj.rotation, flipX: obj.flipX, flipY: obj.flipY,
+        isSolid: obj.isSolid, isWater: obj.isWater, isClimbable: obj.isClimbable,
+        depthLayer: obj.depthLayer,
+        triggerType: obj.triggerType, triggerTargetX: obj.triggerTargetX, triggerTargetY: obj.triggerTargetY,
+        tileX: obj.tileX, tileY: obj.tileY, tileW: obj.tileW, tileH: obj.tileH,
+        frameRate: obj.frameRate,
+        solidWidth: obj.solidWidth, solidHeight: obj.solidHeight,
+        solidOffsetX: obj.solidOffsetX, solidOffsetY: obj.solidOffsetY,
+        treeState: obj.treeState, treeHp: obj.treeHp,
+        cropType: obj.cropType, cropStage: obj.cropStage, cropWatered: obj.cropWatered
+      });
+    });
+    return objects;
+  }
+
+  /** Load serialized objects into game state */
+  private deserializeMap(objects: any[]): void {
+    objects.forEach((o: any) => {
+      const obj = new MapObject();
+      obj.id            = o.id || `obj_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+      obj.assetId       = o.assetId || "test_block";
+      obj.x             = Number(o.x || 0);
+      obj.y             = Number(o.y || 0);
+      obj.scaleX        = Number(o.scaleX !== undefined ? o.scaleX : 1);
+      obj.scaleY        = Number(o.scaleY !== undefined ? o.scaleY : 1);
+      obj.rotation      = Number(o.rotation || 0);
+      obj.flipX         = Boolean(o.flipX);
+      obj.flipY         = Boolean(o.flipY);
+      obj.isSolid       = Boolean(o.isSolid);
+      obj.isWater       = Boolean(o.isWater);
+      obj.isClimbable   = Boolean(o.isClimbable);
+      obj.depthLayer    = String(o.depthLayer || "same");
+      obj.triggerType   = String(o.triggerType || "none");
+      obj.triggerTargetX = Number(o.triggerTargetX || 0);
+      obj.triggerTargetY = Number(o.triggerTargetY || 0);
+      obj.tileX         = o.tileX !== undefined ? Number(o.tileX) : -1;
+      obj.tileY         = o.tileY !== undefined ? Number(o.tileY) : -1;
+      obj.tileW         = o.tileW !== undefined ? Number(o.tileW) : 0;
+      obj.tileH         = o.tileH !== undefined ? Number(o.tileH) : 0;
+      obj.frameRate     = o.frameRate !== undefined ? Number(o.frameRate) : 6;
+      obj.solidWidth    = o.solidWidth !== undefined ? Number(o.solidWidth) : 0;
+      obj.solidHeight   = o.solidHeight !== undefined ? Number(o.solidHeight) : 0;
+      obj.solidOffsetX  = o.solidOffsetX !== undefined ? Number(o.solidOffsetX) : 0;
+      obj.solidOffsetY  = o.solidOffsetY !== undefined ? Number(o.solidOffsetY) : 0;
+      obj.treeState     = String(o.treeState || "");
+      obj.treeHp        = Number(o.treeHp || 0);
+      obj.cropType      = String(o.cropType || "none");
+      obj.cropStage     = Number(o.cropStage || 0);
+      obj.cropWatered   = Boolean(o.cropWatered);
+      this.state.mapObjects.set(obj.id, obj);
+    });
+  }
+
+  /** Save map locally to disk immediately */
   private saveMapToDisk(): void {
     try {
-      const objects: any[] = [];
-      this.state.mapObjects.forEach((obj) => {
-        objects.push({
-          id: obj.id,
-          assetId: obj.assetId,
-          x: obj.x,
-          y: obj.y,
-          scaleX: obj.scaleX,
-          scaleY: obj.scaleY,
-          rotation: obj.rotation,
-          flipX: obj.flipX,
-          flipY: obj.flipY,
-          isSolid: obj.isSolid,
-          isWater: obj.isWater,
-          isClimbable: obj.isClimbable,
-          depthLayer: obj.depthLayer,
-          triggerType: obj.triggerType,
-          triggerTargetX: obj.triggerTargetX,
-          triggerTargetY: obj.triggerTargetY,
-          tileX: obj.tileX,
-          tileY: obj.tileY,
-          tileW: obj.tileW,
-          tileH: obj.tileH,
-          frameRate: obj.frameRate,
-          solidWidth: obj.solidWidth,
-          solidHeight: obj.solidHeight,
-          solidOffsetX: obj.solidOffsetX,
-          solidOffsetY: obj.solidOffsetY,
-          treeState: obj.treeState,
-          treeHp: obj.treeHp,
-          cropType: obj.cropType,
-          cropStage: obj.cropStage,
-          cropWatered: obj.cropWatered
-        });
-      });
       const filePath = path.join(process.cwd(), "map_save.json");
-      fs.writeFileSync(filePath, JSON.stringify(objects, null, 2), "utf8");
+      fs.writeFileSync(filePath, JSON.stringify(this.serializeMap(), null, 2), "utf8");
     } catch (err) {
       console.error("[GameRoom] Error saving map to disk:", err);
     }
+
+    // Debounce GitHub save: wait 15s after last change before pushing to GitHub
+    if (this.githubSaveTimer) clearTimeout(this.githubSaveTimer);
+    this.githubSaveTimer = setTimeout(() => this.saveMapToGitHub(), 15000);
   }
 
-  private loadMapFromDisk(): void {
+  /** Push map data to GitHub repository file via API */
+  private saveMapToGitHub(): void {
     try {
-      const filePath = path.join(process.cwd(), "map_save.json");
-      if (fs.existsSync(filePath)) {
+      const content = Buffer.from(JSON.stringify(this.serializeMap(), null, 2), "utf8").toString("base64");
+      const body = JSON.stringify({
+        message: "auto: update map_save.json",
+        content,
+        ...(this.githubFileSha ? { sha: this.githubFileSha } : {})
+      });
+
+      const req = https.request({
+        hostname: "api.github.com",
+        path: `/repos/${this.GITHUB_OWNER}/${this.GITHUB_REPO}/contents/${this.GITHUB_PATH}`,
+        method: "PUT",
+        headers: {
+          "Authorization": `token ${this.GITHUB_TOKEN}`,
+          "User-Agent": "SproutTale-Server",
+          "Accept": "application/vnd.github.v3+json",
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(body)
+        }
+      }, (res) => {
+        let data = "";
+        res.on("data", (chunk) => data += chunk);
+        res.on("end", () => {
+          try {
+            const json = JSON.parse(data);
+            if (json.content?.sha) {
+              this.githubFileSha = json.content.sha;
+              console.log(`[GameRoom] ✅ Map saved to GitHub (${this.state.mapObjects.size} objects)`);
+            } else if (json.sha) {
+              this.githubFileSha = json.sha;
+            }
+          } catch {}
+        });
+      });
+      req.on("error", (e) => console.error("[GameRoom] GitHub save error:", e.message));
+      req.write(body);
+      req.end();
+    } catch (err) {
+      console.error("[GameRoom] Error pushing map to GitHub:", err);
+    }
+  }
+
+  /** On startup: load from local disk; if missing, fetch from GitHub */
+  private loadMapFromDisk(): void {
+    const filePath = path.join(process.cwd(), "map_save.json");
+
+    if (fs.existsSync(filePath)) {
+      // ── Local file exists (first start, local dev) ──────────────────────
+      try {
         const raw = fs.readFileSync(filePath, "utf8");
         const objects = JSON.parse(raw);
-        if (Array.isArray(objects)) {
-          objects.forEach((o: any) => {
-            const obj = new MapObject();
-            obj.id = o.id || `obj_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-            obj.assetId = o.assetId || "test_block";
-            obj.x = Number(o.x || 0);
-            obj.y = Number(o.y || 0);
-            obj.scaleX = Number(o.scaleX !== undefined ? o.scaleX : 1);
-            obj.scaleY = Number(o.scaleY !== undefined ? o.scaleY : 1);
-            obj.rotation = Number(o.rotation || 0);
-            obj.flipX = Boolean(o.flipX);
-            obj.flipY = Boolean(o.flipY);
-            obj.isSolid = Boolean(o.isSolid);
-            obj.isWater = Boolean(o.isWater);
-            obj.isClimbable = Boolean(o.isClimbable);
-            obj.depthLayer = String(o.depthLayer || "same");
-            obj.triggerType = String(o.triggerType || "none");
-            obj.triggerTargetX = Number(o.triggerTargetX || 0);
-            obj.triggerTargetY = Number(o.triggerTargetY || 0);
-            obj.tileX = o.tileX !== undefined ? Number(o.tileX) : -1;
-            obj.tileY = o.tileY !== undefined ? Number(o.tileY) : -1;
-            obj.tileW = o.tileW !== undefined ? Number(o.tileW) : 0;
-            obj.tileH = o.tileH !== undefined ? Number(o.tileH) : 0;
-            obj.frameRate = o.frameRate !== undefined ? Number(o.frameRate) : 6;
-            obj.solidWidth = o.solidWidth !== undefined ? Number(o.solidWidth) : 0;
-            obj.solidHeight = o.solidHeight !== undefined ? Number(o.solidHeight) : 0;
-            obj.solidOffsetX = o.solidOffsetX !== undefined ? Number(o.solidOffsetX) : 0;
-            obj.solidOffsetY = o.solidOffsetY !== undefined ? Number(o.solidOffsetY) : 0;
-            obj.treeState = String(o.treeState || "");
-            obj.treeHp = Number(o.treeHp || 0);
-            obj.cropType = String(o.cropType || "none");
-            obj.cropStage = Number(o.cropStage || 0);
-            obj.cropWatered = Boolean(o.cropWatered);
-            this.state.mapObjects.set(obj.id, obj);
-          });
-          console.log(`[GameRoom] Loaded ${objects.length} saved map objects from ${filePath}`);
+        if (Array.isArray(objects) && objects.length > 0) {
+          this.deserializeMap(objects);
+          console.log(`[GameRoom] ✅ Loaded ${objects.length} objects from local map_save.json`);
+          // Also fetch the current SHA for future GitHub saves
+          this.fetchGitHubFileSha();
+          return;
         }
+      } catch (err) {
+        console.error("[GameRoom] Error reading local map_save.json, trying GitHub…", err);
       }
-    } catch (err) {
-      console.error("[GameRoom] Error loading map from disk:", err);
     }
+
+    // ── Local file missing (Render redeploy) — fetch from GitHub ─────────
+    console.log("[GameRoom] 🔄 Local map not found, fetching from GitHub…");
+    this.fetchMapFromGitHub();
+  }
+
+  /** Fetch the current SHA of the file (needed for updates) */
+  private fetchGitHubFileSha(): void {
+    const req = https.request({
+      hostname: "api.github.com",
+      path: `/repos/${this.GITHUB_OWNER}/${this.GITHUB_REPO}/contents/${this.GITHUB_PATH}`,
+      method: "GET",
+      headers: {
+        "Authorization": `token ${this.GITHUB_TOKEN}`,
+        "User-Agent": "SproutTale-Server",
+        "Accept": "application/vnd.github.v3+json"
+      }
+    }, (res) => {
+      let data = "";
+      res.on("data", (c) => data += c);
+      res.on("end", () => {
+        try {
+          const json = JSON.parse(data);
+          if (json.sha) { this.githubFileSha = json.sha; }
+        } catch {}
+      });
+    });
+    req.on("error", () => {});
+    req.end();
+  }
+
+  /** Fetch map data from GitHub and load into state */
+  private fetchMapFromGitHub(): void {
+    const req = https.request({
+      hostname: "api.github.com",
+      path: `/repos/${this.GITHUB_OWNER}/${this.GITHUB_REPO}/contents/${this.GITHUB_PATH}`,
+      method: "GET",
+      headers: {
+        "Authorization": `token ${this.GITHUB_TOKEN}`,
+        "User-Agent": "SproutTale-Server",
+        "Accept": "application/vnd.github.v3+json"
+      }
+    }, (res) => {
+      let data = "";
+      res.on("data", (c) => data += c);
+      res.on("end", () => {
+        try {
+          const json = JSON.parse(data);
+          if (json.content) {
+            const decoded = Buffer.from(json.content, "base64").toString("utf8");
+            const objects = JSON.parse(decoded);
+            if (Array.isArray(objects) && objects.length > 0) {
+              this.deserializeMap(objects);
+              // Cache locally for next restart
+              const filePath = path.join(process.cwd(), "map_save.json");
+              fs.writeFileSync(filePath, decoded, "utf8");
+              console.log(`[GameRoom] ✅ Loaded ${objects.length} objects from GitHub`);
+            }
+            if (json.sha) { this.githubFileSha = json.sha; }
+          } else {
+            console.log("[GameRoom] GitHub map file is empty, starting fresh.");
+          }
+        } catch (err) {
+          console.error("[GameRoom] Error parsing GitHub map data:", err);
+        }
+      });
+    });
+    req.on("error", (e) => console.error("[GameRoom] Error fetching from GitHub:", e.message));
+    req.end();
   }
 }

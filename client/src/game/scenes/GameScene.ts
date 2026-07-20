@@ -2657,7 +2657,7 @@ export class GameScene extends Phaser.Scene {
         return;
       }
 
-      if (config.tool === "brush" && !clickedSprite) {
+      if (config.tool === "brush") {
         this.tryPlaceObjectAt(targetX, targetY);
       }
       else if (config.tool === "eraser") {
@@ -4638,16 +4638,21 @@ export class GameScene extends Phaser.Scene {
 
     sprite.setAngle(obj.rotation || 0);
 
-    // Apply Z-index depth layer
+    // Apply Z-index depth layer — use timestamp from object ID as sub-depth so later-placed tiles
+    // always render ON TOP of earlier ones within the same layer (fixes terrain stacking order)
+    const _tsMatch = (obj.id || "").match(/^obj_(\d+)_/);
+    const _ts = _tsMatch ? Number(_tsMatch[1]) % 1000000 : 0;
+    const _subDepth = _ts / 1000000000; // tiny fraction: 0 to 0.001
+
     if (obj.depthLayer === "below") {
-      sprite.setDepth(1.1);
+      sprite.setDepth(1.1 + _subDepth);
       this.belowPlayerGroup.add(sprite);
     } else if (obj.depthLayer === "above") {
-      sprite.setDepth(3);
+      sprite.setDepth(3 + _subDepth);
       this.abovePlayerGroup.add(sprite);
     } else {
-      // same level - dynamically sorted by Y coordinate
-      sprite.setDepth(2 + obj.y / 10000);
+      // same level - dynamically sorted by Y coordinate + sub-depth
+      sprite.setDepth(2 + obj.y / 10000 + _subDepth);
       this.samePlayerGroup.add(sprite);
     }
 

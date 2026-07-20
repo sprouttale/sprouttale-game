@@ -297,7 +297,7 @@ export function TerrainEditorPanel({ isOpen, onClose }: Props) {
           ))}
 
           <span style={{marginLeft:"15px", fontSize:"9px", color:"#636e72"}}>📐 Grid:</span>
-          {[activeTileset.tileW, 8].map(g => (
+          {[16, 32, 64, 8].map(g => (
             <button key={g} onClick={() => setGridSize(g)} style={{padding:"2px 7px", fontSize:"9px",
               background:gridSize===g?ACCB:"rgba(255,255,255,0.04)", border:`1px solid ${gridSize===g?ACC:"rgba(255,255,255,0.1)"}`,
               borderRadius:"4px", cursor:"pointer", color:gridSize===g?ACC:"#a4b0be"}}>{g}×{g}px</button>

@@ -2736,7 +2736,7 @@ export default function App() {
                   checked={editorGridSnap} 
                   onChange={(e) => setEditorGridSnap(e.target.checked)} 
                 />
-                32px Izgaraya Hizala
+                Izgaraya Hizala
               </label>
               <div style={{ display: "flex", flexDirection: "column", gap: "2px", marginTop: "4px" }}>
                 <span style={{ fontSize: "11px", color: "#a4b0be" }}>Derinlik Katmanı:</span>

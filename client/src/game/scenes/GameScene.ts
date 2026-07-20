@@ -5007,17 +5007,6 @@ private tryPlaceObjectAt(x: number, y: number): void {
           const tileX = x + tileOffsetX;
           const tileY = y + tileOffsetY;
 
-          // Skip if something already exists at this exact position/layer
-          let exists = false;
-          this.room.state.mapObjects.forEach((obj: any) => {
-            if (Math.round(obj.x) === Math.round(tileX) &&
-                Math.round(obj.y) === Math.round(tileY) &&
-                obj.depthLayer === config.depthLayer) {
-              exists = true;
-            }
-          });
-          if (exists) continue;
-
           // Build assetId for this specific tile in the grid
           let assetId: string;
           const isAnim = animated && row < 2 ? 1 : 0;
@@ -5027,6 +5016,21 @@ private tryPlaceObjectAt(x: number, y: number): void {
           } else {
             assetId = `terrain_${tilesetKey}_${col}_${row}_${tileW}_${tileH}`;
           }
+
+          // Overwrite existing tile if assetId is different, skip if same
+          let skip = false;
+          this.room.state.mapObjects.forEach((obj: any) => {
+            if (Math.round(obj.x) === Math.round(tileX) &&
+                Math.round(obj.y) === Math.round(tileY) &&
+                obj.depthLayer === config.depthLayer) {
+              if (obj.assetId === assetId) {
+                skip = true;
+              } else {
+                this.room.send("delete_object", { id: obj.id });
+              }
+            }
+          });
+          if (skip) continue;
 
           const objId = `obj_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
           const objData = {
@@ -5067,14 +5071,19 @@ private tryPlaceObjectAt(x: number, y: number): void {
     }
 
     // ── Single-tile placement (existing behaviour) ───────────────────────────
-    let exists = false;
+    // Overwrite existing tile if assetId is different, skip if same
+    let skip = false;
     const finalDepthLayer = (config.selectedAsset === "tilled_soil_dry" || config.selectedAsset === "tilled_soil_wet") ? "below" : config.depthLayer;
     this.room.state.mapObjects.forEach((obj: any) => {
       if (Math.round(obj.x) === Math.round(x) && Math.round(obj.y) === Math.round(y) && obj.depthLayer === finalDepthLayer) {
-        exists = true;
+        if (obj.assetId === config.selectedAsset) {
+          skip = true;
+        } else {
+          this.room.send("delete_object", { id: obj.id });
+        }
       }
     });
-    if (exists) return;
+    if (skip) return;
 
     // For terrain tiles, apply scale from grid size selection
     const isTerrain = config.selectedAsset && (config.selectedAsset.startsWith("terrain_") || config.selectedAsset.startsWith("wf_"));

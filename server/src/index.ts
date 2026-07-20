@@ -6,6 +6,16 @@ import { monitor } from "@colyseus/monitor";
 import { GameRoom } from "./rooms/GameRoom";
 
 // ---------------------------------------------------------------------------
+// Global Crash Protection — prevent unhandled errors from killing the process
+// ---------------------------------------------------------------------------
+process.on("uncaughtException", (err) => {
+  console.error("[FATAL] Uncaught Exception:", err?.message, err?.stack);
+});
+process.on("unhandledRejection", (reason) => {
+  console.error("[FATAL] Unhandled Promise Rejection:", reason);
+});
+
+// ---------------------------------------------------------------------------
 // Express App
 // ---------------------------------------------------------------------------
 const app = express();

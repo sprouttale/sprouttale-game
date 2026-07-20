@@ -1280,7 +1280,12 @@ export class GameRoom extends Room<GameState> {
       let isInWaterCustom = false;
       let isOnClimbable = false;
 
+      // Performance: only check objects near the player (within 200px)
+      const CHECK_RADIUS = 200;
       this.state.mapObjects.forEach((obj) => {
+        // Quick distance pre-check to skip distant objects
+        if (Math.abs(obj.x - player.x) > CHECK_RADIUS || Math.abs(obj.y - player.y) > CHECK_RADIUS) return;
+
         const tileW = (obj.solidWidth > 0) ? obj.solidWidth : ((obj.tileW > 0) ? obj.tileW : (32 * obj.scaleX));
         const tileH = (obj.solidHeight > 0) ? obj.solidHeight : ((obj.tileH > 0) ? obj.tileH : (32 * obj.scaleY));
         const ox = obj.solidOffsetX || 0;
@@ -1382,8 +1387,9 @@ export class GameRoom extends Room<GameState> {
 
         let collidesX = false;
         this.state.mapObjects.forEach((obj) => {
-          if (obj.isSolid) {
-            if (player.action === "climb" && obj.isClimbable) {
+          if (!obj.isSolid) return;
+          if (Math.abs(obj.x - player.x) > CHECK_RADIUS || Math.abs(obj.y - player.y) > CHECK_RADIUS) return;
+          if (player.action === "climb" && obj.isClimbable) {
               return;
             }
             const w = (obj.solidWidth > 0) ? obj.solidWidth : (32 * obj.scaleX);
@@ -1405,7 +1411,6 @@ export class GameRoom extends Room<GameState> {
             ) {
               collidesX = true;
             }
-          }
         });
         if (collidesX) {
           player.x = oldX;
@@ -1417,8 +1422,9 @@ export class GameRoom extends Room<GameState> {
 
         let collidesY = false;
         this.state.mapObjects.forEach((obj) => {
-          if (obj.isSolid) {
-            if (player.action === "climb" && obj.isClimbable) {
+          if (!obj.isSolid) return;
+          if (Math.abs(obj.x - player.x) > CHECK_RADIUS || Math.abs(obj.y - player.y) > CHECK_RADIUS) return;
+          if (player.action === "climb" && obj.isClimbable) {
               return;
             }
             const w = (obj.solidWidth > 0) ? obj.solidWidth : (32 * obj.scaleX);
@@ -1440,7 +1446,6 @@ export class GameRoom extends Room<GameState> {
             ) {
               collidesY = true;
             }
-          }
         });
         if (collidesY) {
           player.y = oldY;

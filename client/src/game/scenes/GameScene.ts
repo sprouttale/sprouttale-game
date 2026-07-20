@@ -4,8 +4,8 @@ import type { Room } from "colyseus.js";
 // ---------------------------------------------------------------------------
 // Constants — must match server-side values
 // ---------------------------------------------------------------------------
-export const WORLD_WIDTH  = 50000;
-export const WORLD_HEIGHT = 50000;
+export const WORLD_WIDTH  = 25000;
+export const WORLD_HEIGHT = 25000;
 
 /** Size of each grid cell in pixels */
 const GRID_SIZE = 16;

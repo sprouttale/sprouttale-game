@@ -40,8 +40,8 @@ interface JoinOptions {
 const PLAYER_SPEED = 200;
 
 /** World dimensions — must match client-side constants */
-const WORLD_WIDTH = 50000;
-const WORLD_HEIGHT = 50000;
+const WORLD_WIDTH = 25000;
+const WORLD_HEIGHT = 25000;
 
 /** Starting spawn area (players spawn near center) */
 const SPAWN_CENTER_X = WORLD_WIDTH / 2;

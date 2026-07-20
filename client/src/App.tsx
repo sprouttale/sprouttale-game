@@ -1453,8 +1453,8 @@ export default function App() {
           <Minimap
             room={room}
             sessionId={meta?.sessionId || ""}
-            worldWidth={50000}
-            worldHeight={50000}
+            worldWidth={25000}
+            worldHeight={25000}
             playerCount={meta?.playerCount || 1}
           />
 

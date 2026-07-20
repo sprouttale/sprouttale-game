@@ -453,6 +453,52 @@ function TractorPreview() {
 }
 
 // ---------------------------------------------------------------------------
+// AutoReconnect Component — auto reloads after disconnect
+// ---------------------------------------------------------------------------
+function AutoReconnect({ phase }: { phase: string }) {
+  const [countdown, setCountdown] = useState(5);
+
+  useEffect(() => {
+    if (countdown <= 0) {
+      window.location.reload();
+      return;
+    }
+    const t = setTimeout(() => setCountdown(c => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [countdown]);
+
+  return (
+    <div className="error-screen" style={{ position: "fixed" }}>
+      <h2>⚠ {phase === "error" ? "Bağlantı Hatası" : "Bağlantı Kesildi"}</h2>
+      <p style={{ marginBottom: "12px" }}>
+        {phase === "disconnected"
+          ? "Sunucu yeniden başlatıldı. Otomatik bağlanıyor..."
+          : "Sunucuya bağlanılamadı. Yeniden deneniyor..."}
+      </p>
+      <div style={{
+        fontSize: "32px", fontFamily: "'Press Start 2P'",
+        color: "#00b8d9", marginBottom: "16px"
+      }}>
+        {countdown}
+      </div>
+      <div style={{
+        width: "200px", height: "4px", background: "rgba(255,255,255,0.1)",
+        borderRadius: "2px", overflow: "hidden", marginBottom: "16px"
+      }}>
+        <div style={{
+          width: `${(countdown / 5) * 100}%`, height: "100%",
+          background: "#00b8d9", transition: "width 1s linear"
+        }} />
+      </div>
+      <button onClick={() => window.location.reload()}
+        style={{ fontSize: "10px", padding: "8px 20px" }}>
+        HEMEN YENİDEN BAĞLAN
+      </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // App Component
 // ---------------------------------------------------------------------------
 export default function App() {
@@ -1347,15 +1393,7 @@ export default function App() {
 
       {/* ── 3. Error / Disconnected overlay ── */}
       {(phase === "error" || phase === "disconnected") && (
-        <div className="error-screen" style={{ position: "fixed" }}>
-          <h2>⚠ {phase === "error" ? "Connection Failed" : "Disconnected"}</h2>
-          <p>
-            {phase === "error"
-              ? "Could not connect to the game server. Make sure the server is running on port 2567."
-              : "You have been disconnected from the server."}
-          </p>
-          <button onClick={() => window.location.reload()}>RETRY</button>
-        </div>
+        <AutoReconnect phase={phase} />
       )}
 
       {/* ── 4. HUD ── */}

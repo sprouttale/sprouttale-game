@@ -6,3 +6,4 @@ server/dist
 *.log
 .env
 .DS_Store
+server/map_save.json

@@ -1964,7 +1964,7 @@ export class GameRoom extends Room<GameState> {
   private readonly GITHUB_TOKEN   = process.env.GITHUB_TOKEN || "";
   private readonly GITHUB_OWNER   = "sprouttale";
   private readonly GITHUB_REPO    = "sprouttale-game";
-  private readonly GITHUB_PATH    = "server/map_save.json";
+  private readonly GITHUB_PATH    = "_mapdata/world_save.json";  // NEVER touched by code commits!
   private githubFileSha: string   = "";   // needed for PUT (update) requests
   private githubSaveTimer: ReturnType<typeof setTimeout> | null = null;
 

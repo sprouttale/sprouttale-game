@@ -5103,6 +5103,8 @@ export default function App() {
         onClose={() => setIsTerrainEditorOpen(false)}
         activeEditorTool={activeEditorTool}
         setActiveEditorTool={setActiveEditorTool}
+        selectedPaletteAsset={selectedPaletteAsset}
+        setSelectedPaletteAsset={setSelectedPaletteAsset}
       />
     </div>
   );

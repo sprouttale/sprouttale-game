@@ -87,11 +87,13 @@ interface Props {
   onClose: () => void;
   activeEditorTool: string;
   setActiveEditorTool: (t: any) => void;
+  selectedPaletteAsset: string;
+  setSelectedPaletteAsset: (asset: string) => void;
 }
 type Tool  = "paint" | "erase" | "fill" | "picker";
 type Layer = "below" | "same" | "above";
 
-export function TerrainEditorPanel({ isOpen, onClose, activeEditorTool, setActiveEditorTool }: Props) {
+export function TerrainEditorPanel({ isOpen, onClose, activeEditorTool, setActiveEditorTool, setSelectedPaletteAsset }: Props) {
   const getLocalTool = (): Tool => {
     if (activeEditorTool === "eraser") return "erase";
     if (activeEditorTool === "fill_region") return "fill";
@@ -151,6 +153,10 @@ export function TerrainEditorPanel({ isOpen, onClose, activeEditorTool, setActiv
       const theme = activeTilesetKey.replace("wf_", "");
       assetId = `wf_${theme}_${startCol}_${startRow}_${nativeTileW}_${nativeTileH}_${isAnim ? 1 : 0}`;
     } else { assetId = `terrain_${activeTilesetKey}_${startCol}_${startRow}_${nativeTileW}_${nativeTileH}`; }
+    
+    // Sync React state in parent App Component
+    setSelectedPaletteAsset(assetId);
+
     const existing = (window as any).editorConfig ?? {};
     const isMultiTile = sel.endCol > sel.startCol || sel.endRow > sel.startRow;
     (window as any).editorConfig = { ...existing, active:true,
@@ -172,7 +178,7 @@ export function TerrainEditorPanel({ isOpen, onClose, activeEditorTool, setActiv
         animated,
       } : null,
     };
-  }, [activeTileset, activeTilesetKey, animated, layer, snapToGrid, tool, currentTileW, currentTileH, tileIsWater, tileIsSolid, tileIsClimbable]);
+  }, [activeTileset, activeTilesetKey, animated, layer, snapToGrid, tool, currentTileW, currentTileH, tileIsWater, tileIsSolid, tileIsClimbable, setSelectedPaletteAsset]);
 
   // Auto-reset animation state and grid size when switching to a non-animated tileset
   useEffect(() => {

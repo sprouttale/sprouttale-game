@@ -81,12 +81,32 @@ const CATEGORY_LABELS: Record<string, string> = {
   water:"💧 Su & Selale", terrain:"🪨 Toprak & Zemin", nature:"🌿 Doga & Bitki", rock:"⛰️ Dag & Kaya", misc:"🔧 Diger", dekor3:"🎨 Dekor 3", insaat:"🚧 İnşaat"
 };
 
-interface Props { room: any; isOpen: boolean; onClose: () => void; }
+interface Props {
+  room: any;
+  isOpen: boolean;
+  onClose: () => void;
+  activeEditorTool: string;
+  setActiveEditorTool: (t: any) => void;
+}
 type Tool  = "paint" | "erase" | "fill" | "picker";
 type Layer = "below" | "same" | "above";
 
-export function TerrainEditorPanel({ isOpen, onClose }: Props) {
-  const [tool,             setTool]             = useState<Tool>("paint");
+export function TerrainEditorPanel({ isOpen, onClose, activeEditorTool, setActiveEditorTool }: Props) {
+  const getLocalTool = (): Tool => {
+    if (activeEditorTool === "eraser") return "erase";
+    if (activeEditorTool === "fill_region") return "fill";
+    if (activeEditorTool === "pipette") return "picker";
+    return "paint";
+  };
+  const setLocalTool = (t: Tool) => {
+    if (t === "erase") setActiveEditorTool("eraser");
+    else if (t === "fill") setActiveEditorTool("fill_region");
+    else if (t === "picker") setActiveEditorTool("pipette");
+    else setActiveEditorTool("brush");
+  };
+  const tool = getLocalTool();
+  const setTool = setLocalTool;
+
   const [layer,            setLayer]            = useState<Layer>("below");
   const [activeCategory,   setActiveCategory]   = useState<string>("water");
   const [activeTilesetKey, setActiveTilesetKey] = useState<string>("wf_summer");

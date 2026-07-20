@@ -5101,6 +5101,8 @@ export default function App() {
         room={room}
         isOpen={isTerrainEditorOpen}
         onClose={() => setIsTerrainEditorOpen(false)}
+        activeEditorTool={activeEditorTool}
+        setActiveEditorTool={setActiveEditorTool}
       />
     </div>
   );

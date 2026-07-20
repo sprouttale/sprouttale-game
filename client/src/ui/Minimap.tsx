@@ -12,8 +12,8 @@ interface MinimapProps {
 export const Minimap: React.FC<MinimapProps> = ({
   room,
   sessionId,
-  worldWidth = 25000,
-  worldHeight = 25000,
+  worldWidth = 5000,
+  worldHeight = 5000,
   playerCount,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);

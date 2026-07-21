@@ -1143,6 +1143,23 @@ export class GameRoom extends Room<GameState> {
       }
     });
 
+    // Register message handler for switching active map
+    this.onMessage("switch_map", (client: Client, message: { mapId: string }) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player) return;
+
+      const targetMap = message.mapId || "world_1";
+      player.currentMap = targetMap;
+      
+      // Spawn at the center of the selected map
+      const activeWorldW = targetMap === "world_2" ? 2000 : WORLD_WIDTH;
+      const activeWorldH = targetMap === "world_2" ? 2000 : WORLD_HEIGHT;
+      player.x = activeWorldW / 2;
+      player.y = activeWorldH / 2;
+      
+      console.log(`[GameRoom] Player ${player.name} switched active map manually to ${targetMap} at (${player.x}, ${player.y})`);
+    });
+
     // Start the authoritative simulation loop at 60Hz.
     // setInterval precision is ~1ms; for production we'd use a high-res timer
     // or colyseus' built-in clock, but this is perfect for the MVP.

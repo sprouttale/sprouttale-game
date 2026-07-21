@@ -4391,10 +4391,15 @@ export class GameScene extends Phaser.Scene {
     if (!sprite) return;
 
     if (sessionId === this.localSessionId) {
+      if (data.currentMap && data.currentMap !== this.currentMapId) {
+        this.switchMap(data.currentMap);
+      }
       sprite.container.setPosition(data.x, data.y);
       this.registry.set("localX", Math.round(data.x));
       this.registry.set("localY", Math.round(data.y));
     } else {
+      const remoteMap = data.currentMap || "world_1";
+      sprite.container.setVisible(remoteMap === this.currentMapId);
       sprite.targetX = data.x;
       sprite.targetY = data.y;
     }

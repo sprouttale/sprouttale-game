@@ -4839,6 +4839,7 @@ export class GameScene extends Phaser.Scene {
       obj.assetId.startsWith("house_") || 
       obj.assetId.startsWith("indoor_") ||
       obj.assetId.startsWith("decor2_") ||
+      obj.assetId.startsWith("yon_") ||
       [
         'construction_area',
         'newsstand',
@@ -5020,7 +5021,9 @@ export class GameScene extends Phaser.Scene {
       } else if (obj.triggerType === "teleport") {
         color = 0x1e90ff;
       }
-      (sprite as Phaser.GameObjects.Rectangle).setFillStyle(color);
+      if (typeof (sprite as any).setFillStyle === "function") {
+        (sprite as Phaser.GameObjects.Rectangle).setFillStyle(color);
+      }
     }
 
     this.belowPlayerGroup.remove(sprite);

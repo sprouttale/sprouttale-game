@@ -74,8 +74,8 @@ export const Minimap: React.FC<MinimapProps> = ({
       // Get current player position and map
       const myPlayer = room.state.players?.get ? room.state.players.get(sessionId) : null;
       const myMap = myPlayer?.currentMap || "world_1";
-      const activeWorldW = (myMap === "world_4" || myMap === "world_5" || myMap === "world_6") ? 1500 : (myMap === "world_1" ? 1500 : 2000);
-      const activeWorldH = (myMap === "world_4" || myMap === "world_5" || myMap === "world_6") ? 1500 : (myMap === "world_1" ? 2500 : 2000);
+      const activeWorldW = (myMap === "world_4" || myMap === "world_5" || myMap === "world_6" || myMap === "world_7") ? 1500 : (myMap === "world_1" ? 1500 : 2000);
+      const activeWorldH = (myMap === "world_4" || myMap === "world_5" || myMap === "world_6" || myMap === "world_7") ? 1500 : (myMap === "world_1" ? 2500 : 2000);
 
       let myX = activeWorldW / 2;
       let myY = activeWorldH / 2;
@@ -321,6 +321,7 @@ export const Minimap: React.FC<MinimapProps> = ({
         <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
           🗺️ {(() => {
             const p = room?.state?.players?.get ? room.state.players.get(sessionId) : null;
+            if (p?.currentMap === "world_7") return "HARİTA 7";
             if (p?.currentMap === "world_6") return "HARİTA 6";
             if (p?.currentMap === "world_5") return "HARİTA 5";
             if (p?.currentMap === "world_4") return "HARİTA 4";

@@ -171,6 +171,7 @@ interface RemotePlayerData {
   petY?: number;
   petDirection?: string;
   petAction?: string;
+  currentMap?: string;
   onChange?: (callback: () => void) => void;
 }
 
@@ -245,6 +246,7 @@ export class GameScene extends Phaser.Scene {
   private localSprite: PlayerSprite | null = null;
   private sceneReady = false;
   private pendingSpawns: Array<{ data: RemotePlayerData; sessionId: string }> = [];
+  public currentMapId: string = "world_1";
 
   // ---- Graphics layers -----------------------------------------------------
   private groundLayer!: Phaser.GameObjects.Graphics;
@@ -4028,26 +4030,73 @@ export class GameScene extends Phaser.Scene {
   // -------------------------------------------------------------------------
   // Ground rendering
   // -------------------------------------------------------------------------
-  private drawGround(): void {
+  private drawGround(w?: number, h?: number): void {
+    const mapW = w ?? (this.currentMapId === "world_2" ? 2000 : WORLD_WIDTH);
+    const mapH = h ?? (this.currentMapId === "world_2" ? 2000 : WORLD_HEIGHT);
+
+    if (this.groundLayer) {
+      this.groundLayer.destroy();
+    }
+
     this.groundLayer = this.add.graphics();
     this.groundLayer.fillStyle(0x0d2918, 1);
-    this.groundLayer.fillRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+    this.groundLayer.fillRect(0, 0, mapW, mapH);
     this.groundLayer.lineStyle(1, 0x1a472a, 0.4);
 
     this.groundLayer.beginPath();
-    for (let x = 0; x <= WORLD_WIDTH; x += GRID_SIZE * 2) {
+    for (let x = 0; x <= mapW; x += GRID_SIZE * 2) {
       this.groundLayer.moveTo(x, 0);
-      this.groundLayer.lineTo(x, WORLD_HEIGHT);
+      this.groundLayer.lineTo(x, mapH);
     }
-    for (let y = 0; y <= WORLD_HEIGHT; y += GRID_SIZE * 2) {
+    for (let y = 0; y <= mapH; y += GRID_SIZE * 2) {
       this.groundLayer.moveTo(0, y);
-      this.groundLayer.lineTo(WORLD_WIDTH, y);
+      this.groundLayer.lineTo(mapW, y);
     }
     this.groundLayer.strokePath();
 
     this.groundLayer.lineStyle(3, 0x52b788, 0.8);
-    this.groundLayer.strokeRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+    this.groundLayer.strokeRect(0, 0, mapW, mapH);
     this.groundLayer.setDepth(0);
+  }
+
+  public switchMap(mapId: string): void {
+    this.currentMapId = mapId || "world_1";
+    const mapW = this.currentMapId === "world_2" ? 2000 : WORLD_WIDTH;
+    const mapH = this.currentMapId === "world_2" ? 2000 : WORLD_HEIGHT;
+
+    this.physics.world.setBounds(0, 0, mapW, mapH);
+    this.cameras.main.setBounds(0, 0, mapW, mapH);
+    this.drawGround(mapW, mapH);
+
+    // Update map objects visibility based on active map
+    if (this.room?.state?.mapObjects) {
+      this.room.state.mapObjects.forEach((obj: any, key: string) => {
+        const sprite = this.placedObjectSprites.get(key);
+        if (sprite) {
+          const objMap = obj.mapId || "world_1";
+          sprite.setVisible(objMap === this.currentMapId);
+        }
+      });
+    }
+
+    // Update remote players visibility
+    if (this.room?.state?.players) {
+      this.room.state.players.forEach((player: any, sessionId: string) => {
+        if (sessionId !== this.localSessionId) {
+          const pSprite = this.playerSprites.get(sessionId);
+          if (pSprite && pSprite.container) {
+            const pMap = player.currentMap || "world_1";
+            pSprite.container.setVisible(pMap === this.currentMapId);
+          }
+        }
+      });
+    }
+
+    window.dispatchEvent(new CustomEvent("map_switched", {
+      detail: { mapId: this.currentMapId, width: mapW, height: mapH }
+    }));
+
+    console.log(`[GameScene] 🗺️ Switched map view to ${this.currentMapId} (${mapW}x${mapH}px)`);
   }
 
   // -------------------------------------------------------------------------
@@ -4301,9 +4350,16 @@ export class GameScene extends Phaser.Scene {
     this.playerSprites.set(sessionId, sprite);
 
     if (isLocal) {
+      if (data.currentMap && data.currentMap !== this.currentMapId) {
+        this.switchMap(data.currentMap);
+      }
       this.localSprite = sprite;
       // Use Phaser's built-in startFollow — handles zoom, bounds, and smooth lerp automatically
       this.cameras.main.startFollow(sprite.container, true, 0.1, 0.1);
+    } else {
+      // Hide remote player if they are on a different map
+      const remoteMap = data.currentMap || "world_1";
+      container.setVisible(remoteMap === this.currentMapId);
     }
   }
 
@@ -4763,6 +4819,10 @@ export class GameScene extends Phaser.Scene {
     (sprite as any).isSolid = obj.isSolid;
     (sprite as any).depthLayer = obj.depthLayer;
     (sprite as any).triggerType = obj.triggerType;
+
+    // Set initial visibility based on active map
+    const objMap = obj.mapId || "world_1";
+    sprite.setVisible(objMap === this.currentMapId);
     (sprite as any).triggerTargetX = obj.triggerTargetX;
     (sprite as any).triggerTargetY = obj.triggerTargetY;
     (sprite as any).tileX = obj.tileX;
@@ -5132,6 +5192,7 @@ private tryPlaceObjectAt(x: number, y: number): void {
           const objData = {
             id: objId,
             assetId,
+            mapId: this.currentMapId,
             x: tileX,
             y: tileY,
             scaleX,
@@ -5188,6 +5249,7 @@ private tryPlaceObjectAt(x: number, y: number): void {
     const objData = {
       id: objId,
       assetId: config.selectedAsset,
+      mapId: this.currentMapId,
       x: x,
       y: y,
       scaleX: scaleX,

@@ -1001,6 +1001,7 @@ export class GameRoom extends Room<GameState> {
       obj.isWater = Boolean(message.isWater);
       obj.isClimbable = Boolean(message.isClimbable);
       obj.depthLayer = String(message.depthLayer || "same");
+      obj.mapId = String(message.mapId || player.currentMap || "world_1");
       obj.triggerType = String(message.triggerType || "none");
       obj.triggerTargetX = Number(message.triggerTargetX || 0);
       obj.triggerTargetY = Number(message.triggerTargetY || 0);
@@ -1477,10 +1478,28 @@ export class GameRoom extends Room<GameState> {
       // Update schema isRunning flag so clients can play run animations
       player.isRunning = Boolean(input.run) && (vx !== 0 || vy !== 0);
 
-      // Clamp to world bounds (half the player size ≈ 16px)
-      const HALF_SIZE = 16;
-      player.x = Math.max(HALF_SIZE, Math.min(WORLD_WIDTH  - HALF_SIZE, player.x));
-      player.y = Math.max(HALF_SIZE, Math.min(WORLD_HEIGHT - HALF_SIZE, player.y));
+      // --- Map Transition & Bounds Clamping ---
+      const activeMap = player.currentMap || "world_1";
+      const activeWorldW = activeMap === "world_2" ? 2000 : WORLD_WIDTH;
+      const activeWorldH = activeMap === "world_2" ? 2000 : WORLD_HEIGHT;
+
+      // 1. Walk to left edge of World 1 (near left arrows) -> transition to right edge of World 2
+      if (activeMap === "world_1" && player.x <= 25) {
+        player.currentMap = "world_2";
+        player.x = 1960;
+        console.log(`[GameRoom] 🗺️ Player ${player.name} transitioned from world_1 to world_2 at (${player.x}, ${player.y})`);
+      }
+      // 2. Walk to right edge of World 2 -> transition to left edge of World 1
+      else if (activeMap === "world_2" && player.x >= 1975) {
+        player.currentMap = "world_1";
+        player.x = 40;
+        console.log(`[GameRoom] 🗺️ Player ${player.name} transitioned from world_2 to world_1 at (${player.x}, ${player.y})`);
+      } else {
+        // Clamp to active map bounds (half the player size ≈ 16px)
+        const HALF_SIZE = 16;
+        player.x = Math.max(HALF_SIZE, Math.min(activeWorldW - HALF_SIZE, player.x));
+        player.y = Math.max(HALF_SIZE, Math.min(activeWorldH - HALF_SIZE, player.y));
+      }
 
       // --- Authoritative Pet Companion Behavior ---
       if (player.petType) {
@@ -1974,6 +1993,7 @@ export class GameRoom extends Room<GameState> {
     this.state.mapObjects.forEach((obj) => {
       objects.push({
         id: obj.id, assetId: obj.assetId,
+        mapId: obj.mapId || "world_1",
         x: obj.x, y: obj.y,
         scaleX: obj.scaleX, scaleY: obj.scaleY,
         rotation: obj.rotation, flipX: obj.flipX, flipY: obj.flipY,
@@ -1992,11 +2012,12 @@ export class GameRoom extends Room<GameState> {
   }
 
   /** Load serialized objects into game state */
-  private deserializeMap(objects: any[]): void {
+  private deserializeMap(objects: any[], defaultMapId: string = "world_1"): void {
     objects.forEach((o: any) => {
       const obj = new MapObject();
       obj.id            = o.id || `obj_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
       obj.assetId       = o.assetId || "test_block";
+      obj.mapId         = String(o.mapId || defaultMapId);
       obj.x             = Number(o.x || 0);
       obj.y             = Number(o.y || 0);
       obj.scaleX        = Number(o.scaleX !== undefined ? o.scaleX : 1);
@@ -2034,6 +2055,11 @@ export class GameRoom extends Room<GameState> {
     try {
       const filePath = path.join(process.cwd(), "map_save.json");
       fs.writeFileSync(filePath, JSON.stringify(this.serializeMap(), null, 2), "utf8");
+
+      // Save world_2 objects separately to world2_save.json
+      const world2Path = path.join(process.cwd(), "_mapdata", "world2_save.json");
+      const world2Objs = this.serializeMap().filter(o => o.mapId === "world_2");
+      fs.writeFileSync(world2Path, JSON.stringify(world2Objs, null, 2), "utf8");
     } catch (err) {
       console.error("[GameRoom] Error saving map to disk:", err);
     }
@@ -2118,9 +2144,23 @@ export class GameRoom extends Room<GameState> {
       }
     }
 
-    // ── Local file missing — fetch from GitHub ─────────
-    console.log("[GameRoom] 🔄 No local map found, fetching from GitHub…");
-    this.fetchMapFromGitHub();
+    // Also check for world2_save.json
+    const w2Candidates = [
+      path.join(process.cwd(), "_mapdata", "world2_save.json"),
+      path.resolve(__dirname, "..", "..", "..", "_mapdata", "world2_save.json"),
+    ];
+    for (const c of w2Candidates) {
+      if (fs.existsSync(c)) {
+        try {
+          const raw = fs.readFileSync(c, "utf8");
+          const objects = JSON.parse(raw);
+          if (Array.isArray(objects) && objects.length > 0) {
+            this.deserializeMap(objects, "world_2");
+            console.log(`[GameRoom] ✅ Loaded ${objects.length} world_2 objects from ${c}`);
+          }
+        } catch {}
+      }
+    }
   }
 
   /** Fetch the current SHA of the file (needed for updates) */

@@ -111,6 +111,10 @@ export class PlayerState extends Schema {
 
   @type({ map: "int32" })
   harvests = new MapSchema<number>();
+
+  /** Current map ID e.g. "world_1" (1500x2500) or "world_2" (2000x2000) */
+  @type("string")
+  currentMap: string = "world_1";
 }
 
 // ---------------------------------------------------------------------------
@@ -122,6 +126,10 @@ export class MapObject extends Schema {
 
   @type("string")
   assetId: string = "";
+
+  /** Map ID this object belongs to ("world_1" or "world_2") */
+  @type("string")
+  mapId: string = "world_1";
 
   @type("float32")
   x: number = 0;

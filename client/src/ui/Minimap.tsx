@@ -71,10 +71,14 @@ export const Minimap: React.FC<MinimapProps> = ({
         return;
       }
 
-      // Get current player position
-      let myX = worldWidth / 2;
-      let myY = worldHeight / 2;
+      // Get current player position and map
       const myPlayer = room.state.players?.get ? room.state.players.get(sessionId) : null;
+      const myMap = myPlayer?.currentMap || "world_1";
+      const activeWorldW = myMap === "world_2" ? 2000 : 1500;
+      const activeWorldH = myMap === "world_2" ? 2000 : 2500;
+
+      let myX = activeWorldW / 2;
+      let myY = activeWorldH / 2;
       if (myPlayer) {
         myX = myPlayer.x;
         myY = myPlayer.y;
@@ -82,12 +86,10 @@ export const Minimap: React.FC<MinimapProps> = ({
       }
 
       // Determine view range depending on mode
-      // mode == 'world': entire 50000x50000
-      // mode == 'radar': 4000x4000 centered on player
       let viewMinX = 0;
       let viewMinY = 0;
-      let viewWidth = worldWidth;
-      let viewHeight = worldHeight;
+      let viewWidth = activeWorldW;
+      let viewHeight = activeWorldH;
 
       if (mode === "radar") {
         const radarSize = 4000;
@@ -311,7 +313,10 @@ export const Minimap: React.FC<MinimapProps> = ({
         }}
       >
         <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-          🗺️ HARİTA
+          🗺️ {(() => {
+            const p = room?.state?.players?.get ? room.state.players.get(sessionId) : null;
+            return p?.currentMap === "world_2" ? "HARİTA 2" : "HARİTA 1";
+          })()}
           {playerCount !== undefined && (
             <span style={{ fontSize: "6.5px", color: "#2ed573", marginLeft: "2px" }}>
               ● {playerCount}

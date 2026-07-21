@@ -2755,6 +2755,27 @@ export default function App() {
             </button>
           </div>
 
+          {/* Active Map Selector / Indicator */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(0,184,217,0.1)", border: "1px solid rgba(0,184,217,0.3)", borderRadius: "6px", padding: "6px 10px" }}>
+            <span style={{ fontSize: "9px", color: "#00d2d3", fontWeight: "bold" }}>
+              🗺️ {(() => {
+                const p = (room && room.state && room.state.players) ? room.state.players.get(room.sessionId) : null;
+                return p?.currentMap === "world_2" ? "HARİTA 2 (2000×2000 px)" : "HARİTA 1 (1500×2500 px)";
+              })()}
+            </span>
+            <button
+              onClick={() => {
+                const p = (room && room.state && room.state.players) ? room.state.players.get(room.sessionId) : null;
+                const nextMap = p?.currentMap === "world_2" ? "world_1" : "world_2";
+                if (room) room.send("switch_map", { mapId: nextMap });
+              }}
+              title="Diğer haritaya geç"
+              style={{ background: "#00d2d3", border: "none", color: "#0d1220", fontWeight: "bold", fontSize: "9px", borderRadius: "4px", padding: "3px 8px", cursor: "pointer" }}
+            >
+              🔄 Değiştir
+            </button>
+          </div>
+
           {/* Map Operations (Save/Load) */}
           <div style={{ borderBottom: "1px solid rgba(255,255,255,0.1)", paddingBottom: "12px" }}>
             <div style={{ fontSize: "11px", fontWeight: "bold", marginBottom: "6px", color: "#a4b0be" }}>HARİTA DOSYALARI</div>

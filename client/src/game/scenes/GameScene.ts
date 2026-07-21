@@ -2652,6 +2652,9 @@ export class GameScene extends Phaser.Scene {
       // Erasing continuously when dragging/holding mouse down
       if (pointer.isDown && config.tool === "eraser") {
         this.room.state.mapObjects.forEach((obj: any) => {
+          const objMap = obj.mapId || "world_1";
+          if (objMap !== this.currentMapId) return;
+
           if (Math.round(obj.x) === Math.round(targetX) && Math.round(obj.y) === Math.round(targetY) && obj.depthLayer === config.depthLayer) {
             window.dispatchEvent(new CustomEvent("editor_action_performed", {
               detail: { type: "delete", id: obj.id, data: { ...obj } }
@@ -2737,6 +2740,9 @@ export class GameScene extends Phaser.Scene {
           let closestObj: any = null;
           let closestDist = 32;
           this.room.state.mapObjects.forEach((obj: any) => {
+            const objMap = obj.mapId || "world_1";
+            if (objMap !== this.currentMapId) return;
+
             if (obj.assetId && obj.assetId.startsWith("spawn_")) {
               const dist = Phaser.Math.Distance.Between(targetX, targetY, obj.x, obj.y);
               if (dist < closestDist) {
@@ -2774,6 +2780,9 @@ export class GameScene extends Phaser.Scene {
           let closestObj: any = null;
           let closestDist = 32; // Allow up to 32px click distance to spawner center
           this.room.state.mapObjects.forEach((obj: any) => {
+            const objMap = obj.mapId || "world_1";
+            if (objMap !== this.currentMapId) return;
+
             if (obj.assetId && obj.assetId.startsWith("spawn_")) {
               const dist = Phaser.Math.Distance.Between(targetX, targetY, obj.x, obj.y);
               if (dist < closestDist) {
@@ -2999,6 +3008,9 @@ export class GameScene extends Phaser.Scene {
     const editorConfig = (window as any).editorConfig;
     if (editorConfig && editorConfig.active && this.room && this.room.state) {
       this.room.state.mapObjects.forEach((obj: any) => {
+        const objMap = obj.mapId || "world_1";
+        if (objMap !== this.currentMapId) return;
+
         const objW = 32 * (obj.scaleX || 1);
         const objH = 32 * (obj.scaleY || 1);
 
@@ -4115,6 +4127,18 @@ export class GameScene extends Phaser.Scene {
       });
     }
 
+    // Update enemies visibility
+    if (this.room?.state?.enemies) {
+      this.room.state.enemies.forEach((enemy: any, id: string) => {
+        const eSprite = this.enemySprites.get(id);
+        if (eSprite && eSprite.container) {
+          const spawner = this.room.state.mapObjects.get(id.replace("enemy_", ""));
+          const eMap = spawner ? (spawner.mapId || "world_1") : "world_1";
+          eSprite.container.setVisible(eMap === this.currentMapId && enemy.action !== "dead");
+        }
+      });
+    }
+
     window.dispatchEvent(new CustomEvent("map_switched", {
       detail: { mapId: this.currentMapId, width: mapW, height: mapH }
     }));
@@ -5207,6 +5231,9 @@ private tryPlaceObjectAt(x: number, y: number): void {
           // Stack tiles: only skip if the exact same asset already exists here
           let skip = false;
           this.room.state.mapObjects.forEach((obj: any) => {
+            const objMap = obj.mapId || "world_1";
+            if (objMap !== this.currentMapId) return;
+
             if (Math.round(obj.x) === Math.round(tileX) &&
                 Math.round(obj.y) === Math.round(tileY) &&
                 obj.depthLayer === config.depthLayer &&
@@ -5260,6 +5287,9 @@ private tryPlaceObjectAt(x: number, y: number): void {
     let skip = false;
     const finalDepthLayer = (config.selectedAsset === "tilled_soil_dry" || config.selectedAsset === "tilled_soil_wet") ? "below" : config.depthLayer;
     this.room.state.mapObjects.forEach((obj: any) => {
+      const objMap = obj.mapId || "world_1";
+      if (objMap !== this.currentMapId) return;
+
       if (Math.round(obj.x) === Math.round(x) && Math.round(obj.y) === Math.round(y) && obj.depthLayer === finalDepthLayer) {
         if (obj.assetId === config.selectedAsset) {
           skip = true;
@@ -5503,6 +5533,8 @@ private tryPlaceObjectAt(x: number, y: number): void {
     if (enemyData.type && enemyData.type.startsWith("animal_")) {
       const spawner = this.room.state.mapObjects.get(id.replace("enemy_", ""));
       if (spawner) {
+        const spawnerMap = spawner.mapId || "world_1";
+        enemyData.container.setVisible(spawnerMap === this.currentMapId && data.action !== "dead");
         enemyData.sprite.setScale(spawner.scaleX, spawner.scaleY);
       }
     }

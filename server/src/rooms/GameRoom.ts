@@ -2077,12 +2077,13 @@ export class GameRoom extends Room<GameState> {
   }
 
   /** Save map locally to disk immediately */
+  /** Save map locally to disk immediately */
   private saveMapToDisk(): void {
     try {
-      const filePath = path.join(process.cwd(), "map_save.json");
-      fs.writeFileSync(filePath, JSON.stringify(this.serializeMap(), null, 2), "utf8");
+      const world1Path = path.join(process.cwd(), "map_save.json");
+      const world1Objs = this.serializeMap().filter(o => (o.mapId || "world_1") === "world_1");
+      fs.writeFileSync(world1Path, JSON.stringify(world1Objs, null, 2), "utf8");
 
-      // Save world_2 objects separately to world2_save.json
       const world2Path = path.join(process.cwd(), "_mapdata", "world2_save.json");
       const world2Objs = this.serializeMap().filter(o => o.mapId === "world_2");
       fs.writeFileSync(world2Path, JSON.stringify(world2Objs, null, 2), "utf8");
@@ -2141,52 +2142,53 @@ export class GameRoom extends Room<GameState> {
 
   /** On startup: load from local disk (map_save.json or _mapdata/world_save.json); if missing, fetch from GitHub */
   private loadMapFromDisk(): void {
-    // Try multiple candidate locations to handle different CWD on Render vs local
-    const candidates = [
+    // 1. Load world_1 map data
+    const candidates1 = [
       path.join(process.cwd(), "map_save.json"),
       path.join(process.cwd(), "_mapdata", "world_save.json"),
-      // __dirname in compiled dist is: server/dist/rooms → go up 3 levels to project root
       path.resolve(__dirname, "..", "..", "..", "_mapdata", "world_save.json"),
-      // Extra level up in case Render nests differently
       path.resolve(__dirname, "..", "..", "..", "..", "_mapdata", "world_save.json"),
     ];
 
-    for (const candidate of candidates) {
+    for (const candidate of candidates1) {
       if (fs.existsSync(candidate)) {
         try {
           const raw = fs.readFileSync(candidate, "utf8");
           const objects = JSON.parse(raw);
           if (Array.isArray(objects) && objects.length > 0) {
-            this.deserializeMap(objects);
-            console.log(`[GameRoom] ✅ Loaded ${objects.length} objects from ${candidate}`);
-            this.fetchGitHubFileSha();
-            return;
+            this.deserializeMap(objects, "world_1");
+            console.log(`[GameRoom] ✅ Loaded ${objects.length} world_1 objects from ${candidate}`);
+            break;
           }
         } catch (err) {
           console.error(`[GameRoom] Error reading ${candidate}:`, err);
         }
-      } else {
-        console.log(`[GameRoom] ⏭ Not found: ${candidate}`);
       }
     }
 
-    // Also check for world2_save.json
-    const w2Candidates = [
+    // 2. Load world_2 map data
+    const candidates2 = [
       path.join(process.cwd(), "_mapdata", "world2_save.json"),
       path.resolve(__dirname, "..", "..", "..", "_mapdata", "world2_save.json"),
+      path.resolve(__dirname, "..", "..", "..", "..", "_mapdata", "world2_save.json"),
     ];
-    for (const c of w2Candidates) {
-      if (fs.existsSync(c)) {
+    for (const candidate of candidates2) {
+      if (fs.existsSync(candidate)) {
         try {
-          const raw = fs.readFileSync(c, "utf8");
+          const raw = fs.readFileSync(candidate, "utf8");
           const objects = JSON.parse(raw);
           if (Array.isArray(objects) && objects.length > 0) {
             this.deserializeMap(objects, "world_2");
-            console.log(`[GameRoom] ✅ Loaded ${objects.length} world_2 objects from ${c}`);
+            console.log(`[GameRoom] ✅ Loaded ${objects.length} world_2 objects from ${candidate}`);
+            break;
           }
-        } catch {}
+        } catch (err) {
+          console.error(`[GameRoom] Error reading ${candidate}:`, err);
+        }
       }
     }
+
+    this.fetchGitHubFileSha();
   }
 
   /** Fetch the current SHA of the file (needed for updates) */

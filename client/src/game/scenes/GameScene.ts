@@ -4043,17 +4043,20 @@ export class GameScene extends Phaser.Scene {
   // Ground rendering
   // -------------------------------------------------------------------------
   private drawGround(w?: number, h?: number): void {
-    const isMap2 = this.currentMapId === "world_2";
-    const mapW = w ?? (isMap2 ? 2000 : WORLD_WIDTH);
-    const mapH = h ?? (isMap2 ? 2000 : WORLD_HEIGHT);
+    const isWorld1 = this.currentMapId === "world_1";
+    const isWorld2 = this.currentMapId === "world_2";
+    const isWorld3 = this.currentMapId === "world_3";
+
+    const mapW = w ?? (isWorld1 ? WORLD_WIDTH : 2000);
+    const mapH = h ?? (isWorld1 ? WORLD_HEIGHT : 2000);
 
     if (this.groundLayer) {
       this.groundLayer.destroy();
     }
 
-    const bgFill = isMap2 ? 0x0f2229 : 0x0d2918;
-    const gridColor = isMap2 ? 0x18444a : 0x1a472a;
-    const borderColor = isMap2 ? 0x00d2d3 : 0x52b788;
+    const bgFill = isWorld3 ? 0x181328 : (isWorld2 ? 0x0f2229 : 0x0d2918);
+    const gridColor = isWorld3 ? 0x2a224a : (isWorld2 ? 0x18444a : 0x1a472a);
+    const borderColor = isWorld3 ? 0x9c88ff : (isWorld2 ? 0x00d2d3 : 0x52b788);
 
     this.groundLayer = this.add.graphics();
     this.groundLayer.fillStyle(bgFill, 1);
@@ -4074,10 +4077,23 @@ export class GameScene extends Phaser.Scene {
     this.groundLayer.lineStyle(4, borderColor, 0.9);
     this.groundLayer.strokeRect(0, 0, mapW, mapH);
 
-    // Glowing border on the map transition edge
-    if (isMap2) {
-      // Harita 2: right edge glows cyan (transition back to Harita 1)
+    // Glowing border on the map transition edges
+    if (isWorld2) {
+      // Harita 2: right edge glows cyan (to Harita 1), left edge glows purple (to Harita 3)
       this.groundLayer.lineStyle(8, 0x00d2d3, 0.8);
+      this.groundLayer.beginPath();
+      this.groundLayer.moveTo(mapW - 4, 0);
+      this.groundLayer.lineTo(mapW - 4, mapH);
+      this.groundLayer.strokePath();
+
+      this.groundLayer.lineStyle(8, 0x9c88ff, 0.8);
+      this.groundLayer.beginPath();
+      this.groundLayer.moveTo(4, 0);
+      this.groundLayer.lineTo(4, mapH);
+      this.groundLayer.strokePath();
+    } else if (isWorld3) {
+      // Harita 3: right edge glows purple (back to Harita 2)
+      this.groundLayer.lineStyle(8, 0x9c88ff, 0.8);
       this.groundLayer.beginPath();
       this.groundLayer.moveTo(mapW - 4, 0);
       this.groundLayer.lineTo(mapW - 4, mapH);
@@ -4096,8 +4112,9 @@ export class GameScene extends Phaser.Scene {
 
   public switchMap(mapId: string): void {
     this.currentMapId = mapId || "world_1";
-    const mapW = this.currentMapId === "world_2" ? 2000 : WORLD_WIDTH;
-    const mapH = this.currentMapId === "world_2" ? 2000 : WORLD_HEIGHT;
+    const isWorld1 = this.currentMapId === "world_1";
+    const mapW = isWorld1 ? WORLD_WIDTH : 2000;
+    const mapH = isWorld1 ? WORLD_HEIGHT : 2000;
 
     this.physics.world.setBounds(0, 0, mapW, mapH);
     this.cameras.main.setBounds(0, 0, mapW, mapH);

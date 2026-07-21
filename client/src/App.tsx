@@ -2760,13 +2760,16 @@ export default function App() {
             <span style={{ fontSize: "9px", color: "#00d2d3", fontWeight: "bold" }}>
               🗺️ {(() => {
                 const p = (room && room.state && room.state.players) ? room.state.players.get(room.sessionId) : null;
-                return p?.currentMap === "world_2" ? "HARİTA 2 (2000×2000 px)" : "HARİTA 1 (1500×2500 px)";
+                if (p?.currentMap === "world_3") return "HARİTA 3 (2000×2000 px)";
+                if (p?.currentMap === "world_2") return "HARİTA 2 (2000×2000 px)";
+                return "HARİTA 1 (1500×2500 px)";
               })()}
             </span>
             <button
               onClick={() => {
                 const p = (room && room.state && room.state.players) ? room.state.players.get(room.sessionId) : null;
-                const nextMap = p?.currentMap === "world_2" ? "world_1" : "world_2";
+                const cur = p?.currentMap || "world_1";
+                const nextMap = cur === "world_1" ? "world_2" : (cur === "world_2" ? "world_3" : "world_1");
                 if (room) room.send("switch_map", { mapId: nextMap });
               }}
               title="Diğer haritaya geç"

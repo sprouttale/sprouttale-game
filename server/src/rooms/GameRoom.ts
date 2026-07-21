@@ -1468,55 +1468,64 @@ export class GameRoom extends Room<GameState> {
         if (collidesY) {
           player.y = oldY;
         }
-
-        // 3. Check teleport triggers intersections
-        this.state.mapObjects.forEach((obj) => {
-          if (obj.triggerType === "teleport") {
-            const objHalfW = (32 * obj.scaleX) / 2;
-            const objHalfH = (32 * obj.scaleY) / 2;
-            const playerHalf = 12;
-
-            if (
-              player.x + playerHalf > obj.x - objHalfW &&
-              player.x - playerHalf < obj.x + objHalfW &&
-              player.y + playerHalf > obj.y - objHalfH &&
-              player.y - playerHalf < obj.y + objHalfH
-            ) {
-              player.x = obj.triggerTargetX;
-              player.y = obj.triggerTargetY;
-              console.log(`[GameRoom] Teleported player ${player.name} to (${player.x}, ${player.y})`);
-            }
-          }
-
-
-        });
       }
 
       // Update schema isRunning flag so clients can play run animations
       player.isRunning = Boolean(input.run) && (vx !== 0 || vy !== 0);
 
-      // --- Map Transition & Bounds Clamping ---
+      // --- Map Clamping & Arrow/Teleport Transition ---
       const activeMap = player.currentMap || "world_1";
       const activeWorldW = activeMap === "world_2" ? 2000 : WORLD_WIDTH;
       const activeWorldH = activeMap === "world_2" ? 2000 : WORLD_HEIGHT;
 
-      // 1. Walk to left edge of World 1 (near left arrows) -> transition to right edge of World 2
-      if (activeMap === "world_1" && player.x <= 25) {
-        player.currentMap = "world_2";
-        player.x = 1960;
-        console.log(`[GameRoom] 🗺️ Player ${player.name} transitioned from world_1 to world_2 at (${player.x}, ${player.y})`);
-      }
-      // 2. Walk to right edge of World 2 -> transition to left edge of World 1
-      else if (activeMap === "world_2" && player.x >= 1975) {
-        player.currentMap = "world_1";
-        player.x = 40;
-        console.log(`[GameRoom] 🗺️ Player ${player.name} transitioned from world_2 to world_1 at (${player.x}, ${player.y})`);
-      } else {
-        // Clamp to active map bounds (half the player size ≈ 16px)
-        const HALF_SIZE = 16;
-        player.x = Math.max(HALF_SIZE, Math.min(activeWorldW - HALF_SIZE, player.x));
-        player.y = Math.max(HALF_SIZE, Math.min(activeWorldH - HALF_SIZE, player.y));
-      }
+      // Always clamp player position to current map boundaries (cannot pass empty walls)
+      const HALF_SIZE = 16;
+      player.x = Math.max(HALF_SIZE, Math.min(activeWorldW - HALF_SIZE, player.x));
+      player.y = Math.max(HALF_SIZE, Math.min(activeWorldH - HALF_SIZE, player.y));
+
+      // Check if player steps on any Direction Arrow (yon_) or Teleport Trigger on current map
+      this.state.mapObjects.forEach((obj) => {
+        const objMap = obj.mapId || "world_1";
+        if (objMap !== activeMap) return;
+
+        const isArrow = Boolean(obj.assetId && obj.assetId.startsWith("yon_"));
+        const isTeleport = obj.triggerType === "teleport";
+
+        if (!isArrow && !isTeleport) return;
+
+        const objW = Math.max(32, (obj.solidWidth > 0 ? obj.solidWidth : 48) * (obj.scaleX || 1));
+        const objH = Math.max(32, (obj.solidHeight > 0 ? obj.solidHeight : 48) * (obj.scaleY || 1));
+        const objHalfW = objW / 2;
+        const objHalfH = objH / 2;
+        const playerHalf = 14;
+
+        const isSteppingOn = (
+          player.x + playerHalf > obj.x - objHalfW &&
+          player.x - playerHalf < obj.x + objHalfW &&
+          player.y + playerHalf > obj.y - objHalfH &&
+          player.y - playerHalf < obj.y + objHalfH
+        );
+
+        if (isSteppingOn) {
+          if (isTeleport && obj.triggerTargetX > 0 && obj.triggerTargetY > 0) {
+            player.x = obj.triggerTargetX;
+            player.y = obj.triggerTargetY;
+            console.log(`[GameRoom] 🌀 Teleported player ${player.name} to (${player.x}, ${player.y})`);
+          } else if (isArrow) {
+            if (activeMap === "world_1") {
+              player.currentMap = "world_2";
+              player.x = 1920;
+              player.y = Math.min(1950, Math.max(50, obj.y));
+              console.log(`[GameRoom] 🧭 Player ${player.name} stepped on ${obj.assetId} -> transitioned to world_2 at (${player.x}, ${player.y})`);
+            } else if (activeMap === "world_2") {
+              player.currentMap = "world_1";
+              player.x = 80;
+              player.y = Math.min(2450, Math.max(50, obj.y));
+              console.log(`[GameRoom] 🧭 Player ${player.name} stepped on ${obj.assetId} -> transitioned to world_1 at (${player.x}, ${player.y})`);
+            }
+          }
+        }
+      });
 
       // --- Authoritative Pet Companion Behavior ---
       if (player.petType) {

@@ -2760,6 +2760,7 @@ export default function App() {
             <span style={{ fontSize: "9px", color: "#00d2d3", fontWeight: "bold" }}>
               🗺️ {(() => {
                 const p = (room && room.state && room.state.players) ? room.state.players.get(room.sessionId) : null;
+                if (p?.currentMap === "world_5") return "HARİTA 5 (1250×1250 px)";
                 if (p?.currentMap === "world_4") return "HARİTA 4 (1500×1500 px)";
                 if (p?.currentMap === "world_3") return "HARİTA 3 (2000×2000 px)";
                 if (p?.currentMap === "world_2") return "HARİTA 2 (2000×2000 px)";
@@ -2770,7 +2771,7 @@ export default function App() {
               onClick={() => {
                 const p = (room && room.state && room.state.players) ? room.state.players.get(room.sessionId) : null;
                 const cur = p?.currentMap || "world_1";
-                const nextMap = cur === "world_1" ? "world_2" : (cur === "world_2" ? "world_3" : (cur === "world_3" ? "world_4" : "world_1"));
+                const nextMap = cur === "world_1" ? "world_2" : (cur === "world_2" ? "world_3" : (cur === "world_3" ? "world_4" : (cur === "world_4" ? "world_5" : "world_1")));
                 if (room) room.send("switch_map", { mapId: nextMap });
               }}
               title="Diğer haritaya geç"

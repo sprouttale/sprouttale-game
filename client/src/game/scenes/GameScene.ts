@@ -4640,16 +4640,31 @@ export class GameScene extends Phaser.Scene {
 
     sprite.setAngle(obj.rotation || 0);
 
-    // Apply Z-index depth layer — use timestamp from object ID as sub-depth so later-placed tiles
-    // always render ON TOP of earlier ones within the same layer (fixes terrain stacking order)
+    // Apply Z-index depth layer — calculate subDepth for stacking
     const _tsMatch = (obj.id || "").match(/^obj_(\d+)_/);
     const _ts = _tsMatch ? Number(_tsMatch[1]) % 1000000 : 0;
     const _subDepth = _ts / 1000000000; // tiny fraction: 0 to 0.001
 
-    if (obj.depthLayer === "below") {
-      sprite.setDepth(1.1 + _subDepth);
+    // Check if object is a ground / terrain tile
+    const isGroundTile = Boolean(
+      obj.assetId && (
+        obj.assetId.startsWith("terrain_") ||
+        obj.assetId.startsWith("wf_") ||
+        obj.assetId === "zemin_tileset" ||
+        obj.assetId.startsWith("tilled_soil")
+      )
+    );
+
+    // Ground tiles should always render in the "below" layer (depth ~1.1) unless explicitly "above" (for roofs/canopies)
+    let effectiveLayer = obj.depthLayer || "below";
+    if (isGroundTile && effectiveLayer === "same") {
+      effectiveLayer = "below";
+    }
+
+    if (effectiveLayer === "below") {
+      sprite.setDepth(1.1 + obj.y / 1000000 + _subDepth);
       this.belowPlayerGroup.add(sprite);
-    } else if (obj.depthLayer === "above") {
+    } else if (effectiveLayer === "above") {
       sprite.setDepth(4 + _subDepth);
       this.abovePlayerGroup.add(sprite);
     } else {

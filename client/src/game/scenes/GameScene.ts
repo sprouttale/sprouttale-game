@@ -2355,9 +2355,36 @@ export class GameScene extends Phaser.Scene {
     }
 
     // Click/Move triggers for editor
+    // Helper: returns true if the real DOM element under the pointer is a React UI panel (not the Phaser canvas)
+    const isOverHtmlUI = (px: number, py: number): boolean => {
+      const el = document.elementFromPoint(px, py);
+      if (!el) return false;
+      const canvas = this.game.canvas;
+      // If the topmost element IS the canvas, the pointer is in the game world
+      if (el === canvas) return false;
+      // If the element is inside the canvas (e.g. a Phaser DOM element) also fine
+      if (canvas.contains(el)) return false;
+      // Otherwise it's a React/HTML UI element
+      return true;
+    };
+
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
       const config = (window as any).editorConfig;
       if (!config || !config.active) {
+        this.editorPreviewRect.setVisible(false);
+        this.editorPreviewWood.setVisible(false);
+        this.editorPreviewWell.setVisible(false);
+        this.editorPreviewFountain.setVisible(false);
+        this.editorPreviewHouse.setVisible(false);
+        this.editorPreviewTree.setVisible(false);
+        this.editorPreviewTreeWater2.setVisible(false);
+        this.editorPreviewPlant.setVisible(false);
+        if (this.editorPreviewTile) this.editorPreviewTile.setVisible(false);
+        return;
+      }
+
+      // Hide preview & skip painting if mouse is over a UI panel
+      if (isOverHtmlUI(pointer.x, pointer.y)) {
         this.editorPreviewRect.setVisible(false);
         this.editorPreviewWood.setVisible(false);
         this.editorPreviewWell.setVisible(false);
@@ -2647,6 +2674,9 @@ export class GameScene extends Phaser.Scene {
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer, currentlyOver: any[]) => {
       const config = (window as any).editorConfig;
       if (!config || !config.active) return;
+
+      // Don't place/erase if the click landed on a HTML UI panel
+      if (isOverHtmlUI(pointer.x, pointer.y)) return;
 
       const worldPoint = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
       let targetX = worldPoint.x;

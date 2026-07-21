@@ -1475,8 +1475,8 @@ export class GameRoom extends Room<GameState> {
 
       // --- Map Clamping & Arrow/Teleport Transition ---
       const activeMap = player.currentMap || "world_1";
-      const activeWorldW = activeMap === "world_1" ? WORLD_WIDTH : 2000;
-      const activeWorldH = activeMap === "world_1" ? WORLD_HEIGHT : 2000;
+      const activeWorldW = activeMap === "world_4" ? 1500 : (activeMap === "world_1" ? WORLD_WIDTH : 2000);
+      const activeWorldH = activeMap === "world_4" ? 1500 : (activeMap === "world_1" ? WORLD_HEIGHT : 2000);
 
       // Always clamp player position to current map boundaries (cannot pass empty walls)
       const HALF_SIZE = 16;
@@ -1513,10 +1513,25 @@ export class GameRoom extends Room<GameState> {
             console.log(`[GameRoom] 🌀 Teleported player ${player.name} to (${player.x}, ${player.y})`);
           } else if (isArrow) {
             if (activeMap === "world_1") {
-              player.currentMap = "world_2";
-              player.x = 1920;
-              player.y = Math.min(1950, Math.max(50, obj.y));
-              console.log(`[GameRoom] 🧭 Player ${player.name} stepped on ${obj.assetId} -> transitioned to world_2 at (${player.x}, ${player.y})`);
+              if (obj.x > 750 || obj.assetId === "yon_sag") {
+                // Right side of world_1 -> transition to world_4!
+                player.currentMap = "world_4";
+                player.x = 80;
+                player.y = Math.min(1450, Math.max(50, obj.y));
+                console.log(`[GameRoom] 🧭 Player ${player.name} stepped on ${obj.assetId} -> transitioned to world_4 at (${player.x}, ${player.y})`);
+              } else {
+                // Left side of world_1 -> transition to world_2
+                player.currentMap = "world_2";
+                player.x = 1920;
+                player.y = Math.min(1950, Math.max(50, obj.y));
+                console.log(`[GameRoom] 🧭 Player ${player.name} stepped on ${obj.assetId} -> transitioned to world_2 at (${player.x}, ${player.y})`);
+              }
+            } else if (activeMap === "world_4") {
+              // Left side of world_4 -> back to world_1!
+              player.currentMap = "world_1";
+              player.x = 1420;
+              player.y = Math.min(2450, Math.max(50, obj.y));
+              console.log(`[GameRoom] 🧭 Player ${player.name} stepped on ${obj.assetId} -> transitioned to world_1 at (${player.x}, ${player.y})`);
             } else if (activeMap === "world_2") {
               if (obj.x > 1000 || obj.assetId === "yon_sag") {
                 // Right side of world_2 -> back to world_1
@@ -2112,6 +2127,10 @@ export class GameRoom extends Room<GameState> {
       const world3Path = path.join(process.cwd(), "_mapdata", "world3_save.json");
       const world3Objs = allObjects.filter(o => o.mapId === "world_3");
       fs.writeFileSync(world3Path, JSON.stringify(world3Objs, null, 2), "utf8");
+
+      const world4Path = path.join(process.cwd(), "_mapdata", "world4_save.json");
+      const world4Objs = allObjects.filter(o => o.mapId === "world_4");
+      fs.writeFileSync(world4Path, JSON.stringify(world4Objs, null, 2), "utf8");
     } catch (err) {
       console.error("[GameRoom] Error saving map to disk:", err);
     }
@@ -2232,6 +2251,31 @@ export class GameRoom extends Room<GameState> {
             if (newObjs.length > 0) {
               this.deserializeMap(newObjs, "world_3");
               console.log(`[GameRoom] ✅ Loaded ${newObjs.length} extra world_3 objects from ${candidate}`);
+            }
+            break;
+          }
+        } catch (err) {
+          console.error(`[GameRoom] Error reading ${candidate}:`, err);
+        }
+      }
+    }
+
+    // 4. Load world_4 map data if extra objects exist
+    const candidates4 = [
+      path.join(process.cwd(), "_mapdata", "world4_save.json"),
+      path.resolve(__dirname, "..", "..", "..", "_mapdata", "world4_save.json"),
+      path.resolve(__dirname, "..", "..", "..", "..", "_mapdata", "world4_save.json"),
+    ];
+    for (const candidate of candidates4) {
+      if (fs.existsSync(candidate)) {
+        try {
+          const raw = fs.readFileSync(candidate, "utf8");
+          const objects = JSON.parse(raw);
+          if (Array.isArray(objects) && objects.length > 0) {
+            const newObjs = objects.filter((o: any) => !this.state.mapObjects.has(o.id));
+            if (newObjs.length > 0) {
+              this.deserializeMap(newObjs, "world_4");
+              console.log(`[GameRoom] ✅ Loaded ${newObjs.length} extra world_4 objects from ${candidate}`);
             }
             break;
           }

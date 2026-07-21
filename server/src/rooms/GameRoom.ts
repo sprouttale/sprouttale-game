@@ -2087,28 +2087,29 @@ export class GameRoom extends Room<GameState> {
     }
   }
 
-  /** On startup: load from local disk; if missing, fetch from GitHub */
+  /** On startup: load from local disk (map_save.json or _mapdata/world_save.json); if missing, fetch from GitHub */
   private loadMapFromDisk(): void {
-    const filePath = path.join(process.cwd(), "map_save.json");
+    const primaryPath = path.join(process.cwd(), "map_save.json");
+    const backupPath  = path.join(process.cwd(), "_mapdata", "world_save.json");
 
-    if (fs.existsSync(filePath)) {
-      // ── Local file exists (first start, local dev) ──────────────────────
+    const targetPath = fs.existsSync(primaryPath) ? primaryPath : (fs.existsSync(backupPath) ? backupPath : null);
+
+    if (targetPath) {
       try {
-        const raw = fs.readFileSync(filePath, "utf8");
+        const raw = fs.readFileSync(targetPath, "utf8");
         const objects = JSON.parse(raw);
         if (Array.isArray(objects) && objects.length > 0) {
           this.deserializeMap(objects);
-          console.log(`[GameRoom] ✅ Loaded ${objects.length} objects from local map_save.json`);
-          // Also fetch the current SHA for future GitHub saves
+          console.log(`[GameRoom] ✅ Loaded ${objects.length} objects from ${targetPath}`);
           this.fetchGitHubFileSha();
           return;
         }
       } catch (err) {
-        console.error("[GameRoom] Error reading local map_save.json, trying GitHub…", err);
+        console.error("[GameRoom] Error reading local map file, trying GitHub…", err);
       }
     }
 
-    // ── Local file missing (Render redeploy) — fetch from GitHub ─────────
+    // ── Local file missing — fetch from GitHub ─────────
     console.log("[GameRoom] 🔄 Local map not found, fetching from GitHub…");
     this.fetchMapFromGitHub();
   }

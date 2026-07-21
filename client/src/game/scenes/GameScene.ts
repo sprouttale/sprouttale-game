@@ -4048,17 +4048,18 @@ export class GameScene extends Phaser.Scene {
     const isWorld3 = this.currentMapId === "world_3";
     const isWorld4 = this.currentMapId === "world_4";
     const isWorld5 = this.currentMapId === "world_5";
+    const isWorld6 = this.currentMapId === "world_6";
 
-    const mapW = w ?? ((isWorld4 || isWorld5) ? 1500 : (isWorld1 ? WORLD_WIDTH : 2000));
-    const mapH = h ?? ((isWorld4 || isWorld5) ? 1500 : (isWorld1 ? WORLD_HEIGHT : 2000));
+    const mapW = w ?? ((isWorld4 || isWorld5 || isWorld6) ? 1500 : (isWorld1 ? WORLD_WIDTH : 2000));
+    const mapH = h ?? ((isWorld4 || isWorld5 || isWorld6) ? 1500 : (isWorld1 ? WORLD_HEIGHT : 2000));
 
     if (this.groundLayer) {
       this.groundLayer.destroy();
     }
 
-    const bgFill = isWorld5 ? 0x2a0d18 : (isWorld4 ? 0x291f0d : (isWorld3 ? 0x181328 : (isWorld2 ? 0x0f2229 : 0x0d2918)));
-    const gridColor = isWorld5 ? 0x4a182a : (isWorld4 ? 0x4a3412 : (isWorld3 ? 0x2a224a : (isWorld2 ? 0x18444a : 0x1a472a)));
-    const borderColor = isWorld5 ? 0xff4757 : (isWorld4 ? 0xffa502 : (isWorld3 ? 0x9c88ff : (isWorld2 ? 0x00d2d3 : 0x52b788)));
+    const bgFill = isWorld6 ? 0x072018 : (isWorld5 ? 0x2a0d18 : (isWorld4 ? 0x291f0d : (isWorld3 ? 0x181328 : (isWorld2 ? 0x0f2229 : 0x0d2918))));
+    const gridColor = isWorld6 ? 0x114a33 : (isWorld5 ? 0x4a182a : (isWorld4 ? 0x4a3412 : (isWorld3 ? 0x2a224a : (isWorld2 ? 0x18444a : 0x1a472a))));
+    const borderColor = isWorld6 ? 0x00ff88 : (isWorld5 ? 0xff4757 : (isWorld4 ? 0xffa502 : (isWorld3 ? 0x9c88ff : (isWorld2 ? 0x00d2d3 : 0x52b788))));
 
     this.groundLayer = this.add.graphics();
     this.groundLayer.fillStyle(bgFill, 1);
@@ -4114,11 +4115,24 @@ export class GameScene extends Phaser.Scene {
       this.groundLayer.lineTo(mapW - 4, mapH);
       this.groundLayer.strokePath();
     } else if (isWorld5) {
-      // Harita 5: left edge glows crimson (back to Harita 4)
+      // Harita 5: left edge glows crimson (back to Harita 4), bottom edge glows emerald (to Harita 6)
       this.groundLayer.lineStyle(8, 0xff4757, 0.8);
       this.groundLayer.beginPath();
       this.groundLayer.moveTo(4, 0);
       this.groundLayer.lineTo(4, mapH);
+      this.groundLayer.strokePath();
+
+      this.groundLayer.lineStyle(8, 0x00ff88, 0.8);
+      this.groundLayer.beginPath();
+      this.groundLayer.moveTo(0, mapH - 4);
+      this.groundLayer.lineTo(mapW, mapH - 4);
+      this.groundLayer.strokePath();
+    } else if (isWorld6) {
+      // Harita 6: top edge glows emerald (back to Harita 5)
+      this.groundLayer.lineStyle(8, 0x00ff88, 0.8);
+      this.groundLayer.beginPath();
+      this.groundLayer.moveTo(0, 4);
+      this.groundLayer.lineTo(mapW, 4);
       this.groundLayer.strokePath();
     } else {
       // Harita 1: left edge glows emerald (to Harita 2), right edge glows amber (to Harita 4)
@@ -4143,8 +4157,9 @@ export class GameScene extends Phaser.Scene {
     const isWorld1 = this.currentMapId === "world_1";
     const isWorld4 = this.currentMapId === "world_4";
     const isWorld5 = this.currentMapId === "world_5";
-    const mapW = (isWorld4 || isWorld5) ? 1500 : (isWorld1 ? WORLD_WIDTH : 2000);
-    const mapH = (isWorld4 || isWorld5) ? 1500 : (isWorld1 ? WORLD_HEIGHT : 2000);
+    const isWorld6 = this.currentMapId === "world_6";
+    const mapW = (isWorld4 || isWorld5 || isWorld6) ? 1500 : (isWorld1 ? WORLD_WIDTH : 2000);
+    const mapH = (isWorld4 || isWorld5 || isWorld6) ? 1500 : (isWorld1 ? WORLD_HEIGHT : 2000);
 
     this.physics.world.setBounds(0, 0, mapW, mapH);
     this.cameras.main.setBounds(0, 0, mapW, mapH);

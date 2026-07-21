@@ -1383,6 +1383,13 @@ export class GameScene extends Phaser.Scene {
     this.load.image("indoor_deluxe_barn", "/assets/editor/indoor_deluxe_barn.png");
     // this.load.image("zemin_tileset", "/assets/editor/zemin_tileset.png");
 
+    // --- Yön Okları (neon arrow signs) ---
+    this.load.image("yon_asagi",  "/assets/yon/yon_asagi.png");
+    this.load.image("yon_yukari", "/assets/yon/yon_yukari.png");
+    this.load.image("yon_sag",    "/assets/yon/yon_sag.png");
+    this.load.image("yon_sol",    "/assets/yon/yon_sol.png");
+
+
     // --- Load plant and water animation spritesheets ---
     this.load.spritesheet("root_land", "/assets/su_animasyonu/Root.png", { frameWidth: 32, frameHeight: 48 });
     this.load.spritesheet("root_water_1", "/assets/su_animasyonu/Root Water 1.png", { frameWidth: 32, frameHeight: 48 });
@@ -4491,6 +4498,7 @@ export class GameScene extends Phaser.Scene {
       obj.assetId.startsWith("house_") || 
       obj.assetId.startsWith("indoor_") ||
       obj.assetId.startsWith("decor2_") ||
+      obj.assetId.startsWith("yon_") ||
       [
         'construction_area',
         'newsstand',

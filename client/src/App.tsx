@@ -548,7 +548,7 @@ export default function App() {
   const [isAnimalEditorOpen, setIsAnimalEditorOpen] = useState(false);
   const [activeEditorTool, setActiveEditorTool] = useState<"brush" | "eraser" | "select" | "solid" | "pipette" | "fill_region">("brush");
   const [selectedPaletteAsset, setSelectedPaletteAsset] = useState<string>("test_block");
-  const [editorCategory, setEditorCategory] = useState<"gif" | "dekorasyon" | "ev" | "zemin" | "indoor" | "tree" | "plant" | "mine" | "enemy" | "merchant" | "waterfall" | "box" | "trunks" | "big_old_tree" | "bushes" | "animal" | "decor2">("gif");
+  const [editorCategory, setEditorCategory] = useState<"gif" | "dekorasyon" | "ev" | "zemin" | "indoor" | "tree" | "plant" | "mine" | "enemy" | "merchant" | "waterfall" | "box" | "trunks" | "big_old_tree" | "bushes" | "animal" | "decor2" | "yon">("gif");
   const [wfTheme, setWfTheme] = useState<"summer" | "deepforest" | "fall" | "spring">("summer");
   const [wfGridSize, setWfGridSize] = useState<16 | 32>(16);
   const [wfAnimated, setWfAnimated] = useState(true);
@@ -2964,6 +2964,13 @@ export default function App() {
               >
                 🌾 Kara Dekor 2
               </button>
+              <button 
+                onClick={() => setEditorCategory("yon")}
+                className={`editor-btn-small ${editorCategory === "yon" ? "active" : ""}`}
+                style={{ fontSize: "8px", padding: "4px 8px", background: editorCategory === "yon" ? "rgba(0,184,217,0.2)" : "#2f3542", borderColor: editorCategory === "yon" ? "#00b8d9" : "#747d8c", color: editorCategory === "yon" ? "#00b8d9" : "white" }}
+              >
+                🧭 Yön Okları
+              </button>
 
             </div>
 
@@ -4154,6 +4161,44 @@ export default function App() {
                 );
               })()}
 
+              {editorCategory === "yon" && (
+                <>
+                  {[
+                    { id: "yon_yukari",  label: "Yukarı ↑",  file: "yon/yon_yukari.png"  },
+                    { id: "yon_asagi",   label: "Aşağı ↓",   file: "yon/yon_asagi.png"   },
+                    { id: "yon_sag",     label: "Sağ →",     file: "yon/yon_sag.png"     },
+                    { id: "yon_sol",     label: "Sol ←",     file: "yon/yon_sol.png"     },
+                  ].map((arrow) => (
+                    <div
+                      key={arrow.id}
+                      onClick={() => setSelectedPaletteAsset(arrow.id)}
+                      style={{
+                        minWidth: "80px",
+                        height: "85px",
+                        background: selectedPaletteAsset === arrow.id ? "rgba(0,184,217,0.2)" : "rgba(255,255,255,0.05)",
+                        border: selectedPaletteAsset === arrow.id ? "2px solid #00b8d9" : "1px solid rgba(255,255,255,0.1)",
+                        borderRadius: "6px",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        cursor: "pointer",
+                        boxSizing: "border-box",
+                        gap: "4px",
+                      }}
+                    >
+                      <div style={{ width: "48px", height: "48px", overflow: "hidden", display: "flex", justifyContent: "center", alignItems: "center", background: "rgba(0,0,0,0.3)", borderRadius: "3px" }}>
+                        <img
+                          src={`/assets/${arrow.file}`}
+                          style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
+                          alt={arrow.label}
+                        />
+                      </div>
+                      <span style={{ fontSize: "9px", color: selectedPaletteAsset === arrow.id ? "#00b8d9" : "#a4b0be" }}>{arrow.label}</span>
+                    </div>
+                  ))}
+                </>
+              )}
               {editorCategory === "bushes" && (() => {
                 const imgSrc = "/assets/tileset/Bushes.png";
                 const TILE_W = 48;

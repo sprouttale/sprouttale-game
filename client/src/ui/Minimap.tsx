@@ -109,6 +109,9 @@ export const Minimap: React.FC<MinimapProps> = ({
       if (room.state.mapObjects) {
         room.state.mapObjects.forEach((obj: any) => {
           if (!obj) return;
+          const objMap = obj.mapId || "world_1";
+          if (objMap !== myMap) return; // Only draw objects belonging to current map
+
           const pos = worldToMini(obj.x, obj.y);
 
           // Skip drawing if outside radar view
@@ -163,6 +166,9 @@ export const Minimap: React.FC<MinimapProps> = ({
 
         room.state.players.forEach((p: any, key: string) => {
           if (!p) return;
+          const pMap = p.currentMap || "world_1";
+          if (pMap !== myMap) return; // Only draw players on current map
+
           const pos = worldToMini(p.x, p.y);
           const isMe = key === sessionId;
 

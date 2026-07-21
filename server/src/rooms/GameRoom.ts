@@ -2089,28 +2089,37 @@ export class GameRoom extends Room<GameState> {
 
   /** On startup: load from local disk (map_save.json or _mapdata/world_save.json); if missing, fetch from GitHub */
   private loadMapFromDisk(): void {
-    const primaryPath = path.join(process.cwd(), "map_save.json");
-    const backupPath  = path.join(process.cwd(), "_mapdata", "world_save.json");
+    // Try multiple candidate locations to handle different CWD on Render vs local
+    const candidates = [
+      path.join(process.cwd(), "map_save.json"),
+      path.join(process.cwd(), "_mapdata", "world_save.json"),
+      // __dirname in compiled dist is: server/dist/rooms → go up 3 levels to project root
+      path.resolve(__dirname, "..", "..", "..", "_mapdata", "world_save.json"),
+      // Extra level up in case Render nests differently
+      path.resolve(__dirname, "..", "..", "..", "..", "_mapdata", "world_save.json"),
+    ];
 
-    const targetPath = fs.existsSync(primaryPath) ? primaryPath : (fs.existsSync(backupPath) ? backupPath : null);
-
-    if (targetPath) {
-      try {
-        const raw = fs.readFileSync(targetPath, "utf8");
-        const objects = JSON.parse(raw);
-        if (Array.isArray(objects) && objects.length > 0) {
-          this.deserializeMap(objects);
-          console.log(`[GameRoom] ✅ Loaded ${objects.length} objects from ${targetPath}`);
-          this.fetchGitHubFileSha();
-          return;
+    for (const candidate of candidates) {
+      if (fs.existsSync(candidate)) {
+        try {
+          const raw = fs.readFileSync(candidate, "utf8");
+          const objects = JSON.parse(raw);
+          if (Array.isArray(objects) && objects.length > 0) {
+            this.deserializeMap(objects);
+            console.log(`[GameRoom] ✅ Loaded ${objects.length} objects from ${candidate}`);
+            this.fetchGitHubFileSha();
+            return;
+          }
+        } catch (err) {
+          console.error(`[GameRoom] Error reading ${candidate}:`, err);
         }
-      } catch (err) {
-        console.error("[GameRoom] Error reading local map file, trying GitHub…", err);
+      } else {
+        console.log(`[GameRoom] ⏭ Not found: ${candidate}`);
       }
     }
 
     // ── Local file missing — fetch from GitHub ─────────
-    console.log("[GameRoom] 🔄 Local map not found, fetching from GitHub…");
+    console.log("[GameRoom] 🔄 No local map found, fetching from GitHub…");
     this.fetchMapFromGitHub();
   }
 

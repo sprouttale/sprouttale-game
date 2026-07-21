@@ -547,7 +547,7 @@ export default function App() {
   const [isMapEditorCollapsed, setIsMapEditorCollapsed] = useState(false);
   const [isTerrainEditorOpen, setIsTerrainEditorOpen] = useState(false);
   const [isAnimalEditorOpen, setIsAnimalEditorOpen] = useState(false);
-  const [activeEditorTool, setActiveEditorTool] = useState<"brush" | "eraser" | "select" | "solid" | "pipette" | "fill_region">("brush");
+  const [activeEditorTool, setActiveEditorTool] = useState<"brush" | "eraser" | "select" | "solid" | "pipette" | "fill_region" | "fill_erase">("brush");
   const [selectedPaletteAsset, setSelectedPaletteAsset] = useState<string>("test_block");
   const [editorCategory, setEditorCategory] = useState<"gif" | "dekorasyon" | "ev" | "zemin" | "indoor" | "tree" | "plant" | "mine" | "enemy" | "merchant" | "waterfall" | "box" | "trunks" | "big_old_tree" | "bushes" | "animal" | "decor2" | "yon">("gif");
   const [wfTheme, setWfTheme] = useState<"summer" | "deepforest" | "fall" | "spring">("summer");
@@ -1048,6 +1048,9 @@ export default function App() {
           } else if (e.code === "KeyF") {
             e.preventDefault();
             setActiveEditorTool("fill_region");
+          } else if (e.code === "KeyR") {
+            e.preventDefault();
+            setActiveEditorTool("fill_erase");
           }
         } else {
           // Normal game controls
@@ -2846,10 +2849,17 @@ export default function App() {
               <button 
                 onClick={() => setActiveEditorTool("fill_region")}
                 className={`editor-tool-select ${activeEditorTool === "fill_region" ? "active" : ""}`}
-                style={{ gridColumn: "1 / -1" }}
                 title="Bir karo şablonu kopyalayın, sonra bu araçla sürükleyip alan doldurun"
               >
                 🗂️ Alan Doldur (F)
+              </button>
+              <button 
+                onClick={() => setActiveEditorTool("fill_erase")}
+                className={`editor-tool-select ${activeEditorTool === "fill_erase" ? "active" : ""}`}
+                style={{ gridColumn: "1 / -1" }}
+                title="Tıklayarak aynı karoları toplu silin veya sürükleyerek alan silin"
+              >
+                🗑️ Toplu Sil (R)
               </button>
             </div>
           </div>

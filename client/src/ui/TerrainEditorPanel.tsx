@@ -90,12 +90,13 @@ interface Props {
   selectedPaletteAsset: string;
   setSelectedPaletteAsset: (asset: string) => void;
 }
-type Tool  = "paint" | "erase" | "fill" | "picker" | "move";
+type Tool  = "paint" | "erase" | "move" | "fill" | "fill_erase" | "picker";
 type Layer = "below" | "same" | "above";
 
 export function TerrainEditorPanel({ isOpen, onClose, activeEditorTool, setActiveEditorTool, setSelectedPaletteAsset }: Props) {
   const getLocalTool = (): Tool => {
     if (activeEditorTool === "eraser") return "erase";
+    if (activeEditorTool === "fill_erase") return "fill_erase";
     if (activeEditorTool === "fill_region") return "fill";
     if (activeEditorTool === "pipette") return "picker";
     if (activeEditorTool === "select") return "move";
@@ -103,6 +104,7 @@ export function TerrainEditorPanel({ isOpen, onClose, activeEditorTool, setActiv
   };
   const setLocalTool = (t: Tool) => {
     if (t === "erase") setActiveEditorTool("eraser");
+    else if (t === "fill_erase") setActiveEditorTool("fill_erase");
     else if (t === "fill") setActiveEditorTool("fill_region");
     else if (t === "picker") setActiveEditorTool("pipette");
     else if (t === "move") setActiveEditorTool("select");
@@ -126,7 +128,7 @@ export function TerrainEditorPanel({ isOpen, onClose, activeEditorTool, setActiv
   const [tileIsWater,      setTileIsWater]      = useState(false);
   const [tileIsSolid,      setTileIsSolid]      = useState(false);
   const [tileIsClimbable,  setTileIsClimbable]  = useState(false);
-  const [collapsed,        setCollapsed]        = useState(false);  // ← YENİ: panel gizleme durumu
+  const [collapsed,        setCollapsed]        = useState(false);
 
   const activeTileset   = TERRAIN_TILESETS.find(t => t.key === activeTilesetKey) ?? TERRAIN_TILESETS[0];
   const categories      = Array.from(new Set(TERRAIN_TILESETS.map(t => t.category)));
@@ -147,7 +149,7 @@ export function TerrainEditorPanel({ isOpen, onClose, activeEditorTool, setActiv
     const tw = currentTileW; const th = currentTileH;
     const nativeTileW = activeTileset.tileW;
     const nativeTileH = activeTileset.tileH;
-    // tileScale: how many times bigger than native tile the selected grid size is
+
     const tileScaleX = tw / nativeTileW;
     const tileScaleY = th / nativeTileH;
     const isAnim = animated && activeTileset.animatedRows !== undefined && startRow < (activeTileset.animatedRows ?? 0);
@@ -163,7 +165,7 @@ export function TerrainEditorPanel({ isOpen, onClose, activeEditorTool, setActiv
     const existing = (window as any).editorConfig ?? {};
     const isMultiTile = sel.endCol > sel.startCol || sel.endRow > sel.startRow;
     (window as any).editorConfig = { ...existing, active:true,
-      tool: tool==="erase" ? "eraser" : "brush",
+      tool: tool === "erase" ? "eraser" : (tool === "fill_erase" ? "fill_erase" : (tool === "fill" ? "fill_region" : (tool === "picker" ? "pipette" : (tool === "move" ? "select" : "brush")))),
       selectedAsset: assetId, selectedTile: { x:startCol*nativeTileW, y:startRow*nativeTileH, w:nativeTileW, h:nativeTileH },
       depthLayer: layer, snapSize: snapToGrid ? tw : 1, gridSnap: snapToGrid,
       tileScaleX, tileScaleY,
@@ -182,6 +184,22 @@ export function TerrainEditorPanel({ isOpen, onClose, activeEditorTool, setActiv
       } : null,
     };
   }, [activeTileset, activeTilesetKey, animated, layer, snapToGrid, tool, currentTileW, currentTileH, tileIsWater, tileIsSolid, tileIsClimbable, setSelectedPaletteAsset]);
+
+  // Keyboard shortcut listener for tool switching (P, E, S, F, R, D)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA" || document.activeElement?.tagName === "SELECT") return;
+      const key = e.key.toLowerCase();
+      if (key === "p") setTool("paint");
+      else if (key === "e") setTool("erase");
+      else if (key === "s") setTool("move");
+      else if (key === "f") setTool("fill");
+      else if (key === "r") setTool("fill_erase");
+      else if (key === "d") setTool("picker");
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   // Auto-reset animation state and grid size when switching to a non-animated tileset
   useEffect(() => {
@@ -253,7 +271,7 @@ export function TerrainEditorPanel({ isOpen, onClose, activeEditorTool, setActiv
 
   const tbtn = (id: Tool, icon: string, lbl: string, hk: string) => (
     <button key={id} onClick={() => setTool(id)} title={`${lbl} [${hk}]`} style={{
-      display:"flex", flexDirection:"column", alignItems:"center", gap:"2px", padding:"7px 5px", minWidth:"52px",
+      display:"flex", flexDirection:"column", alignItems:"center", gap:"2px", padding:"7px 5px", minWidth:"48px",
       background:tool===id?ACCB:"rgba(255,255,255,0.04)", border:`1px solid ${tool===id?ACC:"rgba(255,255,255,0.1)"}`,
       borderRadius:"6px", color:tool===id?ACC:"#a4b0be", cursor:"pointer", fontSize:"17px", transition:"all .15s",
       boxShadow:tool===id?`0 0 8px ${ACC}44`:"none",
@@ -297,7 +315,7 @@ export function TerrainEditorPanel({ isOpen, onClose, activeEditorTool, setActiv
       {/* Tools */}
       <div style={{padding:"9px 14px", borderBottom:"1px solid rgba(255,255,255,0.06)", flexShrink:0}}>
         <div style={{fontSize:"8px", color:"#636e72", marginBottom:"6px", textTransform:"uppercase"}}>Araçlar</div>
-        <div style={{display:"flex", gap:"5px", flexWrap:"wrap"}}>{tbtn("paint","🖌️","Boya","P")}{tbtn("erase","🧹","Sil","E")}{tbtn("move","🖐️","Taşı","S")}{tbtn("fill","🪣","Doldur","F")}{tbtn("picker","🔍","Seçici","D")}</div>
+        <div style={{display:"flex", gap:"4px", flexWrap:"wrap"}}>{tbtn("paint","🖌️","Boya","P")}{tbtn("erase","🧹","Sil","E")}{tbtn("move","🖐️","Taşı","S")}{tbtn("fill","🪣","Doldur","F")}{tbtn("fill_erase","🗑️","Toplu Sil","R")}{tbtn("picker","🔍","Seçici","D")}</div>
       </div>
 
       {/* Layer + Options */}

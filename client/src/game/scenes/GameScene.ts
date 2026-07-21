@@ -2664,8 +2664,8 @@ export class GameScene extends Phaser.Scene {
         });
       }
 
-      // Draw fill_region selection rectangle while dragging
-      if (config.tool === "fill_region" && pointer.isDown && this.fillRegionStart) {
+      // Draw fill_region or fill_erase selection rectangle while dragging
+      if ((config.tool === "fill_region" || config.tool === "fill_erase") && pointer.isDown && this.fillRegionStart) {
         const sx = this.fillRegionStart.x;
         const sy = this.fillRegionStart.y;
         const rx = Math.min(sx, targetX);
@@ -2673,11 +2673,12 @@ export class GameScene extends Phaser.Scene {
         const rw = Math.abs(targetX - sx);
         const rh = Math.abs(targetY - sy);
         this.fillRegionGfx.clear();
-        this.fillRegionGfx.fillStyle(0xf9ca24, 0.12);
+        const strokeColor = config.tool === "fill_erase" ? 0xff4757 : 0xf9ca24;
+        this.fillRegionGfx.fillStyle(strokeColor, 0.15);
         this.fillRegionGfx.fillRect(rx, ry, rw, rh);
-        this.fillRegionGfx.lineStyle(2, 0xf9ca24, 0.9);
+        this.fillRegionGfx.lineStyle(2, strokeColor, 0.9);
         this.fillRegionGfx.strokeRect(rx, ry, rw, rh);
-      } else if (config.tool !== "fill_region") {
+      } else if (config.tool !== "fill_region" && config.tool !== "fill_erase") {
         this.fillRegionGfx.clear();
         this.fillRegionStart = null;
       }
@@ -2709,8 +2710,8 @@ export class GameScene extends Phaser.Scene {
 
       const clickedSprite = currentlyOver[0];
 
-      // fill_region: record start position and prevent other actions
-      if (config.tool === "fill_region") {
+      // fill_region / fill_erase: record start position and prevent other actions
+      if (config.tool === "fill_region" || config.tool === "fill_erase") {
         this.fillRegionStart = { x: targetX, y: targetY };
         return;
       }
@@ -2870,10 +2871,128 @@ export class GameScene extends Phaser.Scene {
       }
     });
 
-    // fill_region: on pointerup, fill the dragged rectangle with the currently selected tile
+    // fill_region / fill_erase: on pointerup, fill or erase the dragged rectangle or flood-erase connected tiles
     this.input.on("pointerup", (pointer: Phaser.Input.Pointer) => {
       const config = (window as any).editorConfig;
-      if (!config || !config.active || config.tool !== "fill_region") return;
+      if (!config || !config.active) return;
+
+      // ── TOPLU SİL (fill_erase): Drag area erase or click flood erase ───────
+      if (config.tool === "fill_erase" && this.fillRegionStart) {
+        const worldPoint = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
+        const snap = config.snapSize ?? 16;
+
+        const endX = Math.round(worldPoint.x / snap) * snap;
+        const endY = Math.round(worldPoint.y / snap) * snap;
+        const startX = Math.round(this.fillRegionStart.x / snap) * snap;
+        const startY = Math.round(this.fillRegionStart.y / snap) * snap;
+
+        const minX = Math.min(startX, endX);
+        const maxX = Math.max(startX, endX);
+        const minY = Math.min(startY, endY);
+        const maxY = Math.max(startY, endY);
+
+        this.fillRegionStart = null;
+        this.fillRegionGfx.clear();
+
+        const dist = Math.hypot(maxX - minX, maxY - minY);
+
+        if (dist > 8) {
+          // Drag Region Erase Mode: Delete all objects inside dragged box
+          const toDelete: { id: string; data: any }[] = [];
+          this.room.state.mapObjects.forEach((obj: any, key: string) => {
+            const objMap = obj.mapId || "world_1";
+            if (objMap !== this.currentMapId) return;
+
+            if (obj.x >= minX - 4 && obj.x <= maxX + 4 && obj.y >= minY - 4 && obj.y <= maxY + 4) {
+              toDelete.push({ id: obj.id || key, data: { ...obj } });
+            }
+          });
+
+          toDelete.forEach((item) => {
+            window.dispatchEvent(new CustomEvent("editor_action_performed", {
+              detail: { type: "delete", id: item.id, data: item.data }
+            }));
+            this.room.send("delete_object", { id: item.id });
+          });
+        } else {
+          // Single Click Flood-Erase Mode: Delete clicked object + all connected objects with SAME assetId (BFS)
+          let targetObj: any = null;
+          this.room.state.mapObjects.forEach((obj: any) => {
+            const objMap = obj.mapId || "world_1";
+            if (objMap !== this.currentMapId) return;
+
+            if (Math.round(obj.x) === minX && Math.round(obj.y) === minY) {
+              targetObj = obj;
+            }
+          });
+
+          if (!targetObj) {
+            let closestDist = 32;
+            this.room.state.mapObjects.forEach((obj: any) => {
+              const objMap = obj.mapId || "world_1";
+              if (objMap !== this.currentMapId) return;
+              const d = Phaser.Math.Distance.Between(minX, minY, obj.x, obj.y);
+              if (d < closestDist) {
+                closestDist = d;
+                targetObj = obj;
+              }
+            });
+          }
+
+          if (targetObj) {
+            const targetAssetId = targetObj.assetId;
+            const targetMap = targetObj.mapId || "world_1";
+
+            const queue: { x: number; y: number }[] = [{ x: targetObj.x, y: targetObj.y }];
+            const visited = new Set<string>();
+            const toDeleteItems: { id: string; data: any }[] = [];
+
+            const mapGrid = new Map<string, any[]>();
+            this.room.state.mapObjects.forEach((obj: any) => {
+              const oMap = obj.mapId || "world_1";
+              if (oMap !== targetMap || obj.assetId !== targetAssetId) return;
+              const k = `${Math.round(obj.x)},${Math.round(obj.y)}`;
+              if (!mapGrid.has(k)) mapGrid.set(k, []);
+              mapGrid.get(k)!.push(obj);
+            });
+
+            const step = snap || 16;
+            while (queue.length > 0) {
+              const curr = queue.shift()!;
+              const k = `${Math.round(curr.x)},${Math.round(curr.y)}`;
+              if (visited.has(k)) continue;
+              visited.add(k);
+
+              const matching = mapGrid.get(k);
+              if (matching) {
+                matching.forEach((o) => toDeleteItems.push({ id: o.id, data: { ...o } }));
+                const neighbors = [
+                  { x: curr.x + step, y: curr.y },
+                  { x: curr.x - step, y: curr.y },
+                  { x: curr.x, y: curr.y + step },
+                  { x: curr.x, y: curr.y - step },
+                ];
+                neighbors.forEach((n) => {
+                  const nk = `${Math.round(n.x)},${Math.round(n.y)}`;
+                  if (mapGrid.has(nk) && !visited.has(nk)) {
+                    queue.push(n);
+                  }
+                });
+              }
+            }
+
+            toDeleteItems.forEach((item) => {
+              window.dispatchEvent(new CustomEvent("editor_action_performed", {
+                detail: { type: "delete", id: item.id, data: item.data }
+              }));
+              this.room.send("delete_object", { id: item.id });
+            });
+          }
+        }
+        return;
+      }
+
+      if (config.tool !== "fill_region") return;
       if (!this.fillRegionStart) {
         this.fillRegionGfx.clear();
         return;

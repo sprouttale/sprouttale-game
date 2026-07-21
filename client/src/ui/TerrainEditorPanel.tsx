@@ -206,8 +206,6 @@ export function TerrainEditorPanel({ isOpen, onClose, activeEditorTool, setActiv
     setIsDragging(true); setDragStart(t);
     const sel = { startCol:t.col, startRow:t.row, endCol:t.col, endRow:t.row };
     setSelection(sel); applySelection(sel);
-    // Auto-collapse the panel after tile selection so user can paint freely
-    setCollapsed(true);
   }, [getTileAt, applySelection]);
 
   const onMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {

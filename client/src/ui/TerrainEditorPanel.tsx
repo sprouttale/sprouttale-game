@@ -126,6 +126,7 @@ export function TerrainEditorPanel({ isOpen, onClose, activeEditorTool, setActiv
   const [tileIsWater,      setTileIsWater]      = useState(false);
   const [tileIsSolid,      setTileIsSolid]      = useState(false);
   const [tileIsClimbable,  setTileIsClimbable]  = useState(false);
+  const [collapsed,        setCollapsed]        = useState(false);  // ← YENİ: panel gizleme durumu
 
   const activeTileset   = TERRAIN_TILESETS.find(t => t.key === activeTilesetKey) ?? TERRAIN_TILESETS[0];
   const categories      = Array.from(new Set(TERRAIN_TILESETS.map(t => t.category)));
@@ -205,6 +206,8 @@ export function TerrainEditorPanel({ isOpen, onClose, activeEditorTool, setActiv
     setIsDragging(true); setDragStart(t);
     const sel = { startCol:t.col, startRow:t.row, endCol:t.col, endRow:t.row };
     setSelection(sel); applySelection(sel);
+    // Auto-collapse the panel after tile selection so user can paint freely
+    setCollapsed(true);
   }, [getTileAt, applySelection]);
 
   const onMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -219,6 +222,36 @@ export function TerrainEditorPanel({ isOpen, onClose, activeEditorTool, setActiv
 
   if (!isOpen) return null;
   const ACC = "#00b8d9"; const ACCB = "rgba(0,184,217,0.13)"; const BDR = "rgba(0,184,217,0.3)";
+
+  // ── Collapsed (mini) mode: show only a slim floating tab on the right edge ──
+  if (collapsed) {
+    return (
+      <div
+        onClick={() => setCollapsed(false)}
+        title="Editörü aç"
+        style={{
+          position: "fixed", right: 0, top: "50%", transform: "translateY(-50%)",
+          zIndex: 1001, cursor: "pointer",
+          display: "flex", flexDirection: "column", alignItems: "center", gap: "6px",
+          background: "rgba(13,18,32,0.96)", border: `1px solid ${BDR}`,
+          borderRight: "none", borderRadius: "10px 0 0 10px",
+          padding: "14px 10px", boxShadow: "-4px 0 24px rgba(0,0,0,0.6)",
+          transition: "all .2s",
+        }}
+      >
+        <span style={{ fontSize: "20px" }}>🏔️</span>
+        {selection && (
+          <span style={{ fontSize: "18px" }}>{activeTileset.emoji}</span>
+        )}
+        <span style={{
+          fontSize: "7px", color: ACC, fontFamily: "'Press Start 2P'",
+          writingMode: "vertical-rl", textOrientation: "mixed",
+          letterSpacing: "2px", marginTop: "4px"
+        }}>PANEL</span>
+        <span style={{ fontSize: "10px", color: "#636e72" }}>▶</span>
+      </div>
+    );
+  }
 
   const tbtn = (id: Tool, icon: string, lbl: string, hk: string) => (
     <button key={id} onClick={() => setTool(id)} title={`${lbl} [${hk}]`} style={{
@@ -255,6 +288,12 @@ export function TerrainEditorPanel({ isOpen, onClose, activeEditorTool, setActiv
         </div>
         <button onClick={onClose} style={{background:"rgba(255,71,87,0.1)", border:"1px solid rgba(255,71,87,0.3)",
           color:"#ff4757", cursor:"pointer", borderRadius:"5px", padding:"4px 10px", fontSize:"13px"}}>✕</button>
+        <button
+          onClick={() => setCollapsed(true)}
+          title="Paneli gizle (tile koymak için)"
+          style={{background:"rgba(0,184,217,0.1)", border:`1px solid ${BDR}`,
+            color: ACC, cursor:"pointer", borderRadius:"5px", padding:"4px 10px", fontSize:"13px", marginLeft:"4px"}}
+        >◀ Gizle</button>
       </div>
 
       {/* Tools */}

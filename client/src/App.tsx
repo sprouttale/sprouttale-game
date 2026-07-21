@@ -2760,7 +2760,7 @@ export default function App() {
             <span style={{ fontSize: "9px", color: "#00d2d3", fontWeight: "bold" }}>
               🗺️ {(() => {
                 const p = (room && room.state && room.state.players) ? room.state.players.get(room.sessionId) : null;
-                if (p?.currentMap === "world_5") return "HARİTA 5 (1250×1250 px)";
+                if (p?.currentMap === "world_5") return "HARİTA 5 (1500×1500 px)";
                 if (p?.currentMap === "world_4") return "HARİTA 4 (1500×1500 px)";
                 if (p?.currentMap === "world_3") return "HARİTA 3 (2000×2000 px)";
                 if (p?.currentMap === "world_2") return "HARİTA 2 (2000×2000 px)";

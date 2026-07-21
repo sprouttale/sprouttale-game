@@ -4049,8 +4049,8 @@ export class GameScene extends Phaser.Scene {
     const isWorld4 = this.currentMapId === "world_4";
     const isWorld5 = this.currentMapId === "world_5";
 
-    const mapW = w ?? (isWorld5 ? 1250 : (isWorld4 ? 1500 : (isWorld1 ? WORLD_WIDTH : 2000)));
-    const mapH = h ?? (isWorld5 ? 1250 : (isWorld4 ? 1500 : (isWorld1 ? WORLD_HEIGHT : 2000)));
+    const mapW = w ?? ((isWorld4 || isWorld5) ? 1500 : (isWorld1 ? WORLD_WIDTH : 2000));
+    const mapH = h ?? ((isWorld4 || isWorld5) ? 1500 : (isWorld1 ? WORLD_HEIGHT : 2000));
 
     if (this.groundLayer) {
       this.groundLayer.destroy();
@@ -4143,8 +4143,8 @@ export class GameScene extends Phaser.Scene {
     const isWorld1 = this.currentMapId === "world_1";
     const isWorld4 = this.currentMapId === "world_4";
     const isWorld5 = this.currentMapId === "world_5";
-    const mapW = isWorld5 ? 1250 : (isWorld4 ? 1500 : (isWorld1 ? WORLD_WIDTH : 2000));
-    const mapH = isWorld5 ? 1250 : (isWorld4 ? 1500 : (isWorld1 ? WORLD_HEIGHT : 2000));
+    const mapW = (isWorld4 || isWorld5) ? 1500 : (isWorld1 ? WORLD_WIDTH : 2000);
+    const mapH = (isWorld4 || isWorld5) ? 1500 : (isWorld1 ? WORLD_HEIGHT : 2000);
 
     this.physics.world.setBounds(0, 0, mapW, mapH);
     this.cameras.main.setBounds(0, 0, mapW, mapH);

@@ -1152,8 +1152,8 @@ export class GameRoom extends Room<GameState> {
       player.currentMap = targetMap;
       
       // Spawn at the center of the selected map
-      const activeWorldW = targetMap === "world_5" ? 1250 : (targetMap === "world_4" ? 1500 : (targetMap === "world_1" ? WORLD_WIDTH : 2000));
-      const activeWorldH = targetMap === "world_5" ? 1250 : (targetMap === "world_4" ? 1500 : (targetMap === "world_1" ? WORLD_HEIGHT : 2000));
+      const activeWorldW = (targetMap === "world_4" || targetMap === "world_5") ? 1500 : (targetMap === "world_1" ? WORLD_WIDTH : 2000);
+      const activeWorldH = (targetMap === "world_4" || targetMap === "world_5") ? 1500 : (targetMap === "world_1" ? WORLD_HEIGHT : 2000);
       player.x = activeWorldW / 2;
       player.y = activeWorldH / 2;
       
@@ -1475,8 +1475,8 @@ export class GameRoom extends Room<GameState> {
 
       // --- Map Clamping & Arrow/Teleport Transition ---
       const activeMap = player.currentMap || "world_1";
-      const activeWorldW = activeMap === "world_5" ? 1250 : (activeMap === "world_4" ? 1500 : (activeMap === "world_1" ? WORLD_WIDTH : 2000));
-      const activeWorldH = activeMap === "world_5" ? 1250 : (activeMap === "world_4" ? 1500 : (activeMap === "world_1" ? WORLD_HEIGHT : 2000));
+      const activeWorldW = (activeMap === "world_4" || activeMap === "world_5") ? 1500 : (activeMap === "world_1" ? WORLD_WIDTH : 2000);
+      const activeWorldH = (activeMap === "world_4" || activeMap === "world_5") ? 1500 : (activeMap === "world_1" ? WORLD_HEIGHT : 2000);
 
       // Always clamp player position to current map boundaries (cannot pass empty walls)
       const HALF_SIZE = 16;
@@ -1531,7 +1531,7 @@ export class GameRoom extends Room<GameState> {
                 // Right side of world_4 -> transition to world_5!
                 player.currentMap = "world_5";
                 player.x = 80;
-                player.y = Math.min(1200, Math.max(50, obj.y));
+                player.y = Math.min(1450, Math.max(50, obj.y));
                 console.log(`[GameRoom] 🧭 Player ${player.name} stepped on ${obj.assetId} -> transitioned to world_5 at (${player.x}, ${player.y})`);
               } else {
                 // Left side of world_4 -> back to world_1!

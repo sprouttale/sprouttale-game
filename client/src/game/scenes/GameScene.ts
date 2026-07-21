@@ -2852,24 +2852,26 @@ export class GameScene extends Phaser.Scene {
       }
     });
 
-    // fill_region: on pointerup, fill the dragged rectangle with the copied tile template
+    // fill_region: on pointerup, fill the dragged rectangle with the currently selected tile
     this.input.on("pointerup", (pointer: Phaser.Input.Pointer) => {
       const config = (window as any).editorConfig;
       if (!config || !config.active || config.tool !== "fill_region") return;
-      if (!this.fillRegionStart || !config.copiedTileTemplate) {
+      if (!this.fillRegionStart) {
+        this.fillRegionGfx.clear();
+        return;
+      }
+      // Must have a selected asset to fill with
+      if (!config.selectedAsset) {
         this.fillRegionStart = null;
         this.fillRegionGfx.clear();
         return;
       }
 
       const worldPoint = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
-      let endX = worldPoint.x;
-      let endY = worldPoint.y;
-
       const snap = config.snapSize ?? 16;
-      endX = Math.round(endX / snap) * snap;
-      endY = Math.round(endY / snap) * snap;
 
+      const endX = Math.round(worldPoint.x / snap) * snap;
+      const endY = Math.round(worldPoint.y / snap) * snap;
       const startX = Math.round(this.fillRegionStart.x / snap) * snap;
       const startY = Math.round(this.fillRegionStart.y / snap) * snap;
 
@@ -2878,36 +2880,78 @@ export class GameScene extends Phaser.Scene {
       const minY = Math.min(startY, endY);
       const maxY = Math.max(startY, endY);
 
-      const tmpl = config.copiedTileTemplate;
+      const finalDepthLayer = (config.selectedAsset === "tilled_soil_dry" || config.selectedAsset === "tilled_soil_wet")
+        ? "below" : (config.depthLayer || "below");
 
-      // Compute step size = snap or tile size from template
-      const stepX = (tmpl.tileW && tmpl.tileW > 0) ? tmpl.tileW : snap;
-      const stepY = (tmpl.tileH && tmpl.tileH > 0) ? tmpl.tileH : snap;
+      // ── Multi-tile terrain brush fill ─────────────────────────────────────
+      if (config.terrainBrush) {
+        const tb = config.terrainBrush;
+        const { startCol, startRow, endCol, endRow, tileW, tileH, tilesetKey, animated } = tb;
+        const scaleX = tb.tileScaleX ?? 1;
+        const scaleY = tb.tileScaleY ?? 1;
+        const stepX = tileW * scaleX;
+        const stepY = tileH * scaleY;
+        const patternW = (endCol - startCol + 1) * stepX;
+        const patternH = (endRow - startRow + 1) * stepY;
 
-      for (let cx = minX; cx <= maxX; cx += stepX) {
         for (let cy = minY; cy <= maxY; cy += stepY) {
-          if (this.room) {
-            this.room.send("place_object", {
-              assetId: tmpl.assetId,
-              x: cx,
-              y: cy,
-              scaleX: 1,
-              scaleY: 1,
-              rotation: 0,
-              depthLayer: tmpl.depthLayer || "same",
-              isSolid: tmpl.isSolid || false,
-              isWater: tmpl.isWater || false,
-              isClimbable: tmpl.isClimbable || false,
-              tileX: tmpl.tileX ?? -1,
-              tileY: tmpl.tileY ?? -1,
-              tileW: tmpl.tileW ?? 0,
-              tileH: tmpl.tileH ?? 0,
-              frameRate: tmpl.frameRate ?? 6,
-              solidWidth: tmpl.solidWidth ?? 0,
-              solidHeight: tmpl.solidHeight ?? 0,
-              solidOffsetX: tmpl.solidOffsetX ?? 0,
-              solidOffsetY: tmpl.solidOffsetY ?? 0,
-            });
+          for (let cx = minX; cx <= maxX; cx += stepX) {
+            // Tile pattern repeats (mod) across fill region
+            const patRow = startRow + Math.floor(((cy - minY) % patternH) / stepY);
+            const patCol = startCol + Math.floor(((cx - minX) % patternW) / stepX);
+
+            const isAnim = animated && patRow < 2 ? 1 : 0;
+            let assetId: string;
+            if (tilesetKey && tilesetKey.startsWith("wf_")) {
+              const theme = tilesetKey.replace("wf_", "");
+              assetId = `wf_${theme}_${patCol}_${patRow}_${tileW}_${tileH}_${isAnim}`;
+            } else {
+              assetId = `terrain_${tilesetKey}_${patCol}_${patRow}_${tileW}_${tileH}`;
+            }
+
+            const objId = `obj_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+            const objData = {
+              id: objId, assetId, x: cx, y: cy,
+              scaleX, scaleY, rotation: 0, flipX: false, flipY: false,
+              isSolid: Boolean(config.brushIsSolid),
+              isWater: Boolean(config.brushIsWater),
+              isClimbable: Boolean(config.brushIsClimbable),
+              depthLayer: finalDepthLayer,
+              triggerType: "none", triggerTargetX: 0, triggerTargetY: 0,
+              tileX: patCol * tileW, tileY: patRow * tileH, tileW, tileH,
+              frameRate: 6, solidWidth: 0, solidHeight: 0, solidOffsetX: 0, solidOffsetY: 0,
+            };
+            window.dispatchEvent(new CustomEvent("editor_action_performed", { detail: { type: "place", id: objId, data: objData } }));
+            if (this.room) this.room.send("place_object", objData);
+          }
+        }
+      } else {
+        // ── Single-tile fill ──────────────────────────────────────────────────
+        const isTerrain = config.selectedAsset.startsWith("terrain_") || config.selectedAsset.startsWith("wf_");
+        const scaleX = isTerrain ? (config.tileScaleX ?? 1) : 1;
+        const scaleY = isTerrain ? (config.tileScaleY ?? 1) : 1;
+        const stepX = snap;
+        const stepY = snap;
+
+        for (let cy = minY; cy <= maxY; cy += stepY) {
+          for (let cx = minX; cx <= maxX; cx += stepX) {
+            const objId = `obj_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+            const objData = {
+              id: objId, assetId: config.selectedAsset, x: cx, y: cy,
+              scaleX, scaleY, rotation: 0, flipX: false, flipY: false,
+              isSolid: Boolean(config.brushIsSolid),
+              isWater: Boolean(config.brushIsWater),
+              isClimbable: Boolean(config.brushIsClimbable),
+              depthLayer: finalDepthLayer,
+              triggerType: "none", triggerTargetX: 0, triggerTargetY: 0,
+              tileX: config.selectedTile ? config.selectedTile.x : -1,
+              tileY: config.selectedTile ? config.selectedTile.y : -1,
+              tileW: config.selectedTile ? config.selectedTile.w : 0,
+              tileH: config.selectedTile ? config.selectedTile.h : 0,
+              frameRate: 6, solidWidth: 0, solidHeight: 0, solidOffsetX: 0, solidOffsetY: 0,
+            };
+            window.dispatchEvent(new CustomEvent("editor_action_performed", { detail: { type: "place", id: objId, data: objData } }));
+            if (this.room) this.room.send("place_object", objData);
           }
         }
       }

@@ -2095,16 +2095,22 @@ export class GameRoom extends Room<GameState> {
   /** Save map locally to disk immediately */
   private saveMapToDisk(): void {
     try {
-      const world1Path = path.join(process.cwd(), "map_save.json");
-      const world1Objs = this.serializeMap().filter(o => (o.mapId || "world_1") === "world_1");
-      fs.writeFileSync(world1Path, JSON.stringify(world1Objs, null, 2), "utf8");
+      const allObjects = this.serializeMap();
 
+      // Save master map file containing ALL objects across all worlds
+      const masterPath = path.join(process.cwd(), "map_save.json");
+      fs.writeFileSync(masterPath, JSON.stringify(allObjects, null, 2), "utf8");
+
+      const worldSavePath = path.join(process.cwd(), "_mapdata", "world_save.json");
+      fs.writeFileSync(worldSavePath, JSON.stringify(allObjects, null, 2), "utf8");
+
+      // Save individual world files for backup
       const world2Path = path.join(process.cwd(), "_mapdata", "world2_save.json");
-      const world2Objs = this.serializeMap().filter(o => o.mapId === "world_2");
+      const world2Objs = allObjects.filter(o => o.mapId === "world_2");
       fs.writeFileSync(world2Path, JSON.stringify(world2Objs, null, 2), "utf8");
 
       const world3Path = path.join(process.cwd(), "_mapdata", "world3_save.json");
-      const world3Objs = this.serializeMap().filter(o => o.mapId === "world_3");
+      const world3Objs = allObjects.filter(o => o.mapId === "world_3");
       fs.writeFileSync(world3Path, JSON.stringify(world3Objs, null, 2), "utf8");
     } catch (err) {
       console.error("[GameRoom] Error saving map to disk:", err);
@@ -2161,22 +2167,22 @@ export class GameRoom extends Room<GameState> {
 
   /** On startup: load from local disk (map_save.json or _mapdata/world_save.json); if missing, fetch from GitHub */
   private loadMapFromDisk(): void {
-    // 1. Load world_1 map data
-    const candidates1 = [
-      path.join(process.cwd(), "map_save.json"),
+    // 1. Load Master Map Data (_mapdata/world_save.json or map_save.json)
+    const masterCandidates = [
       path.join(process.cwd(), "_mapdata", "world_save.json"),
+      path.join(process.cwd(), "map_save.json"),
       path.resolve(__dirname, "..", "..", "..", "_mapdata", "world_save.json"),
       path.resolve(__dirname, "..", "..", "..", "..", "_mapdata", "world_save.json"),
     ];
 
-    for (const candidate of candidates1) {
+    for (const candidate of masterCandidates) {
       if (fs.existsSync(candidate)) {
         try {
           const raw = fs.readFileSync(candidate, "utf8");
           const objects = JSON.parse(raw);
           if (Array.isArray(objects) && objects.length > 0) {
             this.deserializeMap(objects, "world_1");
-            console.log(`[GameRoom] ✅ Loaded ${objects.length} world_1 objects from ${candidate}`);
+            console.log(`[GameRoom] ✅ Loaded ${objects.length} master map objects from ${candidate}`);
             break;
           }
         } catch (err) {
@@ -2185,7 +2191,7 @@ export class GameRoom extends Room<GameState> {
       }
     }
 
-    // 2. Load world_2 map data
+    // 2. Load world_2 map data if extra objects exist
     const candidates2 = [
       path.join(process.cwd(), "_mapdata", "world2_save.json"),
       path.resolve(__dirname, "..", "..", "..", "_mapdata", "world2_save.json"),
@@ -2197,8 +2203,11 @@ export class GameRoom extends Room<GameState> {
           const raw = fs.readFileSync(candidate, "utf8");
           const objects = JSON.parse(raw);
           if (Array.isArray(objects) && objects.length > 0) {
-            this.deserializeMap(objects, "world_2");
-            console.log(`[GameRoom] ✅ Loaded ${objects.length} world_2 objects from ${candidate}`);
+            const newObjs = objects.filter((o: any) => !this.state.mapObjects.has(o.id));
+            if (newObjs.length > 0) {
+              this.deserializeMap(newObjs, "world_2");
+              console.log(`[GameRoom] ✅ Loaded ${newObjs.length} extra world_2 objects from ${candidate}`);
+            }
             break;
           }
         } catch (err) {
@@ -2207,7 +2216,7 @@ export class GameRoom extends Room<GameState> {
       }
     }
 
-    // 3. Load world_3 map data
+    // 3. Load world_3 map data if extra objects exist
     const candidates3 = [
       path.join(process.cwd(), "_mapdata", "world3_save.json"),
       path.resolve(__dirname, "..", "..", "..", "_mapdata", "world3_save.json"),
@@ -2219,8 +2228,11 @@ export class GameRoom extends Room<GameState> {
           const raw = fs.readFileSync(candidate, "utf8");
           const objects = JSON.parse(raw);
           if (Array.isArray(objects) && objects.length > 0) {
-            this.deserializeMap(objects, "world_3");
-            console.log(`[GameRoom] ✅ Loaded ${objects.length} world_3 objects from ${candidate}`);
+            const newObjs = objects.filter((o: any) => !this.state.mapObjects.has(o.id));
+            if (newObjs.length > 0) {
+              this.deserializeMap(newObjs, "world_3");
+              console.log(`[GameRoom] ✅ Loaded ${newObjs.length} extra world_3 objects from ${candidate}`);
+            }
             break;
           }
         } catch (err) {

@@ -544,6 +544,7 @@ export default function App() {
 
   // Map Editor State
   const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [isMapEditorCollapsed, setIsMapEditorCollapsed] = useState(false);
   const [isTerrainEditorOpen, setIsTerrainEditorOpen] = useState(false);
   const [isAnimalEditorOpen, setIsAnimalEditorOpen] = useState(false);
   const [activeEditorTool, setActiveEditorTool] = useState<"brush" | "eraser" | "select" | "solid" | "pipette" | "fill_region">("brush");
@@ -1631,6 +1632,7 @@ export default function App() {
               onClick={() => {
                 const newVal = !isEditorOpen;
                 setIsEditorOpen(newVal);
+                setIsMapEditorCollapsed(false);
                 if (newVal) {
                   setIsTerrainEditorOpen(false);
                   setIsAnimalEditorOpen(false);
@@ -2656,7 +2658,45 @@ export default function App() {
       )}
 
       {/* ── 5. Map Editor Overlay UI Panel ── */}
-      {isEditorOpen && (
+      {isEditorOpen && isMapEditorCollapsed && (
+        <div
+          onClick={() => setIsMapEditorCollapsed(false)}
+          title="Harita Editörünü Aç"
+          style={{
+            position: "fixed",
+            left: 0,
+            top: "50%",
+            transform: "translateY(-50%)",
+            zIndex: 1001,
+            cursor: "pointer",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: "6px",
+            background: "rgba(13,18,32,0.96)",
+            border: "1px solid rgba(0,210,211,0.3)",
+            borderLeft: "none",
+            borderRadius: "0 10px 10px 0",
+            padding: "14px 10px",
+            boxShadow: "4px 0 24px rgba(0,0,0,0.6)",
+            transition: "all .2s",
+            color: "#00d2d3"
+          }}
+        >
+          <span style={{ fontSize: "20px" }}>🛠️</span>
+          <span style={{
+            fontSize: "7px",
+            fontFamily: "'Press Start 2P'",
+            writingMode: "vertical-rl",
+            textOrientation: "mixed",
+            letterSpacing: "2px",
+            marginTop: "4px"
+          }}>EDİTÖR</span>
+          <span style={{ fontSize: "10px", color: "#636e72" }}>▶</span>
+        </div>
+      )}
+
+      {isEditorOpen && !isMapEditorCollapsed && (
         <div 
           className="map-editor-panel glass"
           style={{
@@ -2678,12 +2718,21 @@ export default function App() {
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid rgba(255,255,255,0.1)", paddingBottom: "8px" }}>
             <span style={{ fontFamily: "'Press Start 2P'", fontSize: "10px", color: "#00d2d3" }}>🛠️ HARİTA EDİTÖRÜ</span>
-            <button 
-              onClick={() => setIsEditorOpen(false)}
-              style={{ background: "transparent", border: "none", color: "#ff4757", cursor: "pointer", fontSize: "16px" }}
-            >
-              ✕
-            </button>
+            <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+              <button 
+                onClick={() => setIsMapEditorCollapsed(true)}
+                title="Paneli gizle"
+                style={{ background: "rgba(0,210,211,0.1)", border: "1px solid rgba(0,210,211,0.3)", color: "#00d2d3", cursor: "pointer", borderRadius: "4px", padding: "2px 8px", fontSize: "11px" }}
+              >
+                ◀ Gizle
+              </button>
+              <button 
+                onClick={() => setIsEditorOpen(false)}
+                style={{ background: "transparent", border: "none", color: "#ff4757", cursor: "pointer", fontSize: "16px" }}
+              >
+                ✕
+              </button>
+            </div>
           </div>
 
           {/* History Operations */}

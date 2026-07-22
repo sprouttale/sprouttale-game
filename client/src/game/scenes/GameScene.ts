@@ -2920,12 +2920,17 @@ export class GameScene extends Phaser.Scene {
             const CHUNK_SIZE = 150;
             let idx = 0;
             const sendNextDelete = () => {
-              if (!this.room || idx >= deleteIds.length) return;
-              const chunk = deleteIds.slice(idx, idx + CHUNK_SIZE);
-              this.room.send("batch_delete_objects", { ids: chunk });
-              idx += CHUNK_SIZE;
-              if (idx < deleteIds.length) {
-                setTimeout(sendNextDelete, 15);
+              const wsOpen = (this.room?.connection as any)?.isOpen ?? true;
+              if (!this.room || !wsOpen || idx >= deleteIds.length) return;
+              try {
+                const chunk = deleteIds.slice(idx, idx + CHUNK_SIZE);
+                this.room.send("batch_delete_objects", { ids: chunk });
+                idx += CHUNK_SIZE;
+                if (idx < deleteIds.length) {
+                  setTimeout(sendNextDelete, 15);
+                }
+              } catch (err) {
+                console.warn("[GameScene] WebSocket send error, stopping batch delete:", err);
               }
             };
             sendNextDelete();
@@ -3008,12 +3013,17 @@ export class GameScene extends Phaser.Scene {
               const CHUNK_SIZE = 150;
               let idx = 0;
               const sendNextFloodDelete = () => {
-                if (!this.room || idx >= floodDeleteIds.length) return;
-                const chunk = floodDeleteIds.slice(idx, idx + CHUNK_SIZE);
-                this.room.send("batch_delete_objects", { ids: chunk });
-                idx += CHUNK_SIZE;
-                if (idx < floodDeleteIds.length) {
-                  setTimeout(sendNextFloodDelete, 15);
+                const wsOpen = (this.room?.connection as any)?.isOpen ?? true;
+                if (!this.room || !wsOpen || idx >= floodDeleteIds.length) return;
+                try {
+                  const chunk = floodDeleteIds.slice(idx, idx + CHUNK_SIZE);
+                  this.room.send("batch_delete_objects", { ids: chunk });
+                  idx += CHUNK_SIZE;
+                  if (idx < floodDeleteIds.length) {
+                    setTimeout(sendNextFloodDelete, 15);
+                  }
+                } catch (err) {
+                  console.warn("[GameScene] WebSocket send error, stopping flood delete:", err);
                 }
               };
               sendNextFloodDelete();
@@ -3135,12 +3145,17 @@ export class GameScene extends Phaser.Scene {
         const total = batchObjects.length;
         let index = 0;
         const sendNextChunk = () => {
-          if (!this.room || index >= total) return;
-          const chunk = batchObjects.slice(index, index + CHUNK_SIZE);
-          this.room.send("batch_place_objects", { objects: chunk });
-          index += CHUNK_SIZE;
-          if (index < total) {
-            setTimeout(sendNextChunk, 15);
+          const wsOpen = (this.room?.connection as any)?.isOpen ?? true;
+          if (!this.room || !wsOpen || index >= total) return;
+          try {
+            const chunk = batchObjects.slice(index, index + CHUNK_SIZE);
+            this.room.send("batch_place_objects", { objects: chunk });
+            index += CHUNK_SIZE;
+            if (index < total) {
+              setTimeout(sendNextChunk, 15);
+            }
+          } catch (err) {
+            console.warn("[GameScene] WebSocket send error, stopping batch place:", err);
           }
         };
         sendNextChunk();

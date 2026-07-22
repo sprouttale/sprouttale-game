@@ -33,10 +33,17 @@ app.use(express.json());
  * We attach Colyseus to a raw Node HTTP server (not Express directly).
  * This lets Colyseus handle WebSocket upgrades on the same port as HTTP.
  */
+import { WebSocketTransport } from "@colyseus/ws-transport";
+
 const httpServer = createServer(app);
 
 const gameServer = new Server({
-  server: httpServer,
+  transport: new WebSocketTransport({
+    server: httpServer,
+    maxPayload: 50 * 1024 * 1024, // 50MB max payload limit prevents socket terminations on large batch messages/state diffs
+    pingInterval: 10000,
+    pingMaxRetries: 5,
+  })
 });
 
 // Register our game room. The string "game_room" is the room TYPE that clients

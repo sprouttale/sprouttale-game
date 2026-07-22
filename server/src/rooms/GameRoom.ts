@@ -2290,9 +2290,9 @@ export class GameRoom extends Room<GameState> {
       console.error("[GameRoom] Error saving map to disk:", err);
     }
 
-    // Debounce GitHub save: wait 15s after last change before pushing to GitHub
+    // Debounce GitHub save: wait 60s after last change before pushing to GitHub
     if (this.githubSaveTimer) clearTimeout(this.githubSaveTimer);
-    this.githubSaveTimer = setTimeout(() => this.saveMapToGitHub(), 15000);
+    this.githubSaveTimer = setTimeout(() => this.saveMapToGitHub(), 60000);
   }
 
   /** Push map data to GitHub repository file via API */
@@ -2306,7 +2306,7 @@ export class GameRoom extends Room<GameState> {
       try {
         const content = Buffer.from(JSON.stringify(this.serializeMap(), null, 2), "utf8").toString("base64");
         const payload: any = {
-          message: "auto: update map_save.json",
+          message: "auto: update map_save.json [skip ci] [skip render]",
           content
         };
         const activeSha = sha || this.githubFileSha;

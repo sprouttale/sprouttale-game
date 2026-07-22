@@ -4542,6 +4542,10 @@ export class GameScene extends Phaser.Scene {
       }
     });
 
+    // Request static tiles AFTER listener is registered (avoids race condition)
+    this.room.send("request_static_tiles");
+
+
     this.room.onMessage("batch_place_static", (data: { objects: any[] }) => {
       if (Array.isArray(data.objects)) {
         data.objects.forEach((tile: any) => {

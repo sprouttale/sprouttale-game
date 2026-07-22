@@ -178,6 +178,15 @@ export class GameRoom extends Room<GameState> {
     // Maximum players per room
     this.maxClients = 50;
 
+    // Static tile request — client sends this after registering static_map_tiles_chunk listener
+    this.onMessage("request_static_tiles", (client: Client) => {
+      const CHUNK_SIZE = 1000;
+      for (let i = 0; i < this.staticMapTiles.length; i += CHUNK_SIZE) {
+        const chunk = this.staticMapTiles.slice(i, i + CHUNK_SIZE);
+        client.send("static_map_tiles_chunk", { tiles: chunk, isLast: (i + CHUNK_SIZE >= this.staticMapTiles.length) });
+      }
+    });
+
     // Register message handler for client input.
     // "input" is the channel name — must match client-side send call.
     this.onMessage("input", (client: Client, input: InputPayload) => {
@@ -1379,12 +1388,8 @@ export class GameRoom extends Room<GameState> {
       `Total players: ${this.state.players.size}`
     );
 
-    // Send static terrain tiles in lightweight chunks over WebSocket
-    const CHUNK_SIZE = 1000;
-    for (let i = 0; i < this.staticMapTiles.length; i += CHUNK_SIZE) {
-      const chunk = this.staticMapTiles.slice(i, i + CHUNK_SIZE);
-      client.send("static_map_tiles_chunk", { tiles: chunk, isLast: (i + CHUNK_SIZE >= this.staticMapTiles.length) });
-    }
+    // Static tiles are sent on-demand when client sends 'request_static_tiles'
+    // (after registering the static_map_tiles_chunk listener) to avoid race condition
   }
 
   onLeave(client: Client, _consented: boolean): void {

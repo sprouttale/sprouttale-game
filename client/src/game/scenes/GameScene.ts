@@ -268,6 +268,7 @@ export class GameScene extends Phaser.Scene {
   private fillRegionGfx!: Phaser.GameObjects.Graphics;
   private fillRegionStart: { x: number; y: number } | null = null;
   private placedObjectSprites = new Map<string, Phaser.GameObjects.Rectangle | Phaser.GameObjects.Sprite>();
+  private staticTileMapIds = new Map<string, string>(); // key -> mapId for static terrain tiles
   private waterfallSprites = new Set<Phaser.GameObjects.Sprite>();
 
   constructor() {
@@ -4388,7 +4389,7 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, mapW, mapH);
     this.drawGround(mapW, mapH);
 
-    // Update map objects visibility based on active map
+    // Update map objects visibility based on active map (schema objects)
     if (this.room?.state?.mapObjects) {
       this.room.state.mapObjects.forEach((obj: any, key: string) => {
         const sprite = this.placedObjectSprites.get(key);
@@ -4398,6 +4399,12 @@ export class GameScene extends Phaser.Scene {
         }
       });
     }
+
+    // Update static terrain tile visibility when switching maps
+    this.staticTileMapIds.forEach((tileMapId, key) => {
+      const sprite = this.placedObjectSprites.get(key);
+      if (sprite) sprite.setVisible(tileMapId === this.currentMapId);
+    });
 
     // Update remote players visibility
     if (this.room?.state?.players) {
@@ -4538,6 +4545,8 @@ export class GameScene extends Phaser.Scene {
       if (Array.isArray(data.tiles)) {
         data.tiles.forEach((tile: any) => {
           this.createPlacedObject(tile, tile.id);
+          // Track mapId so switchMap() can update static tile visibility
+          this.staticTileMapIds.set(tile.id, tile.mapId || "world_1");
         });
       }
     });

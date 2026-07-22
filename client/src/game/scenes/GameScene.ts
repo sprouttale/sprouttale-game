@@ -4908,6 +4908,7 @@ export class GameScene extends Phaser.Scene {
       (sprite as Phaser.GameObjects.Sprite).setFlip(Boolean(obj.flipX), Boolean(obj.flipY));
     } else if (obj.assetId && obj.assetId.startsWith("maple_tree_")) {
       sprite = this.add.sprite(obj.x, obj.y, "maple_tree");
+      sprite.setOrigin(0.5, 0.95);
       const typeIndex = parseInt(obj.assetId.replace("maple_tree_", ""), 10) || 0;
       const state = obj.treeState || "grown";
       
@@ -4981,6 +4982,7 @@ export class GameScene extends Phaser.Scene {
     } else if (obj.assetId && obj.assetId.startsWith("dekor_tree_")) {
       const frameIdx = parseInt(obj.assetId.replace("dekor_tree_", ""), 10) || 0;
       sprite = this.add.sprite(obj.x, obj.y, "dekor_tree", frameIdx);
+      sprite.setOrigin(0.5, 0.95);
       sprite.setScale(obj.scaleX !== undefined ? obj.scaleX : 1, obj.scaleY !== undefined ? obj.scaleY : 1);
       (sprite as Phaser.GameObjects.Sprite).setFlip(Boolean(obj.flipX), Boolean(obj.flipY));
     } else if (obj.assetId && obj.assetId.startsWith("mineral_mine_")) {
@@ -5109,7 +5111,8 @@ export class GameScene extends Phaser.Scene {
     const _ts = _tsMatch ? Number(_tsMatch[1]) % 1000000 : 0;
     const _subDepth = _ts / 1000000000; // tiny fraction: 0 to 0.001
 
-    // Check if object is a ground / terrain tile
+    // All ground / terrain tiles ALWAYS render on base ground layer (depth ~0.5)
+    // so they NEVER cover trees, plants, buildings, decorations, or players!
     const isGroundTile = Boolean(
       obj.assetId && (
         obj.assetId.startsWith("terrain_") ||
@@ -5119,21 +5122,19 @@ export class GameScene extends Phaser.Scene {
       )
     );
 
-    // Ground tiles should always render in the "below" layer (depth ~1.1) unless explicitly "above" (for roofs/canopies)
-    let effectiveLayer = obj.depthLayer || "below";
-    if (isGroundTile && effectiveLayer === "same") {
-      effectiveLayer = "below";
-    }
-
-    if (effectiveLayer === "below") {
-      sprite.setDepth(1.1 + obj.y / 1000000 + _subDepth);
+    if (isGroundTile || obj.depthLayer === "below") {
+      sprite.setDepth(0.5 + obj.y / 1000000 + _subDepth);
       this.belowPlayerGroup.add(sprite);
-    } else if (effectiveLayer === "above") {
-      sprite.setDepth(4 + _subDepth);
+    } else if (obj.depthLayer === "above") {
+      sprite.setDepth(4.0 + _subDepth);
       this.abovePlayerGroup.add(sprite);
     } else {
-      // same level - sorts by Y (matches player depth formula: 2.5 + y/10000)
-      sprite.setDepth(2.5 + obj.y / 10000 + _subDepth);
+      // "same" level (Trees, Buildings, Fences, Props, Decorations):
+      // Calculate depth from the bottom/roots of the sprite so ground tiles (0.5) never clip tree roots!
+      const displayH = sprite.displayHeight || 32;
+      const originY = sprite.originY !== undefined ? sprite.originY : 0.5;
+      const bottomY = obj.y + (1 - originY) * displayH;
+      sprite.setDepth(2.5 + bottomY / 10000 + _subDepth);
       this.samePlayerGroup.add(sprite);
     }
 
@@ -5416,14 +5417,26 @@ export class GameScene extends Phaser.Scene {
     this.samePlayerGroup.remove(sprite);
     this.abovePlayerGroup.remove(sprite);
 
-    if (obj.depthLayer === "below") {
-      sprite.setDepth(1.1);
+    const isGroundTile = Boolean(
+      obj.assetId && (
+        obj.assetId.startsWith("terrain_") ||
+        obj.assetId.startsWith("wf_") ||
+        obj.assetId === "zemin_tileset" ||
+        obj.assetId.startsWith("tilled_soil")
+      )
+    );
+
+    if (isGroundTile || obj.depthLayer === "below") {
+      sprite.setDepth(0.5 + obj.y / 1000000);
       this.belowPlayerGroup.add(sprite);
     } else if (obj.depthLayer === "above") {
-      sprite.setDepth(3);
+      sprite.setDepth(4.0);
       this.abovePlayerGroup.add(sprite);
     } else {
-      sprite.setDepth(2 + obj.y / 10000);
+      const displayH = sprite.displayHeight || 32;
+      const originY = sprite.originY !== undefined ? sprite.originY : 0.5;
+      const bottomY = obj.y + (1 - originY) * displayH;
+      sprite.setDepth(2.5 + bottomY / 10000);
       this.samePlayerGroup.add(sprite);
     }
 

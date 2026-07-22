@@ -94,6 +94,50 @@ export class GameRoom extends Room<GameState> {
   private mapTransitionCooldown = new Map<string, number>();
   private readonly MAP_TRANSITION_COOLDOWN_MS = 1500; // 1.5 seconds cooldown
 
+  // ---------------------------------------------------------------------------
+  // Spatial Grid — rebuilt when map objects change, gives O(1) nearby-object lookup
+  // ---------------------------------------------------------------------------
+  private readonly GRID_CELL = 128; // px per grid cell
+  // key = "mapId:cellX:cellY"  value = array of MapObject refs
+  private spatialGrid = new Map<string, any[]>();
+  private spatialGridDirty = true; // set true after any place/delete
+
+  /** Rebuild the spatial grid from current state.mapObjects */
+  private rebuildSpatialGrid(): void {
+    this.spatialGrid.clear();
+    this.state.mapObjects.forEach((obj) => {
+      const mapId = obj.mapId || "world_1";
+      const cx = Math.floor(obj.x / this.GRID_CELL);
+      const cy = Math.floor(obj.y / this.GRID_CELL);
+      const key = `${mapId}:${cx}:${cy}`;
+      if (!this.spatialGrid.has(key)) this.spatialGrid.set(key, []);
+      this.spatialGrid.get(key)!.push(obj);
+    });
+    this.spatialGridDirty = false;
+  }
+
+  /** Get all objects within CHECK_RADIUS pixels of (px, py) on mapId */
+  private getNearbyObjects(mapId: string, px: number, py: number, radius: number): any[] {
+    const cellRadius = Math.ceil(radius / this.GRID_CELL);
+    const cx0 = Math.floor(px / this.GRID_CELL);
+    const cy0 = Math.floor(py / this.GRID_CELL);
+    const result: any[] = [];
+    for (let dx = -cellRadius; dx <= cellRadius; dx++) {
+      for (let dy = -cellRadius; dy <= cellRadius; dy++) {
+        const key = `${mapId}:${cx0 + dx}:${cy0 + dy}`;
+        const cell = this.spatialGrid.get(key);
+        if (cell) {
+          for (const obj of cell) {
+            if (Math.abs(obj.x - px) <= radius && Math.abs(obj.y - py) <= radius) {
+              result.push(obj);
+            }
+          }
+        }
+      }
+    }
+    return result;
+  }
+
   // -------------------------------------------------------------------------
   // Lifecycle
   // -------------------------------------------------------------------------
@@ -1035,6 +1079,7 @@ export class GameRoom extends Room<GameState> {
       }
 
       this.state.mapObjects.set(obj.id, obj);
+      this.spatialGridDirty = true;
       this.saveMapToDisk();
       console.log(`[GameRoom] Player ${player.name} placed object: ${obj.assetId} at (${obj.x}, ${obj.y})`);
     });
@@ -1126,6 +1171,7 @@ export class GameRoom extends Room<GameState> {
           this.state.mapObjects.set(obj.id, obj);
         });
 
+        this.spatialGridDirty = true;
         this.saveMapToDisk();
         console.log(`[GameRoom] Player ${player.name} batch placed ${message.objects.length} objects`);
       }
@@ -1145,6 +1191,7 @@ export class GameRoom extends Room<GameState> {
           }
         });
         if (count > 0) {
+          this.spatialGridDirty = true;
           this.saveMapToDisk();
           console.log(`[GameRoom] Player ${player.name} batch deleted ${count} objects`);
         }
@@ -1238,13 +1285,15 @@ export class GameRoom extends Room<GameState> {
     // Start the authoritative simulation loop at 60Hz.
     // setInterval precision is ~1ms; for production we'd use a high-res timer
     // or colyseus' built-in clock, but this is perfect for the MVP.
-    const TICK_MS = 1000 / 60; // ~16.67ms
+    const TICK_MS = 1000 / 30; // 30 FPS tick — halves CPU vs 60fps, still smooth
     let lastTime = Date.now();
 
     this.simulationInterval = setInterval(() => {
       const now = Date.now();
       const deltaMs = now - lastTime;
       lastTime = now;
+      // Rebuild spatial grid once per tick if dirty (after place/delete)
+      if (this.spatialGridDirty) this.rebuildSpatialGrid();
       this.clock.tick();
       this.simulateTick(deltaMs / 1000); // convert to seconds
     }, TICK_MS);
@@ -1369,29 +1418,24 @@ export class GameRoom extends Room<GameState> {
 
       const isEditor = player.action === "editor";
       const isBroomstick = player.equippedTool.startsWith("broomstick");
+      const playerCurrentMap = player.currentMap || "world_1";
+
+      // ── Use spatial grid for fast nearby object lookup (O(1) instead of O(n)) ──
+      const CHECK_RADIUS = 200;
+      const nearbyObjects = this.getNearbyObjects(playerCurrentMap, player.x, player.y, CHECK_RADIUS);
 
       let isInWaterCustom = false;
       let isOnClimbable = false;
 
-      // Performance: only check objects near the player (within 200px)
-      // IMPORTANT: Only check objects that belong to the player's current map!
-      const CHECK_RADIUS = 200;
-      const playerCurrentMap = player.currentMap || "world_1";
-      this.state.mapObjects.forEach((obj) => {
-        // Skip objects from other maps — prevents cross-map water/climbable bleeding
-        if ((obj.mapId || "world_1") !== playerCurrentMap) return;
-        // Quick distance pre-check to skip distant objects
-        if (Math.abs(obj.x - player.x) > CHECK_RADIUS || Math.abs(obj.y - player.y) > CHECK_RADIUS) return;
+      const px = player.x;
+      const py = player.y;
 
+      for (const obj of nearbyObjects) {
         const tileW = (obj.solidWidth > 0) ? obj.solidWidth : ((obj.tileW > 0) ? obj.tileW : (32 * obj.scaleX));
         const tileH = (obj.solidHeight > 0) ? obj.solidHeight : ((obj.tileH > 0) ? obj.tileH : (32 * obj.scaleY));
         const ox = obj.solidOffsetX || 0;
         const oy = obj.solidOffsetY || 0;
-        
-        const px = player.x;
-        const py = player.y;
 
-        // Check overlap for top-left aligned objects (tiles) AND center aligned objects (sprites):
         const minX1 = obj.x + ox - 8;
         const maxX1 = obj.x + ox + tileW + 8;
         const minY1 = obj.y + oy - 8;
@@ -1403,59 +1447,40 @@ export class GameRoom extends Room<GameState> {
         const maxY2 = obj.y + oy + tileH / 2 + 8;
 
         const overlapsTopLeft = (px >= minX1 && px <= maxX1 && py >= minY1 && py <= maxY1);
-        const overlapsCenter = (px >= minX2 && px <= maxX2 && py >= minY2 && py <= maxY2);
+        const overlapsCenter  = (px >= minX2 && px <= maxX2 && py >= minY2 && py <= maxY2);
 
         if (overlapsTopLeft || overlapsCenter) {
-          if (obj.isWater) {
-            isInWaterCustom = true;
-          }
-          if (obj.isClimbable) {
-            isOnClimbable = true;
-          }
+          if (obj.isWater)     isInWaterCustom = true;
+          if (obj.isClimbable) isOnClimbable   = true;
         }
-      });
+      }
 
       const isInWater = isInWaterCustom && !isBroomstick;
 
       if (isInWater) {
         const isGroundMount = player.equippedTool.startsWith("horse") || player.equippedTool.startsWith("bicycle") || player.equippedTool.startsWith("bear");
-        if (isGroundMount) {
-          player.equippedTool = "none";
-        }
-        if (player.action !== "swim" && player.action !== "swim_submerged") {
-          player.action = "swim";
-        }
+        if (isGroundMount) player.equippedTool = "none";
+        if (player.action !== "swim" && player.action !== "swim_submerged") player.action = "swim";
       } else {
-        if (player.action === "swim" || player.action === "swim_submerged") {
-          player.action = "none";
-        }
+        if (player.action === "swim" || player.action === "swim_submerged") player.action = "none";
       }
 
       if (isOnClimbable && !isInWater) {
-        if (player.action !== "climb") {
-          player.action = "climb";
-        }
+        if (player.action !== "climb") player.action = "climb";
       } else {
-        if (player.action === "climb") {
-          player.action = "none";
-        }
+        if (player.action === "climb") player.action = "none";
       }
 
-      const isRiding = player.mount.startsWith("horse") || player.mount.startsWith("bicycle") || player.mount.startsWith("bear") || player.mount.startsWith("broomstick") || player.mount === "tractor";
+      const isRiding   = player.mount.startsWith("horse") || player.mount.startsWith("bicycle") || player.mount.startsWith("bear") || player.mount.startsWith("broomstick") || player.mount === "tractor";
       const isSwimming = player.action === "swim";
       const isSubmerged = player.action === "swim_submerged";
       const isClimbing = player.action === "climb";
 
-      const speed = isEditor
-        ? 600
-        : isSubmerged
-        ? (input.run ? 120 : 80)
-        : isSwimming
-        ? (input.run ? 180 : 120)
-        : isClimbing
-        ? 150
-        : isRiding 
-        ? (input.run ? 500 : 350) 
+      const speed = isEditor ? 600
+        : isSubmerged  ? (input.run ? 120 : 80)
+        : isSwimming   ? (input.run ? 180 : 120)
+        : isClimbing   ? 150
+        : isRiding     ? (input.run ? 500 : 350)
         : (input.run ? 300 : PLAYER_SPEED);
 
       if (player.action === "none" || player.action === "climb" || player.action === "swim" || player.action === "swim_submerged" || isEditor) {
@@ -1465,92 +1490,67 @@ export class GameRoom extends Room<GameState> {
         if (input.down)  vy += speed;
       }
 
-      // Normalize diagonal movement so speed is consistent in all directions
       if (vx !== 0 && vy !== 0) {
-        const DIAGONAL_FACTOR = 0.7071; // 1 / sqrt(2)
+        const DIAGONAL_FACTOR = 0.7071;
         vx *= DIAGONAL_FACTOR;
         vy *= DIAGONAL_FACTOR;
       }
 
-      // Apply velocity scaled by delta time with collision check
       if (isEditor) {
-        // Spectator mode flies through everything
         player.x += vx * delta;
         player.y += vy * delta;
       } else {
+        const playerHalf = 12;
+
         // 1. Try horizontal movement
         const oldX = player.x;
         player.x += vx * delta;
 
         let collidesX = false;
-        this.state.mapObjects.forEach((obj) => {
-          if (!obj.isSolid) return;
-          // Only check solid objects that belong to the player's current map!
-          if ((obj.mapId || "world_1") !== playerCurrentMap) return;
-          if (Math.abs(obj.x - player.x) > CHECK_RADIUS || Math.abs(obj.y - player.y) > CHECK_RADIUS) return;
-          if (player.action === "climb" && obj.isClimbable) {
-              return;
-            }
-            const w = (obj.solidWidth > 0) ? obj.solidWidth : (32 * obj.scaleX);
-            const h = (obj.solidHeight > 0) ? obj.solidHeight : (32 * obj.scaleY);
-            const ox = obj.solidOffsetX || 0;
-            const oy = obj.solidOffsetY || 0;
-            
-            const objX = obj.x + ox;
-            const objY = obj.y + oy;
-            const objHalfW = w / 2;
-            const objHalfH = h / 2;
-            const playerHalf = 12;
-
-            if (
-              player.x + playerHalf > objX - objHalfW &&
-              player.x - playerHalf < objX + objHalfW &&
-              player.y + playerHalf > objY - objHalfH &&
-              player.y - playerHalf < objY + objHalfH
-            ) {
-              collidesX = true;
-            }
-        });
-        if (collidesX) {
-          player.x = oldX;
+        for (const obj of nearbyObjects) {
+          if (!obj.isSolid) continue;
+          if (player.action === "climb" && obj.isClimbable) continue;
+          const w   = (obj.solidWidth  > 0) ? obj.solidWidth  : (32 * obj.scaleX);
+          const h   = (obj.solidHeight > 0) ? obj.solidHeight : (32 * obj.scaleY);
+          const ox  = obj.solidOffsetX || 0;
+          const oy  = obj.solidOffsetY || 0;
+          const oX  = obj.x + ox;
+          const oY  = obj.y + oy;
+          const hwX = w / 2;
+          const hwY = h / 2;
+          if (player.x + playerHalf > oX - hwX &&
+              player.x - playerHalf < oX + hwX &&
+              player.y + playerHalf > oY - hwY &&
+              player.y - playerHalf < oY + hwY) {
+            collidesX = true; break;
+          }
         }
+        if (collidesX) player.x = oldX;
 
         // 2. Try vertical movement
         const oldY = player.y;
         player.y += vy * delta;
 
         let collidesY = false;
-        this.state.mapObjects.forEach((obj) => {
-          if (!obj.isSolid) return;
-          // Only check solid objects that belong to the player's current map!
-          if ((obj.mapId || "world_1") !== playerCurrentMap) return;
-          if (Math.abs(obj.x - player.x) > CHECK_RADIUS || Math.abs(obj.y - player.y) > CHECK_RADIUS) return;
-          if (player.action === "climb" && obj.isClimbable) {
-              return;
-            }
-            const w = (obj.solidWidth > 0) ? obj.solidWidth : (32 * obj.scaleX);
-            const h = (obj.solidHeight > 0) ? obj.solidHeight : (32 * obj.scaleY);
-            const ox = obj.solidOffsetX || 0;
-            const oy = obj.solidOffsetY || 0;
-            
-            const objX = obj.x + ox;
-            const objY = obj.y + oy;
-            const objHalfW = w / 2;
-            const objHalfH = h / 2;
-            const playerHalf = 12;
-
-            if (
-              player.x + playerHalf > objX - objHalfW &&
-              player.x - playerHalf < objX + objHalfW &&
-              player.y + playerHalf > objY - objHalfH &&
-              player.y - playerHalf < objY + objHalfH
-            ) {
-              collidesY = true;
-            }
-        });
-        if (collidesY) {
-          player.y = oldY;
+        for (const obj of nearbyObjects) {
+          if (!obj.isSolid) continue;
+          if (player.action === "climb" && obj.isClimbable) continue;
+          const w   = (obj.solidWidth  > 0) ? obj.solidWidth  : (32 * obj.scaleX);
+          const h   = (obj.solidHeight > 0) ? obj.solidHeight : (32 * obj.scaleY);
+          const ox  = obj.solidOffsetX || 0;
+          const oy  = obj.solidOffsetY || 0;
+          const oX  = obj.x + ox;
+          const oY  = obj.y + oy;
+          const hwX = w / 2;
+          const hwY = h / 2;
+          if (player.x + playerHalf > oX - hwX &&
+              player.x - playerHalf < oX + hwX &&
+              player.y + playerHalf > oY - hwY &&
+              player.y - playerHalf < oY + hwY) {
+            collidesY = true; break;
+          }
         }
+        if (collidesY) player.y = oldY;
       }
 
       // Update schema isRunning flag so clients can play run animations

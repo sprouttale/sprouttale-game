@@ -1134,13 +1134,30 @@ export class GameRoom extends Room<GameState> {
       if (!player) return;
 
       if (Array.isArray(message.objects) && message.objects.length > 0) {
+        const coordMap = new Map<string, string>();
+        this.state.mapObjects.forEach((existingObj, id) => {
+          const k = `${existingObj.mapId || "world_1"}:${existingObj.depthLayer || "below"}:${Math.round(existingObj.x)}:${Math.round(existingObj.y)}`;
+          coordMap.set(k, id);
+        });
+
         message.objects.forEach((o: any) => {
+          const mId = String(o.mapId || player.currentMap || "world_1");
+          const dLayer = String(o.depthLayer || "below");
+          const rx = Math.round(Number(o.x || 0));
+          const ry = Math.round(Number(o.y || 0));
+          const k = `${mId}:${dLayer}:${rx}:${ry}`;
+
+          const existingId = coordMap.get(k);
+          if (existingId) {
+            this.state.mapObjects.delete(existingId);
+          }
+
           const obj = new MapObject();
           obj.id = o.id || `obj_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
           obj.assetId = o.assetId || "test_block";
-          obj.x = Number(o.x || 0);
-          obj.y = Number(o.y || 0);
-          obj.mapId = String(o.mapId || player.currentMap || "world_1");
+          obj.x = rx;
+          obj.y = ry;
+          obj.mapId = mId;
           obj.scaleX = Number(o.scaleX !== undefined ? o.scaleX : 1);
           obj.scaleY = Number(o.scaleY !== undefined ? o.scaleY : 1);
           obj.rotation = Number(o.rotation || 0);
@@ -1149,7 +1166,7 @@ export class GameRoom extends Room<GameState> {
           obj.isSolid = Boolean(o.isSolid);
           obj.isWater = Boolean(o.isWater);
           obj.isClimbable = Boolean(o.isClimbable);
-          obj.depthLayer = String(o.depthLayer || "below");
+          obj.depthLayer = dLayer;
           obj.triggerType = String(o.triggerType || "none");
           obj.triggerTargetX = Number(o.triggerTargetX || 0);
           obj.triggerTargetY = Number(o.triggerTargetY || 0);
@@ -1169,6 +1186,7 @@ export class GameRoom extends Room<GameState> {
           }
 
           this.state.mapObjects.set(obj.id, obj);
+          coordMap.set(k, obj.id);
         });
 
         this.spatialGridDirty = true;

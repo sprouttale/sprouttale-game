@@ -5651,10 +5651,10 @@ private tryPlaceObjectAt(x: number, y: number): void {
       tileW: config.selectedTile ? config.selectedTile.w : 0,
       tileH: config.selectedTile ? config.selectedTile.h : 0,
       frameRate: 6,
-      solidWidth: isTree ? 20 : (config.solidWidth !== undefined ? config.solidWidth : 0),
-      solidHeight: isTree ? 10 : (config.solidHeight !== undefined ? config.solidHeight : 0),
+      solidWidth: isTree ? 40 : (config.solidWidth !== undefined ? config.solidWidth : 0),
+      solidHeight: isTree ? 25 : (config.solidHeight !== undefined ? config.solidHeight : 0),
       solidOffsetX: isTree ? 0 : (config.solidOffsetX !== undefined ? config.solidOffsetX : 0),
-      solidOffsetY: isTree ? 24 : (config.solidOffsetY !== undefined ? config.solidOffsetY : 0)
+      solidOffsetY: isTree ? -15 : (config.solidOffsetY !== undefined ? config.solidOffsetY : 0)
     };
 
     window.dispatchEvent(new CustomEvent("editor_action_performed", {

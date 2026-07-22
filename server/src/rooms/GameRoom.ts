@@ -1089,14 +1089,14 @@ export class GameRoom extends Room<GameState> {
       if (obj.assetId && (obj.assetId.startsWith("maple_tree_") || obj.assetId.startsWith("dekor_tree_"))) {
         obj.treeState = "grown";
         obj.treeHp = 10;
-        // Auto-enforce 2.5x scale and trunk collision for all maple trees
+        // Auto-enforce 2.5x scale and trunk collision for all maple trees (box on trunk base)
         obj.scaleX = 2.5;
         obj.scaleY = 2.5;
         obj.isSolid = true;
-        obj.solidWidth = 20;
-        obj.solidHeight = 10;
+        obj.solidWidth = 40;
+        obj.solidHeight = 25;
         obj.solidOffsetX = 0;
-        obj.solidOffsetY = 24;
+        obj.solidOffsetY = -15;
       }
 
       this.state.mapObjects.set(obj.id, obj);
@@ -1202,17 +1202,17 @@ export class GameRoom extends Room<GameState> {
           obj.solidOffsetX = o.solidOffsetX !== undefined ? Number(o.solidOffsetX) : 0;
           obj.solidOffsetY = o.solidOffsetY !== undefined ? Number(o.solidOffsetY) : 0;
 
-          if (obj.assetId && obj.assetId.startsWith("maple_tree_")) {
+          if (obj.assetId && (obj.assetId.startsWith("maple_tree_") || obj.assetId.startsWith("dekor_tree_"))) {
             obj.treeState = "grown";
             obj.treeHp = 10;
             // Auto-enforce 2.5x scale and trunk collision for all maple trees
             obj.scaleX = 2.5;
             obj.scaleY = 2.5;
             obj.isSolid = true;
-            obj.solidWidth = 20;
-            obj.solidHeight = 10;
+            obj.solidWidth = 40;
+            obj.solidHeight = 25;
             obj.solidOffsetX = 0;
-            obj.solidOffsetY = 24;
+            obj.solidOffsetY = -15;
           }
 
           // Route static terrain tiles to staticMapTiles to avoid schema overhead.

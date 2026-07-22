@@ -268,6 +268,7 @@ export class GameScene extends Phaser.Scene {
   private fillRegionGfx!: Phaser.GameObjects.Graphics;
   private fillRegionStart: { x: number; y: number } | null = null;
   private placedObjectSprites = new Map<string, Phaser.GameObjects.Rectangle | Phaser.GameObjects.Sprite>();
+  private waterfallSprites = new Set<Phaser.GameObjects.Sprite>();
 
   constructor() {
     super({ key: "GameScene" });
@@ -3158,6 +3159,25 @@ export class GameScene extends Phaser.Scene {
     }
     this.pendingSpawns = [];
 
+    // Global 4 FPS animation timer for all waterfall tiles across the scene
+    let wfToggle = false;
+    this.time.addEvent({
+      delay: 250,
+      loop: true,
+      callback: () => {
+        wfToggle = !wfToggle;
+        this.waterfallSprites.forEach((sp) => {
+          if (sp && sp.active) {
+            const f1 = sp.getData("wfFrame1");
+            const f2 = sp.getData("wfFrame2");
+            if (f1 && f2) sp.setFrame(wfToggle ? f2 : f1);
+          } else {
+            this.waterfallSprites.delete(sp);
+          }
+        });
+      }
+    });
+
     console.log("[GameScene] Scene created and ready.");
   }
 
@@ -5005,20 +5025,9 @@ export class GameScene extends Phaser.Scene {
         if (texture && !texture.has(frameKey2)) {
           texture.add(frameKey2, 0, tx * tw, (ty + 4) * th, tw, th);
         }
-        // Animate between frame1 and frame2 manually using a timer
-        (sprite as any)._wfTimer = this.time.addEvent({
-          delay: 250,
-          loop: true,
-          callback: () => {
-            if (!sprite || !sprite.active) return;
-            const s = sprite as Phaser.GameObjects.Sprite;
-            if (s.frame.name === frameKey1) {
-              s.setFrame(frameKey2);
-            } else {
-              s.setFrame(frameKey1);
-            }
-          }
-        });
+        sprite.setData("wfFrame1", frameKey1);
+        sprite.setData("wfFrame2", frameKey2);
+        this.waterfallSprites.add(sprite);
       }
 
       const baseScaleX = (16 / tw) * (obj.scaleX !== undefined ? obj.scaleX : 1);
@@ -5432,9 +5441,8 @@ export class GameScene extends Phaser.Scene {
         });
       }
 
-      if ((sprite as any)._wfTimer) {
-        (sprite as any)._wfTimer.remove();
-        (sprite as any)._wfTimer = null;
+      if (this.waterfallSprites.has(sprite as any)) {
+        this.waterfallSprites.delete(sprite as any);
       }
 
       sprite.destroy();

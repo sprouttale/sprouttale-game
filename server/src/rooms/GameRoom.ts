@@ -2180,6 +2180,7 @@ export class GameRoom extends Room<GameState> {
   private readonly GITHUB_PATH    = "_mapdata/world_save.json";  // Permanently synced to GitHub!
   private githubFileSha: string   = "";   // needed for PUT (update) requests
   private githubSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  private diskSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
   /** Serialize current map objects to plain JSON array */
   private serializeMap(): any[] {
@@ -2244,9 +2245,13 @@ export class GameRoom extends Room<GameState> {
     });
   }
 
-  /** Save map locally to disk immediately */
-  /** Save map locally to disk immediately */
+  /** Save map locally to disk with 500ms debounce */
   private saveMapToDisk(): void {
+    if (this.diskSaveTimer) clearTimeout(this.diskSaveTimer);
+    this.diskSaveTimer = setTimeout(() => this.performDiskSave(), 500);
+  }
+
+  private performDiskSave(): void {
     try {
       const allObjects = this.serializeMap();
 

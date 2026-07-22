@@ -2916,7 +2916,18 @@ export class GameScene extends Phaser.Scene {
             }));
           });
           if (deleteIds.length > 0 && this.room) {
-            this.room.send("batch_delete_objects", { ids: deleteIds });
+            const CHUNK_SIZE = 150;
+            let idx = 0;
+            const sendNextDelete = () => {
+              if (!this.room || idx >= deleteIds.length) return;
+              const chunk = deleteIds.slice(idx, idx + CHUNK_SIZE);
+              this.room.send("batch_delete_objects", { ids: chunk });
+              idx += CHUNK_SIZE;
+              if (idx < deleteIds.length) {
+                setTimeout(sendNextDelete, 15);
+              }
+            };
+            sendNextDelete();
           }
         } else {
           // Single Click Flood-Erase Mode: Delete clicked object + all connected objects with SAME assetId (BFS)
@@ -2993,7 +3004,18 @@ export class GameScene extends Phaser.Scene {
               }));
             });
             if (floodDeleteIds.length > 0 && this.room) {
-              this.room.send("batch_delete_objects", { ids: floodDeleteIds });
+              const CHUNK_SIZE = 150;
+              let idx = 0;
+              const sendNextFloodDelete = () => {
+                if (!this.room || idx >= floodDeleteIds.length) return;
+                const chunk = floodDeleteIds.slice(idx, idx + CHUNK_SIZE);
+                this.room.send("batch_delete_objects", { ids: chunk });
+                idx += CHUNK_SIZE;
+                if (idx < floodDeleteIds.length) {
+                  setTimeout(sendNextFloodDelete, 15);
+                }
+              };
+              sendNextFloodDelete();
             }
           }
         }
@@ -3106,7 +3128,19 @@ export class GameScene extends Phaser.Scene {
       }
 
       if (batchObjects.length > 0 && this.room) {
-        this.room.send("batch_place_objects", { objects: batchObjects });
+        const CHUNK_SIZE = 100;
+        const total = batchObjects.length;
+        let index = 0;
+        const sendNextChunk = () => {
+          if (!this.room || index >= total) return;
+          const chunk = batchObjects.slice(index, index + CHUNK_SIZE);
+          this.room.send("batch_place_objects", { objects: chunk });
+          index += CHUNK_SIZE;
+          if (index < total) {
+            setTimeout(sendNextChunk, 15);
+          }
+        };
+        sendNextChunk();
       }
 
       this.fillRegionStart = null;

@@ -1300,8 +1300,12 @@ export class GameRoom extends Room<GameState> {
       let isOnClimbable = false;
 
       // Performance: only check objects near the player (within 200px)
+      // IMPORTANT: Only check objects that belong to the player's current map!
       const CHECK_RADIUS = 200;
+      const playerCurrentMap = player.currentMap || "world_1";
       this.state.mapObjects.forEach((obj) => {
+        // Skip objects from other maps — prevents cross-map water/climbable bleeding
+        if ((obj.mapId || "world_1") !== playerCurrentMap) return;
         // Quick distance pre-check to skip distant objects
         if (Math.abs(obj.x - player.x) > CHECK_RADIUS || Math.abs(obj.y - player.y) > CHECK_RADIUS) return;
 
@@ -1514,86 +1518,102 @@ export class GameRoom extends Room<GameState> {
             player.y = obj.triggerTargetY;
             console.log(`[GameRoom] 🌀 Teleported player ${player.name} to (${player.x}, ${player.y})`);
           } else if (isArrow) {
+            // Use assetId to determine direction — reliable regardless of arrow position on map
+            const arrowDir = obj.assetId; // "yon_sag" | "yon_sol" | "yon_yukari" | "yon_asagi"
+
             if (activeMap === "world_1") {
-              if (obj.y > 1500 || obj.assetId === "yon_asagi") {
-                // Bottom side of world_1 -> transition to world_7!
+              if (arrowDir === "yon_asagi") {
+                // Down arrow on world_1 -> world_7
                 player.currentMap = "world_7";
                 player.x = Math.min(1450, Math.max(50, obj.x));
                 player.y = 80;
-                console.log(`[GameRoom] 🧭 Player ${player.name} stepped on ${obj.assetId} -> transitioned to world_7 at (${player.x}, ${player.y})`);
-              } else if (obj.x > 750 || obj.assetId === "yon_sag") {
-                // Right side of world_1 -> transition to world_4!
+                console.log(`[GameRoom] 🧭 world_1 yon_asagi -> world_7 at (${player.x}, ${player.y})`);
+              } else if (arrowDir === "yon_sag") {
+                // Right arrow on world_1 -> world_4
                 player.currentMap = "world_4";
                 player.x = 80;
                 player.y = Math.min(1450, Math.max(50, obj.y));
-                console.log(`[GameRoom] 🧭 Player ${player.name} stepped on ${obj.assetId} -> transitioned to world_4 at (${player.x}, ${player.y})`);
-              } else {
-                // Left side of world_1 -> transition to world_2
+                console.log(`[GameRoom] 🧭 world_1 yon_sag -> world_4 at (${player.x}, ${player.y})`);
+              } else if (arrowDir === "yon_sol") {
+                // Left arrow on world_1 -> world_2
                 player.currentMap = "world_2";
                 player.x = 1920;
                 player.y = Math.min(1950, Math.max(50, obj.y));
-                console.log(`[GameRoom] 🧭 Player ${player.name} stepped on ${obj.assetId} -> transitioned to world_2 at (${player.x}, ${player.y})`);
+                console.log(`[GameRoom] 🧭 world_1 yon_sol -> world_2 at (${player.x}, ${player.y})`);
+              } else if (arrowDir === "yon_yukari") {
+                // Up arrow on world_1 (no map above currently, ignore)
+                console.log(`[GameRoom] 🧭 world_1 yon_yukari -> no map defined above world_1`);
               }
             } else if (activeMap === "world_7") {
-              // Top side of world_7 -> back to world_1!
-              player.currentMap = "world_1";
-              player.x = Math.min(1450, Math.max(50, obj.x));
-              player.y = 2420;
-              console.log(`[GameRoom] 🧭 Player ${player.name} stepped on ${obj.assetId} -> transitioned to world_1 at (${player.x}, ${player.y})`);
+              if (arrowDir === "yon_yukari") {
+                // Up arrow on world_7 -> back to world_1
+                player.currentMap = "world_1";
+                player.x = Math.min(1450, Math.max(50, obj.x));
+                player.y = 2420;
+                console.log(`[GameRoom] 🧭 world_7 yon_yukari -> world_1 at (${player.x}, ${player.y})`);
+              } else if (arrowDir === "yon_asagi") {
+                console.log(`[GameRoom] 🧭 world_7 yon_asagi -> no map below world_7`);
+              }
             } else if (activeMap === "world_4") {
-              if (obj.x > 750 || obj.assetId === "yon_sag") {
-                // Right side of world_4 -> transition to world_5!
+              if (arrowDir === "yon_sag") {
+                // Right arrow on world_4 -> world_5
                 player.currentMap = "world_5";
                 player.x = 80;
                 player.y = Math.min(1450, Math.max(50, obj.y));
-                console.log(`[GameRoom] 🧭 Player ${player.name} stepped on ${obj.assetId} -> transitioned to world_5 at (${player.x}, ${player.y})`);
-              } else {
-                // Left side of world_4 -> back to world_1!
+                console.log(`[GameRoom] 🧭 world_4 yon_sag -> world_5 at (${player.x}, ${player.y})`);
+              } else if (arrowDir === "yon_sol") {
+                // Left arrow on world_4 -> back to world_1
                 player.currentMap = "world_1";
                 player.x = 1420;
                 player.y = Math.min(2450, Math.max(50, obj.y));
-                console.log(`[GameRoom] 🧭 Player ${player.name} stepped on ${obj.assetId} -> transitioned to world_1 at (${player.x}, ${player.y})`);
+                console.log(`[GameRoom] 🧭 world_4 yon_sol -> world_1 at (${player.x}, ${player.y})`);
               }
             } else if (activeMap === "world_5") {
-              if (obj.y > 750 || obj.assetId === "yon_asagi") {
-                // Bottom side of world_5 -> transition to world_6!
+              if (arrowDir === "yon_asagi") {
+                // Down arrow on world_5 -> world_6
                 player.currentMap = "world_6";
                 player.x = Math.min(1450, Math.max(50, obj.x));
                 player.y = 80;
-                console.log(`[GameRoom] 🧭 Player ${player.name} stepped on ${obj.assetId} -> transitioned to world_6 at (${player.x}, ${player.y})`);
-              } else {
-                // Left side of world_5 -> back to world_4!
+                console.log(`[GameRoom] 🧭 world_5 yon_asagi -> world_6 at (${player.x}, ${player.y})`);
+              } else if (arrowDir === "yon_sol") {
+                // Left arrow on world_5 -> back to world_4
                 player.currentMap = "world_4";
                 player.x = 1420;
                 player.y = Math.min(1450, Math.max(50, obj.y));
-                console.log(`[GameRoom] 🧭 Player ${player.name} stepped on ${obj.assetId} -> transitioned to world_4 at (${player.x}, ${player.y})`);
+                console.log(`[GameRoom] 🧭 world_5 yon_sol -> world_4 at (${player.x}, ${player.y})`);
+              } else if (arrowDir === "yon_sag") {
+                console.log(`[GameRoom] 🧭 world_5 yon_sag -> no map to the right of world_5`);
               }
             } else if (activeMap === "world_6") {
-              // Top side of world_6 -> back to world_5!
-              player.currentMap = "world_5";
-              player.x = Math.min(1450, Math.max(50, obj.x));
-              player.y = 1420;
-              console.log(`[GameRoom] 🧭 Player ${player.name} stepped on ${obj.assetId} -> transitioned to world_5 at (${player.x}, ${player.y})`);
+              if (arrowDir === "yon_yukari") {
+                // Up arrow on world_6 -> back to world_5
+                player.currentMap = "world_5";
+                player.x = Math.min(1450, Math.max(50, obj.x));
+                player.y = 1420;
+                console.log(`[GameRoom] 🧭 world_6 yon_yukari -> world_5 at (${player.x}, ${player.y})`);
+              }
             } else if (activeMap === "world_2") {
-              if (obj.x > 1000 || obj.assetId === "yon_sag") {
-                // Right side of world_2 -> back to world_1
+              if (arrowDir === "yon_sag") {
+                // Right arrow on world_2 -> back to world_1
                 player.currentMap = "world_1";
                 player.x = 80;
                 player.y = Math.min(2450, Math.max(50, obj.y));
-                console.log(`[GameRoom] 🧭 Player ${player.name} stepped on ${obj.assetId} -> transitioned to world_1 at (${player.x}, ${player.y})`);
-              } else {
-                // Left side of world_2 -> forward to world_3!
+                console.log(`[GameRoom] 🧭 world_2 yon_sag -> world_1 at (${player.x}, ${player.y})`);
+              } else if (arrowDir === "yon_sol") {
+                // Left arrow on world_2 -> world_3
                 player.currentMap = "world_3";
                 player.x = 1920;
                 player.y = Math.min(1950, Math.max(50, obj.y));
-                console.log(`[GameRoom] 🧭 Player ${player.name} stepped on ${obj.assetId} -> transitioned to world_3 at (${player.x}, ${player.y})`);
+                console.log(`[GameRoom] 🧭 world_2 yon_sol -> world_3 at (${player.x}, ${player.y})`);
               }
             } else if (activeMap === "world_3") {
-              // Right side of world_3 -> back to world_2
-              player.currentMap = "world_2";
-              player.x = 80;
-              player.y = Math.min(1950, Math.max(50, obj.y));
-              console.log(`[GameRoom] 🧭 Player ${player.name} stepped on ${obj.assetId} -> transitioned to world_2 at (${player.x}, ${player.y})`);
+              if (arrowDir === "yon_sag") {
+                // Right arrow on world_3 -> back to world_2
+                player.currentMap = "world_2";
+                player.x = 80;
+                player.y = Math.min(1950, Math.max(50, obj.y));
+                console.log(`[GameRoom] 🧭 world_3 yon_sag -> world_2 at (${player.x}, ${player.y})`);
+              }
             }
           }
         }

@@ -224,6 +224,7 @@ export class GameRoom extends Room<GameState> {
       let targetSoil: any = null;
       let closestDist = Infinity;
       this.state.mapObjects.forEach((obj: any) => {
+        if ((obj.mapId || "world_1") !== (player.currentMap || "world_1")) return;
         if (obj.assetId && (obj.assetId === "tilled_soil_dry" || obj.assetId === "tilled_soil_wet")) {
           const dx = obj.x - message.x;
           const dy = obj.y - message.y;
@@ -1416,6 +1417,8 @@ export class GameRoom extends Room<GameState> {
         let collidesX = false;
         this.state.mapObjects.forEach((obj) => {
           if (!obj.isSolid) return;
+          // Only check solid objects that belong to the player's current map!
+          if ((obj.mapId || "world_1") !== playerCurrentMap) return;
           if (Math.abs(obj.x - player.x) > CHECK_RADIUS || Math.abs(obj.y - player.y) > CHECK_RADIUS) return;
           if (player.action === "climb" && obj.isClimbable) {
               return;
@@ -1451,6 +1454,8 @@ export class GameRoom extends Room<GameState> {
         let collidesY = false;
         this.state.mapObjects.forEach((obj) => {
           if (!obj.isSolid) return;
+          // Only check solid objects that belong to the player's current map!
+          if ((obj.mapId || "world_1") !== playerCurrentMap) return;
           if (Math.abs(obj.x - player.x) > CHECK_RADIUS || Math.abs(obj.y - player.y) > CHECK_RADIUS) return;
           if (player.action === "climb" && obj.isClimbable) {
               return;

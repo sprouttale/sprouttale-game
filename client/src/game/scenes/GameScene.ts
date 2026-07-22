@@ -2908,12 +2908,16 @@ export class GameScene extends Phaser.Scene {
             }
           });
 
+          const deleteIds: string[] = [];
           toDelete.forEach((item) => {
+            deleteIds.push(item.id);
             window.dispatchEvent(new CustomEvent("editor_action_performed", {
               detail: { type: "delete", id: item.id, data: item.data }
             }));
-            this.room.send("delete_object", { id: item.id });
           });
+          if (deleteIds.length > 0 && this.room) {
+            this.room.send("batch_delete_objects", { ids: deleteIds });
+          }
         } else {
           // Single Click Flood-Erase Mode: Delete clicked object + all connected objects with SAME assetId (BFS)
           let targetObj: any = null;
@@ -2981,12 +2985,16 @@ export class GameScene extends Phaser.Scene {
               }
             }
 
+            const floodDeleteIds: string[] = [];
             toDeleteItems.forEach((item) => {
+              floodDeleteIds.push(item.id);
               window.dispatchEvent(new CustomEvent("editor_action_performed", {
                 detail: { type: "delete", id: item.id, data: item.data }
               }));
-              this.room.send("delete_object", { id: item.id });
             });
+            if (floodDeleteIds.length > 0 && this.room) {
+              this.room.send("batch_delete_objects", { ids: floodDeleteIds });
+            }
           }
         }
         return;
@@ -3020,6 +3028,8 @@ export class GameScene extends Phaser.Scene {
       const finalDepthLayer = (config.selectedAsset === "tilled_soil_dry" || config.selectedAsset === "tilled_soil_wet")
         ? "below" : (config.depthLayer || "below");
 
+      const batchObjects: any[] = [];
+
       // ── Multi-tile terrain brush fill ─────────────────────────────────────
       if (config.terrainBrush) {
         const tb = config.terrainBrush;
@@ -3049,6 +3059,7 @@ export class GameScene extends Phaser.Scene {
             const objId = `obj_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
             const objData = {
               id: objId, assetId, x: cx, y: cy,
+              mapId: this.currentMapId,
               scaleX, scaleY, rotation: 0, flipX: false, flipY: false,
               isSolid: Boolean(config.brushIsSolid),
               isWater: Boolean(config.brushIsWater),
@@ -3058,8 +3069,8 @@ export class GameScene extends Phaser.Scene {
               tileX: patCol * tileW, tileY: patRow * tileH, tileW, tileH,
               frameRate: 6, solidWidth: 0, solidHeight: 0, solidOffsetX: 0, solidOffsetY: 0,
             };
+            batchObjects.push(objData);
             window.dispatchEvent(new CustomEvent("editor_action_performed", { detail: { type: "place", id: objId, data: objData } }));
-            if (this.room) this.room.send("place_object", objData);
           }
         }
       } else {
@@ -3075,6 +3086,7 @@ export class GameScene extends Phaser.Scene {
             const objId = `obj_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
             const objData = {
               id: objId, assetId: config.selectedAsset, x: cx, y: cy,
+              mapId: this.currentMapId,
               scaleX, scaleY, rotation: 0, flipX: false, flipY: false,
               isSolid: Boolean(config.brushIsSolid),
               isWater: Boolean(config.brushIsWater),
@@ -3087,10 +3099,14 @@ export class GameScene extends Phaser.Scene {
               tileH: config.selectedTile ? config.selectedTile.h : 0,
               frameRate: 6, solidWidth: 0, solidHeight: 0, solidOffsetX: 0, solidOffsetY: 0,
             };
+            batchObjects.push(objData);
             window.dispatchEvent(new CustomEvent("editor_action_performed", { detail: { type: "place", id: objId, data: objData } }));
-            if (this.room) this.room.send("place_object", objData);
           }
         }
+      }
+
+      if (batchObjects.length > 0 && this.room) {
+        this.room.send("batch_place_objects", { objects: batchObjects });
       }
 
       this.fillRegionStart = null;

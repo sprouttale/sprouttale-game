@@ -1083,6 +1083,74 @@ export class GameRoom extends Room<GameState> {
       console.log(`[GameRoom] Player ${player.name} updated object: ${obj.id}, patrolPath=${obj.patrolPath}, patrolSpeed=${obj.patrolSpeed}`);
     });
 
+    // Register message handler for batch placing map objects
+    this.onMessage("batch_place_objects", (client: Client, message: { objects: any[] }) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player) return;
+
+      if (Array.isArray(message.objects) && message.objects.length > 0) {
+        message.objects.forEach((o: any) => {
+          const obj = new MapObject();
+          obj.id = o.id || `obj_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+          obj.assetId = o.assetId || "test_block";
+          obj.x = Number(o.x || 0);
+          obj.y = Number(o.y || 0);
+          obj.mapId = String(o.mapId || player.currentMap || "world_1");
+          obj.scaleX = Number(o.scaleX !== undefined ? o.scaleX : 1);
+          obj.scaleY = Number(o.scaleY !== undefined ? o.scaleY : 1);
+          obj.rotation = Number(o.rotation || 0);
+          obj.flipX = Boolean(o.flipX);
+          obj.flipY = Boolean(o.flipY);
+          obj.isSolid = Boolean(o.isSolid);
+          obj.isWater = Boolean(o.isWater);
+          obj.isClimbable = Boolean(o.isClimbable);
+          obj.depthLayer = String(o.depthLayer || "below");
+          obj.triggerType = String(o.triggerType || "none");
+          obj.triggerTargetX = Number(o.triggerTargetX || 0);
+          obj.triggerTargetY = Number(o.triggerTargetY || 0);
+          obj.tileX = o.tileX !== undefined ? Number(o.tileX) : -1;
+          obj.tileY = o.tileY !== undefined ? Number(o.tileY) : -1;
+          obj.tileW = o.tileW !== undefined ? Number(o.tileW) : 0;
+          obj.tileH = o.tileH !== undefined ? Number(o.tileH) : 0;
+          obj.frameRate = o.frameRate !== undefined ? Number(o.frameRate) : 6;
+          obj.solidWidth = o.solidWidth !== undefined ? Number(o.solidWidth) : 0;
+          obj.solidHeight = o.solidHeight !== undefined ? Number(o.solidHeight) : 0;
+          obj.solidOffsetX = o.solidOffsetX !== undefined ? Number(o.solidOffsetX) : 0;
+          obj.solidOffsetY = o.solidOffsetY !== undefined ? Number(o.solidOffsetY) : 0;
+
+          if (obj.assetId && obj.assetId.startsWith("maple_tree_")) {
+            obj.treeState = "grown";
+            obj.treeHp = 10;
+          }
+
+          this.state.mapObjects.set(obj.id, obj);
+        });
+
+        this.saveMapToDisk();
+        console.log(`[GameRoom] Player ${player.name} batch placed ${message.objects.length} objects`);
+      }
+    });
+
+    // Register message handler for batch deleting map objects
+    this.onMessage("batch_delete_objects", (client: Client, message: { ids: string[] }) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player) return;
+
+      if (Array.isArray(message.ids) && message.ids.length > 0) {
+        let count = 0;
+        message.ids.forEach((id: string) => {
+          if (this.state.mapObjects.has(id)) {
+            this.state.mapObjects.delete(id);
+            count++;
+          }
+        });
+        if (count > 0) {
+          this.saveMapToDisk();
+          console.log(`[GameRoom] Player ${player.name} batch deleted ${count} objects`);
+        }
+      }
+    });
+
     // Register message handler for deleting a map object
     this.onMessage("delete_object", (client: Client, message: { id: string }) => {
       const player = this.state.players.get(client.sessionId);

@@ -5621,10 +5621,11 @@ private tryPlaceObjectAt(x: number, y: number): void {
     });
     if (skip) return;
 
-    // For terrain tiles, apply scale from grid size selection
+    // For terrain tiles or tree assets, apply custom scales
     const isTerrain = config.selectedAsset && (config.selectedAsset.startsWith("terrain_") || config.selectedAsset.startsWith("wf_"));
-    const scaleX = isTerrain ? (config.tileScaleX ?? 1) : 1;
-    const scaleY = isTerrain ? (config.tileScaleY ?? 1) : 1;
+    const isTree = config.selectedAsset && (config.selectedAsset.startsWith("maple_tree_") || config.selectedAsset.startsWith("dekor_tree_"));
+    const scaleX = isTree ? 2.5 : (isTerrain ? (config.tileScaleX ?? 1) : 1);
+    const scaleY = isTree ? 2.5 : (isTerrain ? (config.tileScaleY ?? 1) : 1);
 
     const objId = `obj_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
     const objData = {
@@ -5638,7 +5639,7 @@ private tryPlaceObjectAt(x: number, y: number): void {
       rotation: 0,
       flipX: false,
       flipY: false,
-      isSolid: config.selectedAsset === "collision_block" ? true : Boolean(config.brushIsSolid),
+      isSolid: isTree ? true : (config.selectedAsset === "collision_block" ? true : Boolean(config.brushIsSolid)),
       isWater: Boolean(config.brushIsWater),
       isClimbable: Boolean(config.brushIsClimbable),
       depthLayer: finalDepthLayer,
@@ -5650,10 +5651,10 @@ private tryPlaceObjectAt(x: number, y: number): void {
       tileW: config.selectedTile ? config.selectedTile.w : 0,
       tileH: config.selectedTile ? config.selectedTile.h : 0,
       frameRate: 6,
-      solidWidth: config.solidWidth !== undefined ? config.solidWidth : 0,
-      solidHeight: config.solidHeight !== undefined ? config.solidHeight : 0,
-      solidOffsetX: config.solidOffsetX !== undefined ? config.solidOffsetX : 0,
-      solidOffsetY: config.solidOffsetY !== undefined ? config.solidOffsetY : 0
+      solidWidth: isTree ? 20 : (config.solidWidth !== undefined ? config.solidWidth : 0),
+      solidHeight: isTree ? 10 : (config.solidHeight !== undefined ? config.solidHeight : 0),
+      solidOffsetX: isTree ? 0 : (config.solidOffsetX !== undefined ? config.solidOffsetX : 0),
+      solidOffsetY: isTree ? 24 : (config.solidOffsetY !== undefined ? config.solidOffsetY : 0)
     };
 
     window.dispatchEvent(new CustomEvent("editor_action_performed", {

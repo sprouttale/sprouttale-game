@@ -1086,9 +1086,17 @@ export class GameRoom extends Room<GameState> {
       obj.patrolPath = String(message.patrolPath || "");
       obj.patrolSpeed = message.patrolSpeed !== undefined ? Number(message.patrolSpeed) : 45;
  
-      if (obj.assetId && obj.assetId.startsWith("maple_tree_")) {
+      if (obj.assetId && (obj.assetId.startsWith("maple_tree_") || obj.assetId.startsWith("dekor_tree_"))) {
         obj.treeState = "grown";
         obj.treeHp = 10;
+        // Auto-enforce 2.5x scale and trunk collision for all maple trees
+        obj.scaleX = 2.5;
+        obj.scaleY = 2.5;
+        obj.isSolid = true;
+        obj.solidWidth = 20;
+        obj.solidHeight = 10;
+        obj.solidOffsetX = 0;
+        obj.solidOffsetY = 24;
       }
 
       this.state.mapObjects.set(obj.id, obj);

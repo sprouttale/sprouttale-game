@@ -1168,7 +1168,7 @@ export class GameRoom extends Room<GameState> {
 
           const obj = new MapObject();
           obj.id = o.id || `obj_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-          obj.assetId = o.assetId || "test_block";
+          obj.assetId = aId;
           obj.x = rx;
           obj.y = ry;
           obj.mapId = mId;
@@ -1199,8 +1199,35 @@ export class GameRoom extends Room<GameState> {
             obj.treeHp = 10;
           }
 
-          this.state.mapObjects.set(obj.id, obj);
-          coordMap.set(k, obj.id);
+          // Route static terrain tiles to staticMapTiles to avoid schema overhead.
+          // Also deduplicate against existing staticMapTiles at same position.
+          const isStaticTile = aId.startsWith("terrain_") || aId.startsWith("wf_") || aId === "zemin_tileset";
+          if (isStaticTile && !obj.isSolid && !obj.isClimbable && (obj.triggerType === "none" || !obj.triggerType)) {
+            const staticKey = `${mId}:${dLayer}:${aId}:${rx}:${ry}`;
+            // Remove any existing static tile at same position+layer+asset
+            this.staticMapTiles = this.staticMapTiles.filter((t: any) => {
+              const tk = `${t.mapId || "world_1"}:${t.depthLayer || "below"}:${t.assetId}:${Math.round(t.x)}:${Math.round(t.y)}`;
+              return tk !== staticKey;
+            });
+            const plainObj = {
+              id: obj.id, assetId: obj.assetId, mapId: mId,
+              x: obj.x, y: obj.y, scaleX: obj.scaleX, scaleY: obj.scaleY,
+              rotation: obj.rotation, flipX: obj.flipX, flipY: obj.flipY,
+              isSolid: false, isWater: obj.isWater, isClimbable: false,
+              depthLayer: dLayer, triggerType: "none",
+              triggerTargetX: 0, triggerTargetY: 0,
+              tileX: obj.tileX, tileY: obj.tileY, tileW: obj.tileW, tileH: obj.tileH,
+              frameRate: obj.frameRate,
+              solidWidth: 0, solidHeight: 0, solidOffsetX: 0, solidOffsetY: 0,
+              treeState: "", treeHp: 0, cropType: "none", cropStage: 0, cropWatered: false
+            };
+            this.staticMapTiles.push(plainObj);
+            // Broadcast to all clients so newly placed static tile appears immediately
+            this.broadcast("batch_place_static", { objects: [plainObj] });
+          } else {
+            this.state.mapObjects.set(obj.id, obj);
+            coordMap.set(k, obj.id);
+          }
         });
 
         this.spatialGridDirty = true;

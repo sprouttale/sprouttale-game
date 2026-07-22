@@ -2909,12 +2909,12 @@ export class GameScene extends Phaser.Scene {
           });
 
           const deleteIds: string[] = [];
-          toDelete.forEach((item) => {
-            deleteIds.push(item.id);
+          toDelete.forEach((item) => deleteIds.push(item.id));
+          if (toDelete.length > 0) {
             window.dispatchEvent(new CustomEvent("editor_action_performed", {
-              detail: { type: "delete", id: item.id, data: item.data }
+              detail: { type: "batch_delete", items: toDelete }
             }));
-          });
+          }
           if (deleteIds.length > 0 && this.room) {
             const CHUNK_SIZE = 150;
             let idx = 0;
@@ -2997,12 +2997,12 @@ export class GameScene extends Phaser.Scene {
             }
 
             const floodDeleteIds: string[] = [];
-            toDeleteItems.forEach((item) => {
-              floodDeleteIds.push(item.id);
+            toDeleteItems.forEach((item) => floodDeleteIds.push(item.id));
+            if (toDeleteItems.length > 0) {
               window.dispatchEvent(new CustomEvent("editor_action_performed", {
-                detail: { type: "delete", id: item.id, data: item.data }
+                detail: { type: "batch_delete", items: toDeleteItems }
               }));
-            });
+            }
             if (floodDeleteIds.length > 0 && this.room) {
               const CHUNK_SIZE = 150;
               let idx = 0;
@@ -3078,7 +3078,7 @@ export class GameScene extends Phaser.Scene {
               assetId = `terrain_${tilesetKey}_${patCol}_${patRow}_${tileW}_${tileH}`;
             }
 
-            const objId = `obj_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+            const objId = `obj_${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${Math.floor(Math.random()*1000000)}`;
             const objData = {
               id: objId, assetId, x: cx, y: cy,
               mapId: this.currentMapId,
@@ -3092,7 +3092,6 @@ export class GameScene extends Phaser.Scene {
               frameRate: 6, solidWidth: 0, solidHeight: 0, solidOffsetX: 0, solidOffsetY: 0,
             };
             batchObjects.push(objData);
-            window.dispatchEvent(new CustomEvent("editor_action_performed", { detail: { type: "place", id: objId, data: objData } }));
           }
         }
       } else {
@@ -3105,7 +3104,7 @@ export class GameScene extends Phaser.Scene {
 
         for (let cy = minY; cy <= maxY; cy += stepY) {
           for (let cx = minX; cx <= maxX; cx += stepX) {
-            const objId = `obj_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+            const objId = `obj_${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${Math.floor(Math.random()*1000000)}`;
             const objData = {
               id: objId, assetId: config.selectedAsset, x: cx, y: cy,
               mapId: this.currentMapId,
@@ -3122,9 +3121,12 @@ export class GameScene extends Phaser.Scene {
               frameRate: 6, solidWidth: 0, solidHeight: 0, solidOffsetX: 0, solidOffsetY: 0,
             };
             batchObjects.push(objData);
-            window.dispatchEvent(new CustomEvent("editor_action_performed", { detail: { type: "place", id: objId, data: objData } }));
           }
         }
+      }
+
+      if (batchObjects.length > 0) {
+        window.dispatchEvent(new CustomEvent("editor_action_performed", { detail: { type: "batch_place", items: batchObjects } }));
       }
 
       if (batchObjects.length > 0 && this.room) {

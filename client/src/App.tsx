@@ -738,6 +738,12 @@ export default function App() {
       room.send("delete_object", { id: action.id });
     } else if (action.type === "delete") {
       room.send("place_object", { ...action.data });
+    } else if (action.type === "batch_place") {
+      const ids = (action.items || []).map((i: any) => i.id || i.data?.id);
+      if (ids.length > 0) room.send("batch_delete_objects", { ids });
+    } else if (action.type === "batch_delete") {
+      const objects = (action.items || []).map((i: any) => i.data || i);
+      if (objects.length > 0) room.send("batch_place_objects", { objects });
     } else if (action.type === "update") {
       room.send("update_object", { id: action.id, ...action.oldData });
     }
@@ -753,6 +759,12 @@ export default function App() {
       room.send("place_object", { ...action.data });
     } else if (action.type === "delete") {
       room.send("delete_object", { id: action.id });
+    } else if (action.type === "batch_place") {
+      const objects = (action.items || []).map((i: any) => i.data || i);
+      if (objects.length > 0) room.send("batch_place_objects", { objects });
+    } else if (action.type === "batch_delete") {
+      const ids = (action.items || []).map((i: any) => i.id || i.data?.id);
+      if (ids.length > 0) room.send("batch_delete_objects", { ids });
     } else if (action.type === "update") {
       room.send("update_object", { id: action.id, ...action.newData });
     }

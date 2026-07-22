@@ -5038,7 +5038,9 @@ export class GameScene extends Phaser.Scene {
         const frameToShow = obj.treeHitFlash ? HIT_FRAME : normalFrame;
 
         sprite = this.add.sprite(obj.x, obj.y, "mineral_sheet", frameToShow);
-        sprite.setScale(obj.scaleX !== undefined ? obj.scaleX : 1, obj.scaleY !== undefined ? obj.scaleY : 1);
+        const mineScaleX = (obj.scaleX && obj.scaleX > 1.5) ? obj.scaleX : 2.3;
+        const mineScaleY = (obj.scaleY && obj.scaleY > 1.5) ? obj.scaleY : 2.3;
+        sprite.setScale(mineScaleX, mineScaleY);
         (sprite as Phaser.GameObjects.Sprite).setFlip(Boolean(obj.flipX), Boolean(obj.flipY));
 
         if (obj.treeHitFlash) {
@@ -5373,7 +5375,9 @@ export class GameScene extends Phaser.Scene {
         sprite.setVisible(true);
         const frameToShow = obj.treeHitFlash ? HIT_FRAME : normalFrame;
         (sprite as Phaser.GameObjects.Sprite).setTexture("mineral_sheet", frameToShow);
-        sprite.setScale(obj.scaleX !== undefined ? obj.scaleX : 1, obj.scaleY !== undefined ? obj.scaleY : 1);
+        const mineScaleX = (obj.scaleX && obj.scaleX > 1.5) ? obj.scaleX : 2.3;
+        const mineScaleY = (obj.scaleY && obj.scaleY > 1.5) ? obj.scaleY : 2.3;
+        sprite.setScale(mineScaleX, mineScaleY);
         (sprite as Phaser.GameObjects.Sprite).setFlip(Boolean(obj.flipX), Boolean(obj.flipY));
 
         if (obj.treeHitFlash) {

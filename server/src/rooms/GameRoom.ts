@@ -2355,6 +2355,16 @@ export class GameRoom extends Room<GameState> {
         obj.cropType      = String(o.cropType || "none");
         obj.cropStage     = Number(o.cropStage || 0);
         obj.cropWatered   = Boolean(o.cropWatered);
+        if (aId.startsWith("mineral_mine_")) {
+          obj.scaleX = 2.3;
+          obj.scaleY = 2.3;
+          obj.isSolid = (obj.treeState !== "stump");
+          obj.solidWidth = 32;
+          obj.solidHeight = 32;
+          obj.solidOffsetX = 0;
+          obj.solidOffsetY = 0;
+        }
+
         this.state.mapObjects.set(obj.id, obj);
       }
     });

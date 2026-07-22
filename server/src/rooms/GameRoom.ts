@@ -598,6 +598,7 @@ export class GameRoom extends Room<GameState> {
               if (mine.treeHp <= 0) {
                 mine.treeState = "stump"; // depleted
                 mine.treeHp = 0;
+                mine.isSolid = false; // Passable when broken!
 
                 const typeIdx = parseInt(mine.assetId.replace("mineral_mine_", ""), 10) || 1;
 
@@ -620,15 +621,16 @@ export class GameRoom extends Room<GameState> {
                 client.send("mine_mined", { gold: rewardGold, item: rewardName });
                 console.log(`[GameRoom] Mine ${mine.id} depleted. Reward: ${rewardName}`);
 
-                // Start 20-second regrowth timer
+                // Start 30-second regrowth timer (updated to 30s as requested)
                 this.clock.setTimeout(() => {
                   if (this.state.mapObjects.get(mine.id) !== mine) return;
                   if (mine.treeState === "stump") {
                     mine.treeState = "grown";
                     mine.treeHp = 10;
+                    mine.isSolid = true; // Solid again when respawned!
                     console.log(`[GameRoom] Mine ${mine.id} fully grew back!`);
                   }
-                }, 20000);
+                }, 30000);
               }
             }
           }
@@ -1588,6 +1590,7 @@ export class GameRoom extends Room<GameState> {
         for (const obj of nearbyObjects) {
           if (!obj.isSolid) continue;
           if (player.action === "climb" && obj.isClimbable) continue;
+          if (obj.assetId && obj.assetId.startsWith("mineral_mine_") && obj.treeState === "stump") continue;
           const w   = (obj.solidWidth  > 0) ? obj.solidWidth  : (32 * obj.scaleX);
           const h   = (obj.solidHeight > 0) ? obj.solidHeight : (32 * obj.scaleY);
           const ox  = obj.solidOffsetX || 0;
@@ -1613,6 +1616,7 @@ export class GameRoom extends Room<GameState> {
         for (const obj of nearbyObjects) {
           if (!obj.isSolid) continue;
           if (player.action === "climb" && obj.isClimbable) continue;
+          if (obj.assetId && obj.assetId.startsWith("mineral_mine_") && obj.treeState === "stump") continue;
           const w   = (obj.solidWidth  > 0) ? obj.solidWidth  : (32 * obj.scaleX);
           const h   = (obj.solidHeight > 0) ? obj.solidHeight : (32 * obj.scaleY);
           const ox  = obj.solidOffsetX || 0;

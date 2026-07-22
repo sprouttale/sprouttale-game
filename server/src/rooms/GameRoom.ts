@@ -2319,12 +2319,12 @@ export class GameRoom extends Room<GameState> {
     try {
       const allObjects = this.serializeMap();
 
-      // Save master map file containing ALL objects across all worlds
+      // Save master map file containing ALL objects across all worlds (minified 1-line JSON)
       const masterPath = path.join(process.cwd(), "map_save.json");
-      fs.writeFileSync(masterPath, JSON.stringify(allObjects, null, 2), "utf8");
+      fs.writeFileSync(masterPath, JSON.stringify(allObjects), "utf8");
 
       const worldSavePath = path.join(process.cwd(), "_mapdata", "world_save.json");
-      fs.writeFileSync(worldSavePath, JSON.stringify(allObjects, null, 2), "utf8");
+      fs.writeFileSync(worldSavePath, JSON.stringify(allObjects), "utf8");
 
       // Save individual world files for backup
       const world2Path = path.join(process.cwd(), "_mapdata", "world2_save.json");

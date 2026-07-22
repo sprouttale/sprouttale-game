@@ -97,22 +97,26 @@ export class GameRoom extends Room<GameState> {
   // ---------------------------------------------------------------------------
   // Spatial Grid — rebuilt when map objects change, gives O(1) nearby-object lookup
   // ---------------------------------------------------------------------------
+  private staticMapTiles: any[] = [];
   private readonly GRID_CELL = 128; // px per grid cell
   // key = "mapId:cellX:cellY"  value = array of MapObject refs
   private spatialGrid = new Map<string, any[]>();
   private spatialGridDirty = true; // set true after any place/delete
 
-  /** Rebuild the spatial grid from current state.mapObjects */
+  /** Rebuild the spatial grid from staticMapTiles AND state.mapObjects */
   private rebuildSpatialGrid(): void {
     this.spatialGrid.clear();
-    this.state.mapObjects.forEach((obj) => {
+    const addToGrid = (obj: any) => {
       const mapId = obj.mapId || "world_1";
       const cx = Math.floor(obj.x / this.GRID_CELL);
       const cy = Math.floor(obj.y / this.GRID_CELL);
       const key = `${mapId}:${cx}:${cy}`;
       if (!this.spatialGrid.has(key)) this.spatialGrid.set(key, []);
       this.spatialGrid.get(key)!.push(obj);
-    });
+    };
+
+    this.staticMapTiles.forEach(addToGrid);
+    this.state.mapObjects.forEach(addToGrid);
     this.spatialGridDirty = false;
   }
 
@@ -1374,6 +1378,13 @@ export class GameRoom extends Room<GameState> {
       `[GameRoom] ${player.name} (${client.sessionId}) joined. ` +
       `Total players: ${this.state.players.size}`
     );
+
+    // Send static terrain tiles in lightweight chunks over WebSocket
+    const CHUNK_SIZE = 1000;
+    for (let i = 0; i < this.staticMapTiles.length; i += CHUNK_SIZE) {
+      const chunk = this.staticMapTiles.slice(i, i + CHUNK_SIZE);
+      client.send("static_map_tiles_chunk", { tiles: chunk, isLast: (i + CHUNK_SIZE >= this.staticMapTiles.length) });
+    }
   }
 
   onLeave(client: Client, _consented: boolean): void {
@@ -2203,7 +2214,7 @@ export class GameRoom extends Room<GameState> {
 
   /** Serialize current map objects to plain JSON array */
   private serializeMap(): any[] {
-    const objects: any[] = [];
+    const objects: any[] = [...this.staticMapTiles];
     this.state.mapObjects.forEach((obj) => {
       objects.push({
         id: obj.id, assetId: obj.assetId,
@@ -2228,40 +2239,74 @@ export class GameRoom extends Room<GameState> {
   /** Load serialized objects into game state */
   private deserializeMap(objects: any[], defaultMapId: string = "world_1"): void {
     objects.forEach((o: any) => {
-      const obj = new MapObject();
-      obj.id            = o.id || `obj_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-      obj.assetId       = o.assetId || "test_block";
-      obj.mapId         = String(o.mapId || defaultMapId);
-      obj.x             = Number(o.x || 0);
-      obj.y             = Number(o.y || 0);
-      obj.scaleX        = Number(o.scaleX !== undefined ? o.scaleX : 1);
-      obj.scaleY        = Number(o.scaleY !== undefined ? o.scaleY : 1);
-      obj.rotation      = Number(o.rotation || 0);
-      obj.flipX         = Boolean(o.flipX);
-      obj.flipY         = Boolean(o.flipY);
-      obj.isSolid       = Boolean(o.isSolid);
-      obj.isWater       = Boolean(o.isWater);
-      obj.isClimbable   = Boolean(o.isClimbable);
-      obj.depthLayer    = String(o.depthLayer || "same");
-      obj.triggerType   = String(o.triggerType || "none");
-      obj.triggerTargetX = Number(o.triggerTargetX || 0);
-      obj.triggerTargetY = Number(o.triggerTargetY || 0);
-      obj.tileX         = o.tileX !== undefined ? Number(o.tileX) : -1;
-      obj.tileY         = o.tileY !== undefined ? Number(o.tileY) : -1;
-      obj.tileW         = o.tileW !== undefined ? Number(o.tileW) : 0;
-      obj.tileH         = o.tileH !== undefined ? Number(o.tileH) : 0;
-      obj.frameRate     = o.frameRate !== undefined ? Number(o.frameRate) : 6;
-      obj.solidWidth    = o.solidWidth !== undefined ? Number(o.solidWidth) : 0;
-      obj.solidHeight   = o.solidHeight !== undefined ? Number(o.solidHeight) : 0;
-      obj.solidOffsetX  = o.solidOffsetX !== undefined ? Number(o.solidOffsetX) : 0;
-      obj.solidOffsetY  = o.solidOffsetY !== undefined ? Number(o.solidOffsetY) : 0;
-      obj.treeState     = String(o.treeState || "");
-      obj.treeHp        = Number(o.treeHp || 0);
-      obj.cropType      = String(o.cropType || "none");
-      obj.cropStage     = Number(o.cropStage || 0);
-      obj.cropWatered   = Boolean(o.cropWatered);
-      this.state.mapObjects.set(obj.id, obj);
+      const aId = String(o.assetId || "");
+      const isStaticTerrain = Boolean(
+        aId && (
+          aId.startsWith("terrain_") ||
+          aId.startsWith("wf_") ||
+          aId === "zemin_tileset"
+        ) && !o.isSolid && !o.isClimbable && (!o.triggerType || o.triggerType === "none")
+      );
+
+      if (isStaticTerrain) {
+        this.staticMapTiles.push({
+          id: String(o.id || `obj_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`),
+          assetId: aId,
+          mapId: String(o.mapId || defaultMapId),
+          x: Number(o.x || 0),
+          y: Number(o.y || 0),
+          scaleX: Number(o.scaleX !== undefined ? o.scaleX : 1),
+          scaleY: Number(o.scaleY !== undefined ? o.scaleY : 1),
+          rotation: Number(o.rotation || 0),
+          flipX: Boolean(o.flipX),
+          flipY: Boolean(o.flipY),
+          isSolid: false,
+          isWater: Boolean(o.isWater),
+          isClimbable: false,
+          depthLayer: String(o.depthLayer || "below"),
+          tileX: o.tileX !== undefined ? Number(o.tileX) : -1,
+          tileY: o.tileY !== undefined ? Number(o.tileY) : -1,
+          tileW: o.tileW !== undefined ? Number(o.tileW) : 0,
+          tileH: o.tileH !== undefined ? Number(o.tileH) : 0,
+          frameRate: o.frameRate !== undefined ? Number(o.frameRate) : 6
+        });
+      } else {
+        const obj = new MapObject();
+        obj.id            = o.id || `obj_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+        obj.assetId       = aId || "test_block";
+        obj.mapId         = String(o.mapId || defaultMapId);
+        obj.x             = Number(o.x || 0);
+        obj.y             = Number(o.y || 0);
+        obj.scaleX        = Number(o.scaleX !== undefined ? o.scaleX : 1);
+        obj.scaleY        = Number(o.scaleY !== undefined ? o.scaleY : 1);
+        obj.rotation      = Number(o.rotation || 0);
+        obj.flipX         = Boolean(o.flipX);
+        obj.flipY         = Boolean(o.flipY);
+        obj.isSolid       = Boolean(o.isSolid);
+        obj.isWater       = Boolean(o.isWater);
+        obj.isClimbable   = Boolean(o.isClimbable);
+        obj.depthLayer    = String(o.depthLayer || "same");
+        obj.triggerType   = String(o.triggerType || "none");
+        obj.triggerTargetX = Number(o.triggerTargetX || 0);
+        obj.triggerTargetY = Number(o.triggerTargetY || 0);
+        obj.tileX         = o.tileX !== undefined ? Number(o.tileX) : -1;
+        obj.tileY         = o.tileY !== undefined ? Number(o.tileY) : -1;
+        obj.tileW         = o.tileW !== undefined ? Number(o.tileW) : 0;
+        obj.tileH         = o.tileH !== undefined ? Number(o.tileH) : 0;
+        obj.frameRate     = o.frameRate !== undefined ? Number(o.frameRate) : 6;
+        obj.solidWidth    = o.solidWidth !== undefined ? Number(o.solidWidth) : 0;
+        obj.solidHeight   = o.solidHeight !== undefined ? Number(o.solidHeight) : 0;
+        obj.solidOffsetX  = o.solidOffsetX !== undefined ? Number(o.solidOffsetX) : 0;
+        obj.solidOffsetY  = o.solidOffsetY !== undefined ? Number(o.solidOffsetY) : 0;
+        obj.treeState     = String(o.treeState || "");
+        obj.treeHp        = Number(o.treeHp || 0);
+        obj.cropType      = String(o.cropType || "none");
+        obj.cropStage     = Number(o.cropStage || 0);
+        obj.cropWatered   = Boolean(o.cropWatered);
+        this.state.mapObjects.set(obj.id, obj);
+      }
     });
+    this.spatialGridDirty = true;
   }
 
   /** Save map locally to disk with 500ms debounce */

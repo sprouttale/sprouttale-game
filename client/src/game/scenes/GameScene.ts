@@ -4533,6 +4533,30 @@ export class GameScene extends Phaser.Scene {
     mapObjects.onRemove((_obj: any, key: string) => {
       this.destroyPlacedObject(key);
     });
+
+    this.room.onMessage("static_map_tiles_chunk", (data: { tiles: any[], isLast?: boolean }) => {
+      if (Array.isArray(data.tiles)) {
+        data.tiles.forEach((tile: any) => {
+          this.createPlacedObject(tile, tile.id);
+        });
+      }
+    });
+
+    this.room.onMessage("batch_place_static", (data: { objects: any[] }) => {
+      if (Array.isArray(data.objects)) {
+        data.objects.forEach((tile: any) => {
+          this.createPlacedObject(tile, tile.id);
+        });
+      }
+    });
+
+    this.room.onMessage("batch_delete_static", (data: { objectIds: string[] }) => {
+      if (Array.isArray(data.objectIds)) {
+        data.objectIds.forEach((id: string) => {
+          this.destroyPlacedObject(id);
+        });
+      }
+    });
   }
 
   // -------------------------------------------------------------------------

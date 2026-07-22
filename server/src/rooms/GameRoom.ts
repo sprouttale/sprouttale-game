@@ -89,6 +89,11 @@ export class GameRoom extends Room<GameState> {
   private playerPetIdleTime = new Map<string, number>();
   private cropAccumulator = 0;
 
+  /** Cooldown timestamps for map transitions (sessionId -> last transition time ms)
+   *  Prevents infinite teleport loops when arrows from adjacent maps overlap spawn points. */
+  private mapTransitionCooldown = new Map<string, number>();
+  private readonly MAP_TRANSITION_COOLDOWN_MS = 1500; // 1.5 seconds cooldown
+
   // -------------------------------------------------------------------------
   // Lifecycle
   // -------------------------------------------------------------------------
@@ -1518,101 +1523,99 @@ export class GameRoom extends Room<GameState> {
             player.y = obj.triggerTargetY;
             console.log(`[GameRoom] 🌀 Teleported player ${player.name} to (${player.x}, ${player.y})`);
           } else if (isArrow) {
+            // Check cooldown to prevent rapid back-and-forth teleport loops
+            const now = Date.now();
+            const lastTransition = this.mapTransitionCooldown.get(sessionId) || 0;
+            if (now - lastTransition < this.MAP_TRANSITION_COOLDOWN_MS) return; // still on cooldown
+
             // Use assetId to determine direction — reliable regardless of arrow position on map
             const arrowDir = obj.assetId; // "yon_sag" | "yon_sol" | "yon_yukari" | "yon_asagi"
 
             if (activeMap === "world_1") {
               if (arrowDir === "yon_asagi") {
-                // Down arrow on world_1 -> world_7
                 player.currentMap = "world_7";
                 player.x = Math.min(1450, Math.max(50, obj.x));
                 player.y = 80;
-                console.log(`[GameRoom] 🧭 world_1 yon_asagi -> world_7 at (${player.x}, ${player.y})`);
+                this.mapTransitionCooldown.set(sessionId, Date.now());
+                console.log(`[GameRoom] ??? world_1 yon_asagi -> world_7 at (${player.x}, ${player.y})`);
               } else if (arrowDir === "yon_sag") {
-                // Right arrow on world_1 -> world_4
                 player.currentMap = "world_4";
                 player.x = 80;
                 player.y = Math.min(1450, Math.max(50, obj.y));
-                console.log(`[GameRoom] 🧭 world_1 yon_sag -> world_4 at (${player.x}, ${player.y})`);
+                this.mapTransitionCooldown.set(sessionId, Date.now());
+                console.log(`[GameRoom] ??? world_1 yon_sag -> world_4 at (${player.x}, ${player.y})`);
               } else if (arrowDir === "yon_sol") {
-                // Left arrow on world_1 -> world_2
                 player.currentMap = "world_2";
                 player.x = 1920;
                 player.y = Math.min(1950, Math.max(50, obj.y));
-                console.log(`[GameRoom] 🧭 world_1 yon_sol -> world_2 at (${player.x}, ${player.y})`);
-              } else if (arrowDir === "yon_yukari") {
-                // Up arrow on world_1 (no map above currently, ignore)
-                console.log(`[GameRoom] 🧭 world_1 yon_yukari -> no map defined above world_1`);
+                this.mapTransitionCooldown.set(sessionId, Date.now());
+                console.log(`[GameRoom] ??? world_1 yon_sol -> world_2 at (${player.x}, ${player.y})`);
               }
             } else if (activeMap === "world_7") {
               if (arrowDir === "yon_yukari") {
-                // Up arrow on world_7 -> back to world_1
                 player.currentMap = "world_1";
                 player.x = Math.min(1450, Math.max(50, obj.x));
                 player.y = 2420;
-                console.log(`[GameRoom] 🧭 world_7 yon_yukari -> world_1 at (${player.x}, ${player.y})`);
-              } else if (arrowDir === "yon_asagi") {
-                console.log(`[GameRoom] 🧭 world_7 yon_asagi -> no map below world_7`);
+                this.mapTransitionCooldown.set(sessionId, Date.now());
+                console.log(`[GameRoom] ??? world_7 yon_yukari -> world_1 at (${player.x}, ${player.y})`);
               }
             } else if (activeMap === "world_4") {
               if (arrowDir === "yon_sag") {
-                // Right arrow on world_4 -> world_5
                 player.currentMap = "world_5";
                 player.x = 80;
                 player.y = Math.min(1450, Math.max(50, obj.y));
-                console.log(`[GameRoom] 🧭 world_4 yon_sag -> world_5 at (${player.x}, ${player.y})`);
+                this.mapTransitionCooldown.set(sessionId, Date.now());
+                console.log(`[GameRoom] ??? world_4 yon_sag -> world_5 at (${player.x}, ${player.y})`);
               } else if (arrowDir === "yon_sol") {
-                // Left arrow on world_4 -> back to world_1
                 player.currentMap = "world_1";
                 player.x = 1420;
                 player.y = Math.min(2450, Math.max(50, obj.y));
-                console.log(`[GameRoom] 🧭 world_4 yon_sol -> world_1 at (${player.x}, ${player.y})`);
+                this.mapTransitionCooldown.set(sessionId, Date.now());
+                console.log(`[GameRoom] ??? world_4 yon_sol -> world_1 at (${player.x}, ${player.y})`);
               }
             } else if (activeMap === "world_5") {
               if (arrowDir === "yon_asagi") {
-                // Down arrow on world_5 -> world_6
                 player.currentMap = "world_6";
                 player.x = Math.min(1450, Math.max(50, obj.x));
                 player.y = 80;
-                console.log(`[GameRoom] 🧭 world_5 yon_asagi -> world_6 at (${player.x}, ${player.y})`);
+                this.mapTransitionCooldown.set(sessionId, Date.now());
+                console.log(`[GameRoom] ??? world_5 yon_asagi -> world_6 at (${player.x}, ${player.y})`);
               } else if (arrowDir === "yon_sol") {
-                // Left arrow on world_5 -> back to world_4
                 player.currentMap = "world_4";
                 player.x = 1420;
                 player.y = Math.min(1450, Math.max(50, obj.y));
-                console.log(`[GameRoom] 🧭 world_5 yon_sol -> world_4 at (${player.x}, ${player.y})`);
-              } else if (arrowDir === "yon_sag") {
-                console.log(`[GameRoom] 🧭 world_5 yon_sag -> no map to the right of world_5`);
+                this.mapTransitionCooldown.set(sessionId, Date.now());
+                console.log(`[GameRoom] ??? world_5 yon_sol -> world_4 at (${player.x}, ${player.y})`);
               }
             } else if (activeMap === "world_6") {
               if (arrowDir === "yon_yukari") {
-                // Up arrow on world_6 -> back to world_5
                 player.currentMap = "world_5";
                 player.x = Math.min(1450, Math.max(50, obj.x));
                 player.y = 1420;
-                console.log(`[GameRoom] 🧭 world_6 yon_yukari -> world_5 at (${player.x}, ${player.y})`);
+                this.mapTransitionCooldown.set(sessionId, Date.now());
+                console.log(`[GameRoom] ??? world_6 yon_yukari -> world_5 at (${player.x}, ${player.y})`);
               }
             } else if (activeMap === "world_2") {
               if (arrowDir === "yon_sag") {
-                // Right arrow on world_2 -> back to world_1
                 player.currentMap = "world_1";
                 player.x = 80;
                 player.y = Math.min(2450, Math.max(50, obj.y));
-                console.log(`[GameRoom] 🧭 world_2 yon_sag -> world_1 at (${player.x}, ${player.y})`);
+                this.mapTransitionCooldown.set(sessionId, Date.now());
+                console.log(`[GameRoom] ??? world_2 yon_sag -> world_1 at (${player.x}, ${player.y})`);
               } else if (arrowDir === "yon_sol") {
-                // Left arrow on world_2 -> world_3
                 player.currentMap = "world_3";
                 player.x = 1920;
                 player.y = Math.min(1950, Math.max(50, obj.y));
-                console.log(`[GameRoom] 🧭 world_2 yon_sol -> world_3 at (${player.x}, ${player.y})`);
+                this.mapTransitionCooldown.set(sessionId, Date.now());
+                console.log(`[GameRoom] ??? world_2 yon_sol -> world_3 at (${player.x}, ${player.y})`);
               }
             } else if (activeMap === "world_3") {
               if (arrowDir === "yon_sag") {
-                // Right arrow on world_3 -> back to world_2
                 player.currentMap = "world_2";
                 player.x = 80;
                 player.y = Math.min(1950, Math.max(50, obj.y));
-                console.log(`[GameRoom] 🧭 world_3 yon_sag -> world_2 at (${player.x}, ${player.y})`);
+                this.mapTransitionCooldown.set(sessionId, Date.now());
+                console.log(`[GameRoom] ??? world_3 yon_sag -> world_2 at (${player.x}, ${player.y})`);
               }
             }
           }

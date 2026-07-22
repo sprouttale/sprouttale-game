@@ -1136,16 +1136,17 @@ export class GameRoom extends Room<GameState> {
       if (Array.isArray(message.objects) && message.objects.length > 0) {
         const coordMap = new Map<string, string>();
         this.state.mapObjects.forEach((existingObj, id) => {
-          const k = `${existingObj.mapId || "world_1"}:${existingObj.depthLayer || "below"}:${Math.round(existingObj.x)}:${Math.round(existingObj.y)}`;
+          const k = `${existingObj.mapId || "world_1"}:${existingObj.depthLayer || "below"}:${existingObj.assetId}:${Math.round(existingObj.x)}:${Math.round(existingObj.y)}`;
           coordMap.set(k, id);
         });
 
         message.objects.forEach((o: any) => {
           const mId = String(o.mapId || player.currentMap || "world_1");
           const dLayer = String(o.depthLayer || "below");
+          const aId = String(o.assetId || "test_block");
           const rx = Math.round(Number(o.x || 0));
           const ry = Math.round(Number(o.y || 0));
-          const k = `${mId}:${dLayer}:${rx}:${ry}`;
+          const k = `${mId}:${dLayer}:${aId}:${rx}:${ry}`;
 
           const existingId = coordMap.get(k);
           if (existingId) {

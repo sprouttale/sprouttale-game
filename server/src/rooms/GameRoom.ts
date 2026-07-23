@@ -1109,10 +1109,11 @@ export class GameRoom extends Room<GameState> {
         const mId = obj.mapId || player.currentMap || "world_1";
         const dLayer = obj.depthLayer || "below";
         const rx = Math.round(obj.x); const ry = Math.round(obj.y);
-        const staticKey = `${mId}:${dLayer}:${aId}:${rx}:${ry}`;
+        // Remove ANY previous static tile at the exact same map, depthLayer, and (x, y) coordinates
+        const posKey = `${mId}:${dLayer}:${rx}:${ry}`;
         this.staticMapTiles = this.staticMapTiles.filter((t: any) => {
-          const tk = `${t.mapId || "world_1"}:${t.depthLayer || "below"}:${t.assetId}:${Math.round(t.x)}:${Math.round(t.y)}`;
-          return tk !== staticKey;
+          const tk = `${t.mapId || "world_1"}:${t.depthLayer || "below"}:${Math.round(t.x)}:${Math.round(t.y)}`;
+          return tk !== posKey;
         });
         const plainObj = {
           id: obj.id, assetId: obj.assetId, mapId: mId,
@@ -1251,14 +1252,13 @@ export class GameRoom extends Room<GameState> {
           }
 
           // Route static terrain tiles to staticMapTiles to avoid schema overhead.
-          // Also deduplicate against existing staticMapTiles at same position.
+          // Deduplicate against ANY existing static tile at exact same position+layer
           const isStaticTile = aId.startsWith("terrain_") || aId.startsWith("wf_") || aId === "zemin_tileset";
           if (isStaticTile && !obj.isSolid && !obj.isClimbable && (obj.triggerType === "none" || !obj.triggerType)) {
-            const staticKey = `${mId}:${dLayer}:${aId}:${rx}:${ry}`;
-            // Remove any existing static tile at same position+layer+asset
+            const posKey = `${mId}:${dLayer}:${rx}:${ry}`;
             this.staticMapTiles = this.staticMapTiles.filter((t: any) => {
-              const tk = `${t.mapId || "world_1"}:${t.depthLayer || "below"}:${t.assetId}:${Math.round(t.x)}:${Math.round(t.y)}`;
-              return tk !== staticKey;
+              const tk = `${t.mapId || "world_1"}:${t.depthLayer || "below"}:${Math.round(t.x)}:${Math.round(t.y)}`;
+              return tk !== posKey;
             });
             const plainObj = {
               id: obj.id, assetId: obj.assetId, mapId: mId,
@@ -1294,27 +1294,67 @@ export class GameRoom extends Room<GameState> {
 
       if (Array.isArray(message.ids) && message.ids.length > 0) {
         let count = 0;
+        const idSet = new Set(message.ids);
         message.ids.forEach((id: string) => {
           if (this.state.mapObjects.has(id)) {
             this.state.mapObjects.delete(id);
             count++;
           }
         });
-        if (count > 0) {
+
+        const initialStaticLen = this.staticMapTiles.length;
+        this.staticMapTiles = this.staticMapTiles.filter((t: any) => !idSet.has(t.id));
+        const staticDeletedCount = initialStaticLen - this.staticMapTiles.length;
+
+        if (count > 0 || staticDeletedCount > 0) {
+          this.broadcast("batch_delete_static", { objectIds: message.ids });
           this.spatialGridDirty = true;
           this.saveMapToDisk();
-          console.log(`[GameRoom] Player ${player.name} batch deleted ${count} objects`);
+          console.log(`[GameRoom] Player ${player.name} batch deleted ${count + staticDeletedCount} objects/static tiles`);
         }
       }
     });
 
     // Register message handler for deleting a map object
-    this.onMessage("delete_object", (client: Client, message: { id: string }) => {
+    this.onMessage("delete_object", (client: Client, message: { id: string, x?: number, y?: number, mapId?: string, depthLayer?: string }) => {
       const player = this.state.players.get(client.sessionId);
       if (!player) return;
 
+      let deleted = false;
       if (this.state.mapObjects.has(message.id)) {
         this.state.mapObjects.delete(message.id);
+        deleted = true;
+      }
+
+      const initialLen = this.staticMapTiles.length;
+      const targetMap = message.mapId || player.currentMap || "world_1";
+      const targetLayer = message.depthLayer || "below";
+      const deletedStaticIds: string[] = [];
+
+      this.staticMapTiles = this.staticMapTiles.filter((t: any) => {
+        let remove = false;
+        if (t.id === message.id) remove = true;
+        if (message.x !== undefined && message.y !== undefined) {
+          if ((t.mapId || "world_1") === targetMap && (t.depthLayer || "below") === targetLayer) {
+            if (Math.round(t.x) === Math.round(message.x) && Math.round(t.y) === Math.round(message.y)) {
+              remove = true;
+            }
+          }
+        }
+        if (remove) {
+          deletedStaticIds.push(t.id);
+          return false;
+        }
+        return true;
+      });
+
+      if (deletedStaticIds.length > 0) {
+        deleted = true;
+        this.broadcast("batch_delete_static", { objectIds: [message.id, ...deletedStaticIds] });
+      }
+
+      if (deleted) {
+        this.spatialGridDirty = true;
         this.saveMapToDisk();
         console.log(`[GameRoom] Player ${player.name} deleted object: ${message.id}`);
       }
@@ -2449,9 +2489,9 @@ export class GameRoom extends Room<GameState> {
       console.error("[GameRoom] Error saving map to disk:", err);
     }
 
-    // Debounce GitHub save: wait 60s after last change before pushing to GitHub
+    // Debounce GitHub save: wait 5s after last change before pushing to GitHub
     if (this.githubSaveTimer) clearTimeout(this.githubSaveTimer);
-    this.githubSaveTimer = setTimeout(() => this.saveMapToGitHub(), 60000);
+    this.githubSaveTimer = setTimeout(() => this.saveMapToGitHub(), 5000);
   }
 
   /** Push map data to GitHub repository file via API */

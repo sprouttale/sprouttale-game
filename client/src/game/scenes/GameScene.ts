@@ -2661,7 +2661,19 @@ export class GameScene extends Phaser.Scene {
             window.dispatchEvent(new CustomEvent("editor_action_performed", {
               detail: { type: "delete", id: obj.id, data: { ...obj } }
             }));
-            this.room.send("delete_object", { id: obj.id });
+            this.room.send("delete_object", { id: obj.id, x: targetX, y: targetY, mapId: this.currentMapId, depthLayer: config.depthLayer });
+          }
+        });
+
+        // ALSO erase static tiles at (targetX, targetY) on current map and depthLayer
+        this.staticTileMapIds.forEach((tileMapId, tileId) => {
+          if (tileMapId !== this.currentMapId) return;
+          const sprite = this.placedObjectSprites.get(tileId);
+          if (sprite && Math.round(sprite.x) === Math.round(targetX) && Math.round(sprite.y) === Math.round(targetY)) {
+            window.dispatchEvent(new CustomEvent("editor_action_performed", {
+              detail: { type: "delete", id: tileId, data: { id: tileId, x: targetX, y: targetY } }
+            }));
+            this.room.send("delete_object", { id: tileId, x: targetX, y: targetY, mapId: this.currentMapId, depthLayer: config.depthLayer });
           }
         });
       }
@@ -2740,23 +2752,34 @@ export class GameScene extends Phaser.Scene {
             triggerTargetY: clickedSprite.triggerTargetY
           };
         } else {
-          let closestObj: any = null;
-          let closestDist = 32;
-          this.room.state.mapObjects.forEach((obj: any) => {
-            const objMap = obj.mapId || "world_1";
-            if (objMap !== this.currentMapId) return;
-
-            if (obj.assetId && obj.assetId.startsWith("spawn_")) {
-              const dist = Phaser.Math.Distance.Between(targetX, targetY, obj.x, obj.y);
-              if (dist < closestDist) {
-                closestDist = dist;
-                closestObj = obj;
-              }
+          // Check static tiles under click position
+          this.staticTileMapIds.forEach((tileMapId, tileId) => {
+            if (tileMapId !== this.currentMapId) return;
+            const sprite = this.placedObjectSprites.get(tileId);
+            if (sprite && Math.round(sprite.x) === Math.round(targetX) && Math.round(sprite.y) === Math.round(targetY)) {
+              objId = tileId;
             }
           });
-          if (closestObj) {
-            objId = closestObj.id;
-            oldData = { ...closestObj };
+
+          if (!objId) {
+            let closestObj: any = null;
+            let closestDist = 32;
+            this.room.state.mapObjects.forEach((obj: any) => {
+              const objMap = obj.mapId || "world_1";
+              if (objMap !== this.currentMapId) return;
+
+              if (obj.assetId && obj.assetId.startsWith("spawn_")) {
+                const dist = Phaser.Math.Distance.Between(targetX, targetY, obj.x, obj.y);
+                if (dist < closestDist) {
+                  closestDist = dist;
+                  closestObj = obj;
+                }
+              }
+            });
+            if (closestObj) {
+              objId = closestObj.id;
+              oldData = { ...closestObj };
+            }
           }
         }
 
@@ -2764,9 +2787,11 @@ export class GameScene extends Phaser.Scene {
           window.dispatchEvent(new CustomEvent("editor_action_performed", {
             detail: { type: "delete", id: objId, data: oldData }
           }));
-          this.room.send("delete_object", { id: objId });
-          window.dispatchEvent(new CustomEvent("editor_object_selected", { detail: null }));
+          this.room.send("delete_object", { id: objId, x: targetX, y: targetY, mapId: this.currentMapId, depthLayer: config.depthLayer });
+        } else {
+          this.room.send("delete_object", { id: `static_${targetX}_${targetY}`, x: targetX, y: targetY, mapId: this.currentMapId, depthLayer: config.depthLayer });
         }
+        window.dispatchEvent(new CustomEvent("editor_object_selected", { detail: null }));
       }
       else if (config.tool === "solid" && clickedSprite && clickedSprite.objId) {
         const newSolid = !clickedSprite.isSolid;
@@ -4559,6 +4584,7 @@ export class GameScene extends Phaser.Scene {
       if (Array.isArray(data.objects)) {
         data.objects.forEach((tile: any) => {
           this.createPlacedObject(tile, tile.id);
+          this.staticTileMapIds.set(tile.id, tile.mapId || "world_1");
         });
       }
     });
@@ -4567,6 +4593,7 @@ export class GameScene extends Phaser.Scene {
       if (Array.isArray(data.objectIds)) {
         data.objectIds.forEach((id: string) => {
           this.destroyPlacedObject(id);
+          this.staticTileMapIds.delete(id);
         });
       }
     });

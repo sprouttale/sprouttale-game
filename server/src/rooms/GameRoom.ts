@@ -2489,9 +2489,11 @@ export class GameRoom extends Room<GameState> {
       console.error("[GameRoom] Error saving map to disk:", err);
     }
 
-    // Debounce GitHub save: wait 5s after last change before pushing to GitHub
-    if (this.githubSaveTimer) clearTimeout(this.githubSaveTimer);
-    this.githubSaveTimer = setTimeout(() => this.saveMapToGitHub(), 5000);
+    // Note: Automatic GitHub API commits are disabled during live gameplay because
+    // pushing commits to GitHub triggers Render Auto-Deploy webhooks, which restarts the server process.
+    // Map data is saved instantly to local disk files (map_save.json & _mapdata/world_save.json).
+    // if (this.githubSaveTimer) clearTimeout(this.githubSaveTimer);
+    // this.githubSaveTimer = setTimeout(() => this.saveMapToGitHub(), 5000);
   }
 
   /** Push map data to GitHub repository file via API */

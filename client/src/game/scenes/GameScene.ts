@@ -4276,8 +4276,14 @@ export class GameScene extends Phaser.Scene {
     const cTop = cam.scrollY - margin;
     const cBottom = cam.scrollY + cam.displayHeight + margin;
 
-    this.placedObjectSprites.forEach((sp) => {
+    this.placedObjectSprites.forEach((sp, key) => {
       if (sp && sp.active) {
+        const spriteMapId = this.staticTileMapIds.get(key) || (sp as any).mapId || "world_1";
+        if (spriteMapId !== this.currentMapId) {
+          if (sp.visible) sp.setVisible(false);
+          return;
+        }
+
         const inView = sp.x >= cLeft && sp.x <= cRight && sp.y >= cTop && sp.y <= cBottom;
         if (sp.visible !== inView) {
           sp.setVisible(inView);
@@ -5242,6 +5248,7 @@ export class GameScene extends Phaser.Scene {
 
     (sprite as any).objId = obj.id;
     (sprite as any).assetId = obj.assetId;
+    (sprite as any).mapId = obj.mapId || "world_1";
     (sprite as any).isSolid = obj.isSolid;
     (sprite as any).depthLayer = obj.depthLayer;
     (sprite as any).triggerType = obj.triggerType;

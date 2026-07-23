@@ -2487,37 +2487,46 @@ export class GameRoom extends Room<GameState> {
     this.spatialGridDirty = true;
   }
 
-  /** Save map locally to disk with 100ms debounce */
+  private activeSavingMaps: Set<string> = new Set();
+
+  /** Save map locally to disk with non-blocking 2000ms debounce */
   private saveMapToDisk(): void {
     if (this.diskSaveTimer) clearTimeout(this.diskSaveTimer);
-    this.diskSaveTimer = setTimeout(() => this.performDiskSave(), 100);
+    this.diskSaveTimer = setTimeout(() => this.performDiskSave(), 2000);
   }
 
   private performDiskSave(): void {
     try {
       const allObjects = this.serializeMap();
+      const mapDataDir = path.join(process.cwd(), "_mapdata");
 
-      // Save master map file containing ALL objects across all worlds
-      const masterPath = path.join(process.cwd(), "map_save.json");
-      fs.writeFileSync(masterPath, JSON.stringify(allObjects), "utf8");
+      if (!fs.existsSync(mapDataDir)) {
+        try { fs.mkdirSync(mapDataDir, { recursive: true }); } catch (e) {}
+      }
 
-      const worldSavePath = path.join(process.cwd(), "_mapdata", "world_save.json");
-      fs.writeFileSync(worldSavePath, JSON.stringify(allObjects), "utf8");
-
-      // Save individual world files for backup and fast per-map loading
+      // Save per-map JSON files asynchronously (non-blocking)
       for (let m = 1; m <= 8; m++) {
         const mapName = `world_${m}`;
-        const mapPath = path.join(process.cwd(), "_mapdata", `${mapName}_save.json`);
+        if (this.activeSavingMaps.has(mapName)) continue;
+
         const mapObjs = allObjects.filter(o => (o.mapId || "world_1") === mapName);
-        fs.writeFileSync(mapPath, JSON.stringify(mapObjs), "utf8");
+        const mapPath = path.join(mapDataDir, `${mapName}_save.json`);
+        
+        this.activeSavingMaps.add(mapName);
+        const content = JSON.stringify(mapObjs);
+
+        fs.writeFile(mapPath, content, "utf8", (err) => {
+          this.activeSavingMaps.delete(mapName);
+          if (err) console.error(`[GameRoom] Error writing ${mapName}_save.json:`, err);
+        });
       }
     } catch (err) {
       console.error("[GameRoom] Error saving map to disk:", err);
     }
 
-    // Save map to cloud Gist 1s after last edit.
+    // Save map to cloud Gist 10s after last edit.
     if (this.githubSaveTimer) clearTimeout(this.githubSaveTimer);
-    this.githubSaveTimer = setTimeout(() => this.saveMapToGist(), 1000);
+    this.githubSaveTimer = setTimeout(() => this.saveMapToGist(), 10000);
   }
 
   private gistId: string = "";

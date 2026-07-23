@@ -2348,8 +2348,9 @@ export class GameRoom extends Room<GameState> {
   private readonly GITHUB_TOKEN   = process.env.GITHUB_TOKEN || Buffer.from("Z2hwX2NDTlNab2VaV3NNRlBVaEhzZDdXN3RkVHMwNzFIZTNmZ214bw==", "base64").toString("utf8");
   private readonly GITHUB_OWNER   = "sprouttale";
   private readonly GITHUB_REPO    = "sprouttale-game";
-  private readonly GITHUB_PATH    = "_mapdata/world_save.json";  // Permanently synced to GitHub!
-  private githubFileSha: string   = "";   // needed for PUT (update) requests
+  private readonly GITHUB_PATH    = "_mapdata/world_save.json";
+  private readonly GITHUB_BRANCH  = "map-data";
+  private githubFileSha: string   = "";
   private githubSaveTimer: ReturnType<typeof setTimeout> | null = null;
   private diskSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -2509,14 +2510,13 @@ export class GameRoom extends Room<GameState> {
       console.error("[GameRoom] Error saving map to disk:", err);
     }
 
-    // Note: Automatic GitHub API commits are disabled during live gameplay because
-    // pushing commits to GitHub triggers Render Auto-Deploy webhooks, which restarts the server process.
-    // Map data is saved instantly to local disk files (map_save.json & _mapdata/world_save.json).
-    // if (this.githubSaveTimer) clearTimeout(this.githubSaveTimer);
-    // this.githubSaveTimer = setTimeout(() => this.saveMapToGitHub(), 5000);
+    // Debounce GitHub save: wait 5s after last change before pushing to map-data branch on GitHub
+    // Using map-data branch ensures Render auto-deploy (on main) is NEVER triggered during gameplay!
+    if (this.githubSaveTimer) clearTimeout(this.githubSaveTimer);
+    this.githubSaveTimer = setTimeout(() => this.saveMapToGitHub(), 5000);
   }
 
-  /** Push map data to GitHub repository file via API */
+  /** Push map data to GitHub repository file via API on map-data branch */
   private saveMapToGitHub(): void {
     if (!this.GITHUB_TOKEN) {
       console.warn("[GameRoom] ⚠️ GITHUB_TOKEN is missing, map cannot be synced to GitHub.");
@@ -2527,8 +2527,9 @@ export class GameRoom extends Room<GameState> {
       try {
         const content = Buffer.from(JSON.stringify(this.serializeMap(), null, 2), "utf8").toString("base64");
         const payload: any = {
-          message: "auto: update map_save.json [skip ci] [skip render]",
-          content
+          message: "auto: update world_save.json",
+          content,
+          branch: this.GITHUB_BRANCH
         };
         const activeSha = sha || this.githubFileSha;
         if (activeSha) payload.sha = activeSha;
@@ -2558,10 +2559,9 @@ export class GameRoom extends Room<GameState> {
                 } else if (json.sha) {
                   this.githubFileSha = json.sha;
                 }
-                console.log(`[GameRoom] ✅ Map permanently saved to GitHub repo (${this.state.mapObjects.size} objects)`);
+                console.log(`[GameRoom] ✅ Map permanently saved to GitHub (${this.GITHUB_BRANCH} branch) (${this.state.mapObjects.size} objects)`);
               } else {
                 console.error(`[GameRoom] ❌ GitHub save error (${res.statusCode}): ${json.message || data}`);
-                // If SHA error (409 Conflict or 422 Unprocessable), fetch fresh SHA and retry
                 if (res.statusCode === 409 || res.statusCode === 422) {
                   this.githubFileSha = "";
                   this.fetchFreshShaAndRetry();
@@ -2580,7 +2580,6 @@ export class GameRoom extends Room<GameState> {
       }
     };
 
-    // If SHA is missing, fetch fresh SHA first, then execute PUT
     if (!this.githubFileSha) {
       this.fetchFreshSha((sha) => executePut(sha));
     } else {
@@ -2588,11 +2587,11 @@ export class GameRoom extends Room<GameState> {
     }
   }
 
-  /** Helper to fetch fresh file SHA from GitHub API */
+  /** Helper to fetch fresh file SHA from GitHub API on map-data branch */
   private fetchFreshSha(callback: (sha: string) => void): void {
     const req = https.request({
       hostname: "api.github.com",
-      path: `/repos/${this.GITHUB_OWNER}/${this.GITHUB_REPO}/contents/${this.GITHUB_PATH}`,
+      path: `/repos/${this.GITHUB_OWNER}/${this.GITHUB_REPO}/contents/${this.GITHUB_PATH}?ref=${this.GITHUB_BRANCH}`,
       method: "GET",
       headers: {
         "Authorization": `token ${this.GITHUB_TOKEN}`,
@@ -2613,6 +2612,44 @@ export class GameRoom extends Room<GameState> {
       });
     });
     req.on("error", () => {});
+    req.end();
+  }
+
+  /** Fetch latest map data from GitHub map-data branch on startup */
+  private syncMapFromGitHub(): void {
+    if (!this.GITHUB_TOKEN) return;
+    const req = https.request({
+      hostname: "api.github.com",
+      path: `/repos/${this.GITHUB_OWNER}/${this.GITHUB_REPO}/contents/${this.GITHUB_PATH}?ref=${this.GITHUB_BRANCH}`,
+      method: "GET",
+      headers: {
+        "Authorization": `token ${this.GITHUB_TOKEN}`,
+        "User-Agent": "SproutTale-Server",
+        "Accept": "application/vnd.github.v3+json"
+      }
+    }, (res) => {
+      let data = "";
+      res.on("data", (c) => data += c);
+      res.on("end", () => {
+        try {
+          const json = JSON.parse(data);
+          if (json.content) {
+            const decoded = Buffer.from(json.content, "base64").toString("utf8");
+            const objects = JSON.parse(decoded);
+            if (Array.isArray(objects) && objects.length > 0) {
+              this.deserializeMap(objects, "world_1");
+              console.log(`[GameRoom] ☁️ Synced ${objects.length} map objects from GitHub (${this.GITHUB_BRANCH})`);
+            }
+          }
+          if (json.sha) {
+            this.githubFileSha = json.sha;
+          }
+        } catch (err) {
+          console.error("[GameRoom] Error parsing GitHub map sync response:", err);
+        }
+      });
+    });
+    req.on("error", (e) => console.error("[GameRoom] Error fetching map from GitHub:", e.message));
     req.end();
   }
 
@@ -2825,6 +2862,7 @@ export class GameRoom extends Room<GameState> {
     }
 
     this.fetchGitHubFileSha();
+    this.syncMapFromGitHub();
   }
 
   /** Fetch the current SHA of the file (needed for updates) */

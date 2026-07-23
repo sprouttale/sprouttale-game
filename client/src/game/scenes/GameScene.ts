@@ -4268,7 +4268,22 @@ export class GameScene extends Phaser.Scene {
       sprite.lastY = sprite.container.y;
     });
 
-    // 3. Camera follow is handled by Phaser's startFollow() called at spawn time
+    // 3. Perform camera frustum culling on all placed tiles for 60 FPS locked smoothness
+    const cam = this.cameras.main;
+    const margin = 128;
+    const cLeft = cam.scrollX - margin;
+    const cRight = cam.scrollX + cam.displayWidth + margin;
+    const cTop = cam.scrollY - margin;
+    const cBottom = cam.scrollY + cam.displayHeight + margin;
+
+    this.placedObjectSprites.forEach((sp) => {
+      if (sp && sp.active) {
+        const inView = sp.x >= cLeft && sp.x <= cRight && sp.y >= cTop && sp.y <= cBottom;
+        if (sp.visible !== inView) {
+          sp.setVisible(inView);
+        }
+      }
+    });
   }
 
   // -------------------------------------------------------------------------

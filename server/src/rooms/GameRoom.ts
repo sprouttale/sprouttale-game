@@ -1091,7 +1091,7 @@ export class GameRoom extends Room<GameState> {
       if (obj.assetId && (obj.assetId.startsWith("maple_tree_") || obj.assetId.startsWith("dekor_tree_"))) {
         obj.treeState = "grown";
         obj.treeHp = 10;
-        // Auto-enforce 2.5x scale and trunk collision for all maple trees (box on trunk base)
+        // Auto-enforce 2.5x scale and trunk collision for all maple trees
         obj.scaleX = 2.5;
         obj.scaleY = 2.5;
         obj.isSolid = true;
@@ -1101,11 +1101,44 @@ export class GameRoom extends Room<GameState> {
         obj.solidOffsetY = -15;
       }
 
-      this.state.mapObjects.set(obj.id, obj);
-      this.spatialGridDirty = true;
-      this.saveMapToDisk();
-      console.log(`[GameRoom] Player ${player.name} placed object: ${obj.assetId} at (${obj.x}, ${obj.y})`);
+      // Route static terrain tiles (terrain_*, wf_*, zemin_tileset) to staticMapTiles
+      // This matches what batch_place_objects already does
+      const aId = obj.assetId || "";
+      const isStaticTile = aId.startsWith("terrain_") || aId.startsWith("wf_") || aId === "zemin_tileset";
+      if (isStaticTile && !obj.isSolid && !obj.isClimbable && (obj.triggerType === "none" || !obj.triggerType)) {
+        const mId = obj.mapId || player.currentMap || "world_1";
+        const dLayer = obj.depthLayer || "below";
+        const rx = Math.round(obj.x); const ry = Math.round(obj.y);
+        const staticKey = `${mId}:${dLayer}:${aId}:${rx}:${ry}`;
+        this.staticMapTiles = this.staticMapTiles.filter((t: any) => {
+          const tk = `${t.mapId || "world_1"}:${t.depthLayer || "below"}:${t.assetId}:${Math.round(t.x)}:${Math.round(t.y)}`;
+          return tk !== staticKey;
+        });
+        const plainObj = {
+          id: obj.id, assetId: obj.assetId, mapId: mId,
+          x: obj.x, y: obj.y, scaleX: obj.scaleX, scaleY: obj.scaleY,
+          rotation: obj.rotation, flipX: obj.flipX, flipY: obj.flipY,
+          isSolid: false, isWater: obj.isWater, isClimbable: false,
+          depthLayer: dLayer, triggerType: "none",
+          triggerTargetX: 0, triggerTargetY: 0,
+          tileX: obj.tileX, tileY: obj.tileY, tileW: obj.tileW, tileH: obj.tileH,
+          frameRate: obj.frameRate,
+          solidWidth: 0, solidHeight: 0, solidOffsetX: 0, solidOffsetY: 0,
+          treeState: "", treeHp: 0, cropType: "none", cropStage: 0, cropWatered: false
+        };
+        this.staticMapTiles.push(plainObj);
+        this.broadcast("batch_place_static", { objects: [plainObj] });
+        this.spatialGridDirty = true;
+        this.saveMapToDisk();
+        console.log(`[GameRoom] Player ${player.name} placed static tile: ${obj.assetId} at (${obj.x}, ${obj.y})`);
+      } else {
+        this.state.mapObjects.set(obj.id, obj);
+        this.spatialGridDirty = true;
+        this.saveMapToDisk();
+        console.log(`[GameRoom] Player ${player.name} placed object: ${obj.assetId} at (${obj.x}, ${obj.y})`);
+      }
     });
+
 
     // Register message handler for updating a map object
     this.onMessage("update_object", (client: Client, message: any) => {

@@ -5104,13 +5104,11 @@ export class GameScene extends Phaser.Scene {
       (sprite as Phaser.GameObjects.Sprite).setFlip(Boolean(obj.flipX), Boolean(obj.flipY));
     } else if (obj.assetId && obj.assetId.startsWith("terrain_")) {
       // Generic terrain tile: terrain_{tilesetKey}_{col}_{row}_{tw}_{th}
-      const parts = obj.assetId.split("_");
-      const th2 = parseInt(parts[parts.length - 1], 10);
-      const tw2 = parseInt(parts[parts.length - 2], 10);
-      const row2 = parseInt(parts[parts.length - 3], 10);
-      const col2 = parseInt(parts[parts.length - 4], 10);
-      const texKey = parts.slice(0, parts.length - 4).join("_"); // e.g. "terrain_grass_summer"
-      if (this.textures.exists(texKey)) {
+      // tilesetKeys may contain underscores (e.g. d3_all_props_seasons, insaat_fence_iron)
+      // so we try all possible split points to find the correct loaded texture.
+      const resolvedTerrain = this.resolveTerrainAsset(obj.assetId);
+      if (resolvedTerrain) {
+        const { texKey, col2, row2, tw2, th2 } = resolvedTerrain;
         const fk = `${obj.assetId}_f`;
         const tex = this.textures.get(texKey);
         if (tex && !tex.has(fk)) tex.add(fk, 0, col2 * tw2, row2 * th2, tw2, th2);
@@ -5118,7 +5116,10 @@ export class GameScene extends Phaser.Scene {
         sprite.setScale(obj.scaleX !== undefined ? obj.scaleX : 1, obj.scaleY !== undefined ? obj.scaleY : 1);
         (sprite as Phaser.GameObjects.Sprite).setFlip(Boolean(obj.flipX), Boolean(obj.flipY));
       } else {
-        sprite = this.add.rectangle(obj.x, obj.y, tw2 || 16, th2 || 16, 0x2f3542, 0.8) as unknown as Phaser.GameObjects.Sprite;
+        const parts2 = obj.assetId.split("_");
+        const tw2f = parseInt(parts2[parts2.length - 2], 10) || 16;
+        const th2f = parseInt(parts2[parts2.length - 1], 10) || 16;
+        sprite = this.add.rectangle(obj.x, obj.y, tw2f, th2f, 0x2f3542, 0.8) as unknown as Phaser.GameObjects.Sprite;
       }
     } else if (obj.assetId === "collision_block") {
       const editorConfig = (window as any).editorConfig;
@@ -5420,13 +5421,9 @@ export class GameScene extends Phaser.Scene {
       sprite.setScale(baseScaleX, baseScaleY);
       (sprite as Phaser.GameObjects.Sprite).setFlip(Boolean(obj.flipX), Boolean(obj.flipY));
     } else if (obj.assetId && obj.assetId.startsWith("terrain_")) {
-      const parts = obj.assetId.split("_");
-      const th2 = parseInt(parts[parts.length - 1], 10);
-      const tw2 = parseInt(parts[parts.length - 2], 10);
-      const row2 = parseInt(parts[parts.length - 3], 10);
-      const col2 = parseInt(parts[parts.length - 4], 10);
-      const texKey = parts.slice(0, parts.length - 4).join("_");
-      if (this.textures.exists(texKey)) {
+      const resolvedTerrainU = this.resolveTerrainAsset(obj.assetId);
+      if (resolvedTerrainU) {
+        const { texKey, col2, row2, tw2, th2 } = resolvedTerrainU;
         const fk = `${obj.assetId}_f`;
         const tex = this.textures.get(texKey);
         if (tex && !tex.has(fk)) tex.add(fk, 0, col2 * tw2, row2 * th2, tw2, th2);
@@ -5517,6 +5514,32 @@ export class GameScene extends Phaser.Scene {
       sprite.destroy();
       this.placedObjectSprites.delete(key);
     }
+  }
+
+  /**
+   * Resolves a terrain assetId like "terrain_d3_all_props_seasons_17_6_16_16"
+   * into its texture key and tile coordinates.
+   * Handles tilesetKeys that contain underscores (d3_all_props_seasons, insaat_fence_iron, etc.)
+   * by trying all possible split points from the right.
+   */
+  private resolveTerrainAsset(assetId: string): { texKey: string; col2: number; row2: number; tw2: number; th2: number } | null {
+    const withoutPrefix = assetId.slice("terrain_".length);
+    const parts = withoutPrefix.split("_");
+    if (parts.length < 5) return null;
+    // Try longest possible key first (most specific match)
+    for (let keyLen = parts.length - 4; keyLen >= 1; keyLen--) {
+      const numParts = parts.slice(keyLen);
+      const col2 = parseInt(numParts[0], 10);
+      const row2 = parseInt(numParts[1], 10);
+      const tw2  = parseInt(numParts[2], 10);
+      const th2  = parseInt(numParts[3], 10);
+      if (isNaN(col2) || isNaN(row2) || isNaN(tw2) || isNaN(th2)) continue;
+      const texKey = "terrain_" + parts.slice(0, keyLen).join("_");
+      if (this.textures.exists(texKey)) {
+        return { texKey, col2, row2, tw2, th2 };
+      }
+    }
+    return null;
   }
 
   private lastPlacedTime = 0;

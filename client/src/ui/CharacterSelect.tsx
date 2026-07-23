@@ -188,7 +188,7 @@ export function CharacterSelect({ onConfirm }: CharacterSelectProps) {
   });
 
   // State to force re-render when images load
-  const [, setImagesLoadedKey] = useState(0);
+  const [imagesLoadedKey, setImagesLoadedKey] = useState(0);
 
   // Helpers to retrieve or create images from cache
   const getBodyImage = useCallback((g: Gender, tone: SkinTone) => {
@@ -235,6 +235,19 @@ export function CharacterSelect({ onConfirm }: CharacterSelectProps) {
     return img;
   }, []);
 
+  // Preload character creation assets in background on mount
+  useEffect(() => {
+    const genders: Gender[] = ["male", "female"];
+    genders.forEach((g) => {
+      SKIN_TONES.forEach((tone) => getBodyImage(g, tone));
+      CLOTHES_COLORS.forEach((color) => getClothesImage(g, color));
+    });
+    EYE_COLORS.forEach((color) => getEyeImage(color));
+    HAIR_STYLES.forEach((style) => {
+      HAIR_COLORS.forEach((color) => getHairImage(style, color));
+    });
+  }, [getBodyImage, getEyeImage, getClothesImage, getHairImage]);
+
   // ── Animation Loop ───────────────────────────────────────────────────────
   useEffect(() => {
     const id = setInterval(() => {
@@ -269,7 +282,7 @@ export function CharacterSelect({ onConfirm }: CharacterSelectProps) {
       CELL_W * PREVIEW_SCALE,
       CELL_H * PREVIEW_SCALE
     );
-  }, [frame, gender, skinTone, eyeColor, clothesColor, hairStyle, hairColor, step, getBodyImage, getEyeImage, getClothesImage, getHairImage]);
+  }, [frame, gender, skinTone, eyeColor, clothesColor, hairStyle, hairColor, step, getBodyImage, getEyeImage, getClothesImage, getHairImage, imagesLoadedKey]);
 
   // ── Draw Skin Swatches ───────────────────────────────────────────────────
   useEffect(() => {
@@ -283,7 +296,7 @@ export function CharacterSelect({ onConfirm }: CharacterSelectProps) {
       const bodyImg = getBodyImage(gender, tone);
       drawCharacterFrame(ctx, bodyImg, null, null, null, SWATCH_COL, POSE_ROW, canvas.width, canvas.height);
     });
-  }, [step, gender, getBodyImage]);
+  }, [step, gender, getBodyImage, imagesLoadedKey]);
 
   // ── Draw Hair Swatches ───────────────────────────────────────────────────
   useEffect(() => {
@@ -301,7 +314,7 @@ export function CharacterSelect({ onConfirm }: CharacterSelectProps) {
       // No clothes rendered in hair style selector swatches
       drawCharacterFrame(ctx, bodyImg, eyesImg, null, hairImg, SWATCH_COL, POSE_ROW, canvas.width, canvas.height);
     });
-  }, [step, gender, skinTone, eyeColor, hairColor, getBodyImage, getEyeImage, getHairImage]);
+  }, [step, gender, skinTone, eyeColor, hairColor, getBodyImage, getEyeImage, getHairImage, imagesLoadedKey]);
 
   // ── Handlers ─────────────────────────────────────────────────────────────
   const handleGenderSwitch = useCallback((g: Gender) => {

@@ -1154,147 +1154,151 @@ export class GameRoom extends Room<GameState> {
 
     // Register message handler for updating a map object
     this.onMessage("update_object", (client: Client, message: any) => {
-      const player = this.state.players.get(client.sessionId);
-      if (!player) return;
+      try {
+        const player = this.state.players.get(client.sessionId);
+        if (!player || !message) return;
 
-      const obj = this.state.mapObjects.get(message.id);
-      if (!obj) return;
+        const obj = this.state.mapObjects.get(message.id);
+        if (!obj) return;
 
-      if (message.x !== undefined) obj.x = Number(message.x);
-      if (message.y !== undefined) obj.y = Number(message.y);
-      if (message.scaleX !== undefined) obj.scaleX = Number(message.scaleX);
-      if (message.scaleY !== undefined) obj.scaleY = Number(message.scaleY);
-      if (message.rotation !== undefined) obj.rotation = Number(message.rotation);
-      if (message.flipX !== undefined) obj.flipX = Boolean(message.flipX);
-      if (message.flipY !== undefined) obj.flipY = Boolean(message.flipY);
-      if (message.isSolid !== undefined) obj.isSolid = Boolean(message.isSolid);
-      if (message.isWater !== undefined) obj.isWater = Boolean(message.isWater);
-      if (message.isClimbable !== undefined) obj.isClimbable = Boolean(message.isClimbable);
-      if (message.depthLayer !== undefined) obj.depthLayer = String(message.depthLayer);
-      if (message.triggerType !== undefined) obj.triggerType = String(message.triggerType);
-      if (message.triggerTargetX !== undefined) obj.triggerTargetX = Number(message.triggerTargetX);
-      if (message.triggerTargetY !== undefined) obj.triggerTargetY = Number(message.triggerTargetY);
+        if (message.x !== undefined) obj.x = Number(message.x);
+        if (message.y !== undefined) obj.y = Number(message.y);
+        if (message.scaleX !== undefined) obj.scaleX = Number(message.scaleX);
+        if (message.scaleY !== undefined) obj.scaleY = Number(message.scaleY);
+        if (message.rotation !== undefined) obj.rotation = Number(message.rotation);
+        if (message.flipX !== undefined) obj.flipX = Boolean(message.flipX);
+        if (message.flipY !== undefined) obj.flipY = Boolean(message.flipY);
+        if (message.isSolid !== undefined) obj.isSolid = Boolean(message.isSolid);
+        if (message.isWater !== undefined) obj.isWater = Boolean(message.isWater);
+        if (message.isClimbable !== undefined) obj.isClimbable = Boolean(message.isClimbable);
+        if (message.depthLayer !== undefined) obj.depthLayer = String(message.depthLayer);
+        if (message.triggerType !== undefined) obj.triggerType = String(message.triggerType);
+        if (message.triggerTargetX !== undefined) obj.triggerTargetX = Number(message.triggerTargetX);
+        if (message.triggerTargetY !== undefined) obj.triggerTargetY = Number(message.triggerTargetY);
 
-      // Tileset crops
-      if (message.tileX !== undefined) obj.tileX = Number(message.tileX);
-      if (message.tileY !== undefined) obj.tileY = Number(message.tileY);
-      if (message.tileW !== undefined) obj.tileW = Number(message.tileW);
-      if (message.tileH !== undefined) obj.tileH = Number(message.tileH);
+        // Tileset crops
+        if (message.tileX !== undefined) obj.tileX = Number(message.tileX);
+        if (message.tileY !== undefined) obj.tileY = Number(message.tileY);
+        if (message.tileW !== undefined) obj.tileW = Number(message.tileW);
+        if (message.tileH !== undefined) obj.tileH = Number(message.tileH);
 
-      // Frame Rate
-      if (message.frameRate !== undefined) obj.frameRate = Number(message.frameRate);
+        // Frame Rate
+        if (message.frameRate !== undefined) obj.frameRate = Number(message.frameRate);
 
-      // Custom Collision Fields
-      if (message.solidWidth !== undefined) obj.solidWidth = Number(message.solidWidth);
-      if (message.solidHeight !== undefined) obj.solidHeight = Number(message.solidHeight);
-      if (message.solidOffsetX !== undefined) obj.solidOffsetX = Number(message.solidOffsetX);
-      if (message.solidOffsetY !== undefined) obj.solidOffsetY = Number(message.solidOffsetY);
-      if (message.patrolPath !== undefined) obj.patrolPath = String(message.patrolPath);
-      if (message.patrolSpeed !== undefined) obj.patrolSpeed = Number(message.patrolSpeed);
+        // Custom Collision Fields
+        if (message.solidWidth !== undefined) obj.solidWidth = Number(message.solidWidth);
+        if (message.solidHeight !== undefined) obj.solidHeight = Number(message.solidHeight);
+        if (message.solidOffsetX !== undefined) obj.solidOffsetX = Number(message.solidOffsetX);
+        if (message.solidOffsetY !== undefined) obj.solidOffsetY = Number(message.solidOffsetY);
+        if (message.patrolPath !== undefined) obj.patrolPath = String(message.patrolPath);
+        if (message.patrolSpeed !== undefined) obj.patrolSpeed = Number(message.patrolSpeed);
 
-      this.saveMapToDisk();
-      console.log(`[GameRoom] Player ${player.name} updated object: ${obj.id}, patrolPath=${obj.patrolPath}, patrolSpeed=${obj.patrolSpeed}`);
+        this.saveMapToDisk();
+        console.log(`[GameRoom] Player ${player.name} updated object: ${obj.id}, patrolPath=${obj.patrolPath}, patrolSpeed=${obj.patrolSpeed}`);
+      } catch (err) {
+        console.error("[GameRoom] Error in update_object:", err);
+      }
     });
 
     // Register message handler for batch placing map objects
     this.onMessage("batch_place_objects", (client: Client, message: { objects: any[] }) => {
-      const player = this.state.players.get(client.sessionId);
-      if (!player) return;
+      try {
+        const player = this.state.players.get(client.sessionId);
+        if (!player || !message) return;
 
-      if (Array.isArray(message.objects) && message.objects.length > 0) {
-        const coordMap = new Map<string, string>();
-        this.state.mapObjects.forEach((existingObj, id) => {
-          const k = `${existingObj.mapId || "world_1"}:${existingObj.depthLayer || "below"}:${existingObj.assetId}:${Math.round(existingObj.x)}:${Math.round(existingObj.y)}`;
-          coordMap.set(k, id);
-        });
+        if (Array.isArray(message.objects) && message.objects.length > 0) {
+          const coordMap = new Map<string, string>();
+          this.state.mapObjects.forEach((existingObj, id) => {
+            const k = `${existingObj.mapId || "world_1"}:${existingObj.depthLayer || "below"}:${existingObj.assetId}:${Math.round(existingObj.x)}:${Math.round(existingObj.y)}`;
+            coordMap.set(k, id);
+          });
 
-        message.objects.forEach((o: any) => {
-          const mId = String(o.mapId || player.currentMap || "world_1");
-          const dLayer = String(o.depthLayer || "below");
-          const aId = String(o.assetId || "test_block");
-          const rx = Math.round(Number(o.x || 0));
-          const ry = Math.round(Number(o.y || 0));
-          const k = `${mId}:${dLayer}:${aId}:${rx}:${ry}`;
+          message.objects.forEach((o: any) => {
+            const mId = String(o.mapId || player.currentMap || "world_1");
+            const dLayer = String(o.depthLayer || "below");
+            const aId = String(o.assetId || "test_block");
+            const rx = Math.round(Number(o.x || 0));
+            const ry = Math.round(Number(o.y || 0));
+            const k = `${mId}:${dLayer}:${aId}:${rx}:${ry}`;
 
-          const existingId = coordMap.get(k);
-          if (existingId) {
-            this.state.mapObjects.delete(existingId);
-          }
+            const existingId = coordMap.get(k);
+            if (existingId) {
+              this.state.mapObjects.delete(existingId);
+            }
 
-          const obj = new MapObject();
-          obj.id = o.id || `obj_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-          obj.assetId = aId;
-          obj.x = rx;
-          obj.y = ry;
-          obj.mapId = mId;
-          obj.scaleX = Number(o.scaleX !== undefined ? o.scaleX : 1);
-          obj.scaleY = Number(o.scaleY !== undefined ? o.scaleY : 1);
-          obj.rotation = Number(o.rotation || 0);
-          obj.flipX = Boolean(o.flipX);
-          obj.flipY = Boolean(o.flipY);
-          obj.isSolid = Boolean(o.isSolid);
-          obj.isWater = Boolean(o.isWater);
-          obj.isClimbable = Boolean(o.isClimbable);
-          obj.depthLayer = dLayer;
-          obj.triggerType = String(o.triggerType || "none");
-          obj.triggerTargetX = Number(o.triggerTargetX || 0);
-          obj.triggerTargetY = Number(o.triggerTargetY || 0);
-          obj.tileX = o.tileX !== undefined ? Number(o.tileX) : -1;
-          obj.tileY = o.tileY !== undefined ? Number(o.tileY) : -1;
-          obj.tileW = o.tileW !== undefined ? Number(o.tileW) : 0;
-          obj.tileH = o.tileH !== undefined ? Number(o.tileH) : 0;
-          obj.frameRate = o.frameRate !== undefined ? Number(o.frameRate) : 6;
-          obj.solidWidth = o.solidWidth !== undefined ? Number(o.solidWidth) : 0;
-          obj.solidHeight = o.solidHeight !== undefined ? Number(o.solidHeight) : 0;
-          obj.solidOffsetX = o.solidOffsetX !== undefined ? Number(o.solidOffsetX) : 0;
-          obj.solidOffsetY = o.solidOffsetY !== undefined ? Number(o.solidOffsetY) : 0;
+            const obj = new MapObject();
+            obj.id = o.id || `obj_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+            obj.assetId = aId;
+            obj.x = rx;
+            obj.y = ry;
+            obj.mapId = mId;
+            obj.scaleX = Number(o.scaleX !== undefined ? o.scaleX : 1);
+            obj.scaleY = Number(o.scaleY !== undefined ? o.scaleY : 1);
+            obj.rotation = Number(o.rotation || 0);
+            obj.flipX = Boolean(o.flipX);
+            obj.flipY = Boolean(o.flipY);
+            obj.isSolid = Boolean(o.isSolid);
+            obj.isWater = Boolean(o.isWater);
+            obj.isClimbable = Boolean(o.isClimbable);
+            obj.depthLayer = dLayer;
+            obj.triggerType = String(o.triggerType || "none");
+            obj.triggerTargetX = Number(o.triggerTargetX || 0);
+            obj.triggerTargetY = Number(o.triggerTargetY || 0);
+            obj.tileX = o.tileX !== undefined ? Number(o.tileX) : -1;
+            obj.tileY = o.tileY !== undefined ? Number(o.tileY) : -1;
+            obj.tileW = o.tileW !== undefined ? Number(o.tileW) : 0;
+            obj.tileH = o.tileH !== undefined ? Number(o.tileH) : 0;
+            obj.frameRate = o.frameRate !== undefined ? Number(o.frameRate) : 6;
+            obj.solidWidth = o.solidWidth !== undefined ? Number(o.solidWidth) : 0;
+            obj.solidHeight = o.solidHeight !== undefined ? Number(o.solidHeight) : 0;
+            obj.solidOffsetX = o.solidOffsetX !== undefined ? Number(o.solidOffsetX) : 0;
+            obj.solidOffsetY = o.solidOffsetY !== undefined ? Number(o.solidOffsetY) : 0;
 
-          if (obj.assetId && (obj.assetId.startsWith("maple_tree_") || obj.assetId.startsWith("dekor_tree_"))) {
-            obj.treeState = "grown";
-            obj.treeHp = 10;
-            // Auto-enforce 2.5x scale and trunk collision for all maple trees
-            obj.scaleX = 2.5;
-            obj.scaleY = 2.5;
-            obj.isSolid = true;
-            obj.solidWidth = 40;
-            obj.solidHeight = 25;
-            obj.solidOffsetX = 0;
-            obj.solidOffsetY = -15;
-          }
+            if (obj.assetId && (obj.assetId.startsWith("maple_tree_") || obj.assetId.startsWith("dekor_tree_"))) {
+              obj.treeState = "grown";
+              obj.treeHp = 10;
+              obj.scaleX = 2.5;
+              obj.scaleY = 2.5;
+              obj.isSolid = true;
+              obj.solidWidth = 40;
+              obj.solidHeight = 25;
+              obj.solidOffsetX = 0;
+              obj.solidOffsetY = -15;
+            }
 
-          // Route static terrain tiles to staticMapTiles to avoid schema overhead.
-          // EXCEPT terrain_tilled_soil which are interactive farm plots
-          const isStaticTile = (aId.startsWith("terrain_") && !aId.startsWith("terrain_tilled_soil")) || aId.startsWith("wf_") || aId === "zemin_tileset";
-          if (isStaticTile && !obj.isSolid && !obj.isClimbable && (obj.triggerType === "none" || !obj.triggerType)) {
-            const posKey = `${mId}:${dLayer}:${rx}:${ry}`;
-            this.staticMapTiles = this.staticMapTiles.filter((t: any) => {
-              const tk = `${t.mapId || "world_1"}:${t.depthLayer || "below"}:${Math.round(t.x)}:${Math.round(t.y)}`;
-              return tk !== posKey;
-            });
-            const plainObj = {
-              id: obj.id, assetId: obj.assetId, mapId: mId,
-              x: obj.x, y: obj.y, scaleX: obj.scaleX, scaleY: obj.scaleY,
-              rotation: obj.rotation, flipX: obj.flipX, flipY: obj.flipY,
-              isSolid: false, isWater: obj.isWater, isClimbable: false,
-              depthLayer: dLayer, triggerType: "none",
-              triggerTargetX: 0, triggerTargetY: 0,
-              tileX: obj.tileX, tileY: obj.tileY, tileW: obj.tileW, tileH: obj.tileH,
-              frameRate: obj.frameRate,
-              solidWidth: 0, solidHeight: 0, solidOffsetX: 0, solidOffsetY: 0,
-              treeState: "", treeHp: 0, cropType: "none", cropStage: 0, cropWatered: false
-            };
-            this.staticMapTiles.push(plainObj);
-            // Broadcast to all clients so newly placed static tile appears immediately
-            this.broadcast("batch_place_static", { objects: [plainObj] });
-          } else {
-            this.state.mapObjects.set(obj.id, obj);
-            coordMap.set(k, obj.id);
-          }
-        });
+            const isStaticTile = (aId.startsWith("terrain_") && !aId.startsWith("terrain_tilled_soil")) || aId.startsWith("wf_") || aId === "zemin_tileset";
+            if (isStaticTile && !obj.isSolid && !obj.isClimbable && (obj.triggerType === "none" || !obj.triggerType)) {
+              const posKey = `${mId}:${dLayer}:${rx}:${ry}`;
+              this.staticMapTiles = this.staticMapTiles.filter((t: any) => {
+                const tk = `${t.mapId || "world_1"}:${t.depthLayer || "below"}:${Math.round(t.x)}:${Math.round(t.y)}`;
+                return tk !== posKey;
+              });
+              const plainObj = {
+                id: obj.id, assetId: obj.assetId, mapId: mId,
+                x: obj.x, y: obj.y, scaleX: obj.scaleX, scaleY: obj.scaleY,
+                rotation: obj.rotation, flipX: obj.flipX, flipY: obj.flipY,
+                isSolid: false, isWater: obj.isWater, isClimbable: false,
+                depthLayer: dLayer, triggerType: "none",
+                triggerTargetX: 0, triggerTargetY: 0,
+                tileX: obj.tileX, tileY: obj.tileY, tileW: obj.tileW, tileH: obj.tileH,
+                frameRate: obj.frameRate,
+                solidWidth: 0, solidHeight: 0, solidOffsetX: 0, solidOffsetY: 0,
+                treeState: "", treeHp: 0, cropType: "none", cropStage: 0, cropWatered: false
+              };
+              this.staticMapTiles.push(plainObj);
+              this.broadcast("batch_place_static", { objects: [plainObj] });
+            } else {
+              this.state.mapObjects.set(obj.id, obj);
+              coordMap.set(k, obj.id);
+            }
+          });
 
-        this.spatialGridDirty = true;
-        this.saveMapToDisk();
-        console.log(`[GameRoom] Player ${player.name} batch placed ${message.objects.length} objects`);
+          this.spatialGridDirty = true;
+          this.saveMapToDisk();
+          console.log(`[GameRoom] Player ${player.name} batch placed ${message.objects.length} objects`);
+        }
+      } catch (err) {
+        console.error("[GameRoom] Error in batch_place_objects:", err);
       }
     });
 

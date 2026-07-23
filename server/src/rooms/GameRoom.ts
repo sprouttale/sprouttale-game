@@ -2487,10 +2487,10 @@ export class GameRoom extends Room<GameState> {
     this.spatialGridDirty = true;
   }
 
-  /** Save map locally to disk with 500ms debounce */
+  /** Save map locally to disk with 100ms debounce */
   private saveMapToDisk(): void {
     if (this.diskSaveTimer) clearTimeout(this.diskSaveTimer);
-    this.diskSaveTimer = setTimeout(() => this.performDiskSave(), 500);
+    this.diskSaveTimer = setTimeout(() => this.performDiskSave(), 100);
   }
 
   private performDiskSave(): void {
@@ -2515,9 +2515,9 @@ export class GameRoom extends Room<GameState> {
       console.error("[GameRoom] Error saving map to disk:", err);
     }
 
-    // Save map to cloud Gist 5s after last edit.
+    // Save map to cloud Gist 1s after last edit.
     if (this.githubSaveTimer) clearTimeout(this.githubSaveTimer);
-    this.githubSaveTimer = setTimeout(() => this.saveMapToGist(), 5000);
+    this.githubSaveTimer = setTimeout(() => this.saveMapToGist(), 1000);
   }
 
   private gistId: string = "";

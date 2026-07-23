@@ -2413,7 +2413,7 @@ export class GameRoom extends Room<GameState> {
           aId.startsWith("terrain_") ||
           aId.startsWith("wf_") ||
           aId === "zemin_tileset"
-        ) && !o.isSolid && !o.isClimbable && (!o.triggerType || o.triggerType === "none")
+        ) && !aId.startsWith("terrain_tilled_soil") && !o.isSolid && !o.isClimbable && (!o.triggerType || o.triggerType === "none")
       );
 
       if (isStaticTerrain) {
@@ -2497,47 +2497,25 @@ export class GameRoom extends Room<GameState> {
     try {
       const allObjects = this.serializeMap();
 
-      // Save master map file containing ALL objects across all worlds (minified 1-line JSON)
+      // Save master map file containing ALL objects across all worlds
       const masterPath = path.join(process.cwd(), "map_save.json");
       fs.writeFileSync(masterPath, JSON.stringify(allObjects), "utf8");
 
       const worldSavePath = path.join(process.cwd(), "_mapdata", "world_save.json");
       fs.writeFileSync(worldSavePath, JSON.stringify(allObjects), "utf8");
 
-      // Save individual world files for backup
-      const world2Path = path.join(process.cwd(), "_mapdata", "world2_save.json");
-      const world2Objs = allObjects.filter(o => o.mapId === "world_2");
-      fs.writeFileSync(world2Path, JSON.stringify(world2Objs, null, 2), "utf8");
-
-      const world3Path = path.join(process.cwd(), "_mapdata", "world3_save.json");
-      const world3Objs = allObjects.filter(o => o.mapId === "world_3");
-      fs.writeFileSync(world3Path, JSON.stringify(world3Objs, null, 2), "utf8");
-
-      const world4Path = path.join(process.cwd(), "_mapdata", "world4_save.json");
-      const world4Objs = allObjects.filter(o => o.mapId === "world_4");
-      fs.writeFileSync(world4Path, JSON.stringify(world4Objs, null, 2), "utf8");
-
-      const world5Path = path.join(process.cwd(), "_mapdata", "world5_save.json");
-      const world5Objs = allObjects.filter(o => o.mapId === "world_5");
-      fs.writeFileSync(world5Path, JSON.stringify(world5Objs, null, 2), "utf8");
-
-      const world6Path = path.join(process.cwd(), "_mapdata", "world6_save.json");
-      const world6Objs = allObjects.filter(o => o.mapId === "world_6");
-      fs.writeFileSync(world6Path, JSON.stringify(world6Objs, null, 2), "utf8");
-
-      const world7Path = path.join(process.cwd(), "_mapdata", "world7_save.json");
-      const world7Objs = allObjects.filter(o => o.mapId === "world_7");
-      fs.writeFileSync(world7Path, JSON.stringify(world7Objs, null, 2), "utf8");
-
-      const world8Path = path.join(process.cwd(), "_mapdata", "world8_save.json");
-      const world8Objs = allObjects.filter(o => o.mapId === "world_8");
-      fs.writeFileSync(world8Path, JSON.stringify(world8Objs, null, 2), "utf8");
+      // Save individual world files for backup and fast per-map loading
+      for (let m = 1; m <= 8; m++) {
+        const mapName = `world_${m}`;
+        const mapPath = path.join(process.cwd(), "_mapdata", `${mapName}_save.json`);
+        const mapObjs = allObjects.filter(o => (o.mapId || "world_1") === mapName);
+        fs.writeFileSync(mapPath, JSON.stringify(mapObjs), "utf8");
+      }
     } catch (err) {
       console.error("[GameRoom] Error saving map to disk:", err);
     }
 
     // Save map to cloud Gist 5s after last edit.
-    // Cloud Gists do NOT trigger Render repository webhooks, so the server NEVER restarts!
     if (this.githubSaveTimer) clearTimeout(this.githubSaveTimer);
     this.githubSaveTimer = setTimeout(() => this.saveMapToGist(), 5000);
   }
@@ -2545,19 +2523,26 @@ export class GameRoom extends Room<GameState> {
   private gistId: string = "";
   private readonly GIST_DESCRIPTION = "SproutTale Master Map Save Data";
 
-  /** Save map to cloud Gist via GitHub API (does NOT trigger Render webhooks) */
+  /** Save map to cloud Gist via GitHub API (divided by map file to stay under size limits) */
   private saveMapToGist(): void {
     if (!this.GITHUB_TOKEN) return;
 
     const executeSave = (id: string) => {
       try {
-        const serialized = JSON.stringify(this.serializeMap(), null, 2);
+        const allObjects = this.serializeMap();
+        const filesPayload: any = {};
+        const maps = ["world_1", "world_2", "world_3", "world_4", "world_5", "world_6", "world_7", "world_8"];
+        maps.forEach(m => {
+          const mapObjs = allObjects.filter(o => (o.mapId || "world_1") === m);
+          if (mapObjs.length > 0) {
+            filesPayload[`${m}_save.json`] = { content: JSON.stringify(mapObjs) };
+          }
+        });
+
         const payload = JSON.stringify({
           description: this.GIST_DESCRIPTION,
           public: false,
-          files: {
-            "world_save.json": { content: serialized }
-          }
+          files: filesPayload
         });
 
         const path = id ? `/gists/${id}` : "/gists";
@@ -2623,15 +2608,17 @@ export class GameRoom extends Room<GameState> {
         try {
           const gists = JSON.parse(data);
           if (Array.isArray(gists)) {
-            const target = gists.find((g: any) => g.description === this.GIST_DESCRIPTION || g.files?.["world_save.json"]);
+            const target = gists.find((g: any) => g.description === this.GIST_DESCRIPTION || g.files?.["world_1_save.json"] || g.files?.["world_save.json"]);
             if (target && target.id) {
               this.gistId = target.id;
               callback(target.id);
               return;
             }
           }
-        } catch {}
-        callback("");
+          callback("");
+        } catch (err) {
+          callback("");
+        }
       });
     });
     req.on("error", () => callback(""));
@@ -2657,13 +2644,19 @@ export class GameRoom extends Room<GameState> {
         res.on("end", () => {
           try {
             const json = JSON.parse(data);
-            const content = json.files?.["world_save.json"]?.content;
-            if (content) {
-              const objects = JSON.parse(content);
-              if (Array.isArray(objects) && objects.length > 0) {
-                this.deserializeMap(objects, "world_1");
-                console.log(`[GameRoom] ☁️ Restored ${objects.length} map objects from cloud Gist (${id})!`);
-              }
+            if (json.files) {
+              Object.keys(json.files).forEach(filename => {
+                const content = json.files[filename]?.content;
+                if (content) {
+                  const objects = JSON.parse(content);
+                  if (Array.isArray(objects) && objects.length > 0) {
+                    const defaultMap = filename.replace("_save.json", "");
+                    const newObjs = objects.filter((o: any) => !this.state.mapObjects.has(o.id));
+                    this.deserializeMap(newObjs, defaultMap);
+                    console.log(`[GameRoom] ☁️ Restored ${newObjs.length} map objects for ${defaultMap} from cloud Gist!`);
+                  }
+                }
+              });
             }
           } catch (err) {
             console.error("[GameRoom] Error restoring map from Gist:", err);
@@ -2675,205 +2668,38 @@ export class GameRoom extends Room<GameState> {
     });
   }
 
-
-
-  /** On startup: load from local disk (map_save.json or _mapdata/world_save.json); if missing, fetch from GitHub */
+  /** On startup: load from local disk (map_save.json or _mapdata/*.json); if missing, fetch from GitHub */
   private loadMapFromDisk(): void {
-    // 1. Load Master Map Data (_mapdata/world_save.json or map_save.json)
-    const masterCandidates = [
-      path.join(process.cwd(), "_mapdata", "world_save.json"),
-      path.join(process.cwd(), "map_save.json"),
-      path.resolve(__dirname, "..", "..", "..", "_mapdata", "world_save.json"),
-      path.resolve(__dirname, "..", "..", "..", "..", "_mapdata", "world_save.json"),
-    ];
+    const maps = ["world_1", "world_2", "world_3", "world_4", "world_5", "world_6", "world_7", "world_8"];
 
-    for (const candidate of masterCandidates) {
-      if (fs.existsSync(candidate)) {
-        try {
-          const raw = fs.readFileSync(candidate, "utf8");
-          const objects = JSON.parse(raw);
-          if (Array.isArray(objects) && objects.length > 0) {
-            this.deserializeMap(objects, "world_1");
-            console.log(`[GameRoom] ✅ Loaded ${objects.length} master map objects from ${candidate}`);
-            break;
-          }
-        } catch (err) {
-          console.error(`[GameRoom] Error reading ${candidate}:`, err);
-        }
+    for (const m of maps) {
+      const numStr = m.replace("world_", "");
+      const masterCandidates = [
+        path.join(process.cwd(), "_mapdata", `${m}_save.json`),
+        path.join(process.cwd(), "_mapdata", `world${numStr}_save.json`),
+        path.resolve(__dirname, "..", "..", "..", "_mapdata", `${m}_save.json`),
+        path.resolve(__dirname, "..", "..", "..", "..", "_mapdata", `${m}_save.json`),
+      ];
+
+      if (m === "world_1") {
+        masterCandidates.push(path.join(process.cwd(), "_mapdata", "world_save.json"));
+        masterCandidates.push(path.join(process.cwd(), "map_save.json"));
       }
-    }
 
-    // 2. Load world_2 map data if extra objects exist
-    const candidates2 = [
-      path.join(process.cwd(), "_mapdata", "world2_save.json"),
-      path.resolve(__dirname, "..", "..", "..", "_mapdata", "world2_save.json"),
-      path.resolve(__dirname, "..", "..", "..", "..", "_mapdata", "world2_save.json"),
-    ];
-    for (const candidate of candidates2) {
-      if (fs.existsSync(candidate)) {
-        try {
-          const raw = fs.readFileSync(candidate, "utf8");
-          const objects = JSON.parse(raw);
-          if (Array.isArray(objects) && objects.length > 0) {
-            const newObjs = objects.filter((o: any) => !this.state.mapObjects.has(o.id));
-            if (newObjs.length > 0) {
-              this.deserializeMap(newObjs, "world_2");
-              console.log(`[GameRoom] ✅ Loaded ${newObjs.length} extra world_2 objects from ${candidate}`);
+      for (const candidate of masterCandidates) {
+        if (fs.existsSync(candidate)) {
+          try {
+            const raw = fs.readFileSync(candidate, "utf8");
+            const objects = JSON.parse(raw);
+            if (Array.isArray(objects) && objects.length > 0) {
+              const newObjs = objects.filter((o: any) => !this.state.mapObjects.has(o.id));
+              this.deserializeMap(newObjs, m);
+              console.log(`[GameRoom] ✅ Loaded ${newObjs.length} objects for ${m} from ${candidate}`);
+              break;
             }
-            break;
+          } catch (err) {
+            console.error(`[GameRoom] Error reading ${candidate}:`, err);
           }
-        } catch (err) {
-          console.error(`[GameRoom] Error reading ${candidate}:`, err);
-        }
-      }
-    }
-
-    // 3. Load world_3 map data if extra objects exist
-    const candidates3 = [
-      path.join(process.cwd(), "_mapdata", "world3_save.json"),
-      path.resolve(__dirname, "..", "..", "..", "_mapdata", "world3_save.json"),
-      path.resolve(__dirname, "..", "..", "..", "..", "_mapdata", "world3_save.json"),
-    ];
-    for (const candidate of candidates3) {
-      if (fs.existsSync(candidate)) {
-        try {
-          const raw = fs.readFileSync(candidate, "utf8");
-          const objects = JSON.parse(raw);
-          if (Array.isArray(objects) && objects.length > 0) {
-            const newObjs = objects.filter((o: any) => !this.state.mapObjects.has(o.id));
-            if (newObjs.length > 0) {
-              this.deserializeMap(newObjs, "world_3");
-              console.log(`[GameRoom] ✅ Loaded ${newObjs.length} extra world_3 objects from ${candidate}`);
-            }
-            break;
-          }
-        } catch (err) {
-          console.error(`[GameRoom] Error reading ${candidate}:`, err);
-        }
-      }
-    }
-
-    // 4. Load world_4 map data if extra objects exist
-    const candidates4 = [
-      path.join(process.cwd(), "_mapdata", "world4_save.json"),
-      path.resolve(__dirname, "..", "..", "..", "_mapdata", "world4_save.json"),
-      path.resolve(__dirname, "..", "..", "..", "..", "_mapdata", "world4_save.json"),
-    ];
-    for (const candidate of candidates4) {
-      if (fs.existsSync(candidate)) {
-        try {
-          const raw = fs.readFileSync(candidate, "utf8");
-          const objects = JSON.parse(raw);
-          if (Array.isArray(objects) && objects.length > 0) {
-            const newObjs = objects.filter((o: any) => !this.state.mapObjects.has(o.id));
-            if (newObjs.length > 0) {
-              this.deserializeMap(newObjs, "world_4");
-              console.log(`[GameRoom] ✅ Loaded ${newObjs.length} extra world_4 objects from ${candidate}`);
-            }
-            break;
-          }
-        } catch (err) {
-          console.error(`[GameRoom] Error reading ${candidate}:`, err);
-        }
-      }
-    }
-
-    // 5. Load world_5 map data if extra objects exist
-    const candidates5 = [
-      path.join(process.cwd(), "_mapdata", "world5_save.json"),
-      path.resolve(__dirname, "..", "..", "..", "_mapdata", "world5_save.json"),
-      path.resolve(__dirname, "..", "..", "..", "..", "_mapdata", "world5_save.json"),
-    ];
-    for (const candidate of candidates5) {
-      if (fs.existsSync(candidate)) {
-        try {
-          const raw = fs.readFileSync(candidate, "utf8");
-          const objects = JSON.parse(raw);
-          if (Array.isArray(objects) && objects.length > 0) {
-            const newObjs = objects.filter((o: any) => !this.state.mapObjects.has(o.id));
-            if (newObjs.length > 0) {
-              this.deserializeMap(newObjs, "world_5");
-              console.log(`[GameRoom] ✅ Loaded ${newObjs.length} extra world_5 objects from ${candidate}`);
-            }
-            break;
-          }
-        } catch (err) {
-          console.error(`[GameRoom] Error reading ${candidate}:`, err);
-        }
-      }
-    }
-
-    // 6. Load world_6 map data if extra objects exist
-    const candidates6 = [
-      path.join(process.cwd(), "_mapdata", "world6_save.json"),
-      path.resolve(__dirname, "..", "..", "..", "_mapdata", "world6_save.json"),
-      path.resolve(__dirname, "..", "..", "..", "..", "_mapdata", "world6_save.json"),
-    ];
-    for (const candidate of candidates6) {
-      if (fs.existsSync(candidate)) {
-        try {
-          const raw = fs.readFileSync(candidate, "utf8");
-          const objects = JSON.parse(raw);
-          if (Array.isArray(objects) && objects.length > 0) {
-            const newObjs = objects.filter((o: any) => !this.state.mapObjects.has(o.id));
-            if (newObjs.length > 0) {
-              this.deserializeMap(newObjs, "world_6");
-              console.log(`[GameRoom] ✅ Loaded ${newObjs.length} extra world_6 objects from ${candidate}`);
-            }
-            break;
-          }
-        } catch (err) {
-          console.error(`[GameRoom] Error reading ${candidate}:`, err);
-        }
-      }
-    }
-
-    // 7. Load world_7 map data if extra objects exist
-    const candidates7 = [
-      path.join(process.cwd(), "_mapdata", "world7_save.json"),
-      path.resolve(__dirname, "..", "..", "..", "_mapdata", "world7_save.json"),
-      path.resolve(__dirname, "..", "..", "..", "..", "_mapdata", "world7_save.json"),
-    ];
-    for (const candidate of candidates7) {
-      if (fs.existsSync(candidate)) {
-        try {
-          const raw = fs.readFileSync(candidate, "utf8");
-          const objects = JSON.parse(raw);
-          if (Array.isArray(objects) && objects.length > 0) {
-            const newObjs = objects.filter((o: any) => !this.state.mapObjects.has(o.id));
-            if (newObjs.length > 0) {
-              this.deserializeMap(newObjs, "world_7");
-              console.log(`[GameRoom] ✅ Loaded ${newObjs.length} extra world_7 objects from ${candidate}`);
-            }
-            break;
-          }
-        } catch (err) {
-          console.error(`[GameRoom] Error reading ${candidate}:`, err);
-        }
-      }
-    }
-
-    // 8. Load world_8 map data if extra objects exist
-    const candidates8 = [
-      path.join(process.cwd(), "_mapdata", "world8_save.json"),
-      path.resolve(__dirname, "..", "..", "..", "_mapdata", "world8_save.json"),
-      path.resolve(__dirname, "..", "..", "..", "..", "_mapdata", "world8_save.json"),
-    ];
-    for (const candidate of candidates8) {
-      if (fs.existsSync(candidate)) {
-        try {
-          const raw = fs.readFileSync(candidate, "utf8");
-          const objects = JSON.parse(raw);
-          if (Array.isArray(objects) && objects.length > 0) {
-            const newObjs = objects.filter((o: any) => !this.state.mapObjects.has(o.id));
-            if (newObjs.length > 0) {
-              this.deserializeMap(newObjs, "world_8");
-              console.log(`[GameRoom] ✅ Loaded ${newObjs.length} extra world_8 objects from ${candidate}`);
-            }
-            break;
-          }
-        } catch (err) {
-          console.error(`[GameRoom] Error reading ${candidate}:`, err);
         }
       }
     }

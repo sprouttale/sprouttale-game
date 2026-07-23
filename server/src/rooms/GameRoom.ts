@@ -1049,94 +1049,97 @@ export class GameRoom extends Room<GameState> {
 
     // Register message handler for placing a map object
     this.onMessage("place_object", (client: Client, message: any) => {
-      const player = this.state.players.get(client.sessionId);
-      if (!player) return;
+      try {
+        const player = this.state.players.get(client.sessionId);
+        if (!player || !message) return;
 
-      const obj = new MapObject();
-      obj.id = message.id || `obj_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-      obj.assetId = message.assetId || "test_block";
-      obj.x = Number(message.x || 0);
-      obj.y = Number(message.y || 0);
-      obj.scaleX = Number(message.scaleX !== undefined ? message.scaleX : 1);
-      obj.scaleY = Number(message.scaleY !== undefined ? message.scaleY : 1);
-      obj.rotation = Number(message.rotation || 0);
-      obj.flipX = Boolean(message.flipX);
-      obj.flipY = Boolean(message.flipY);
-      obj.isSolid = Boolean(message.isSolid);
-      obj.isWater = Boolean(message.isWater);
-      obj.isClimbable = Boolean(message.isClimbable);
-      obj.depthLayer = String(message.depthLayer || "same");
-      obj.mapId = String(message.mapId || player.currentMap || "world_1");
-      obj.triggerType = String(message.triggerType || "none");
-      obj.triggerTargetX = Number(message.triggerTargetX || 0);
-      obj.triggerTargetY = Number(message.triggerTargetY || 0);
-      
-      // Tileset crop coordinates
-      obj.tileX = message.tileX !== undefined ? Number(message.tileX) : -1;
-      obj.tileY = message.tileY !== undefined ? Number(message.tileY) : -1;
-      obj.tileW = message.tileW !== undefined ? Number(message.tileW) : 0;
-      obj.tileH = message.tileH !== undefined ? Number(message.tileH) : 0;
-      
-      // Anim speed/framerate
-      obj.frameRate = message.frameRate !== undefined ? Number(message.frameRate) : 6;
+        const obj = new MapObject();
+        obj.id = message.id || `obj_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+        obj.assetId = message.assetId || "test_block";
+        obj.x = Number(message.x || 0);
+        obj.y = Number(message.y || 0);
+        obj.scaleX = Number(message.scaleX !== undefined ? message.scaleX : 1);
+        obj.scaleY = Number(message.scaleY !== undefined ? message.scaleY : 1);
+        obj.rotation = Number(message.rotation || 0);
+        obj.flipX = Boolean(message.flipX);
+        obj.flipY = Boolean(message.flipY);
+        obj.isSolid = Boolean(message.isSolid);
+        obj.isWater = Boolean(message.isWater);
+        obj.isClimbable = Boolean(message.isClimbable);
+        obj.depthLayer = String(message.depthLayer || "same");
+        obj.mapId = String(message.mapId || player.currentMap || "world_1");
+        obj.triggerType = String(message.triggerType || "none");
+        obj.triggerTargetX = Number(message.triggerTargetX || 0);
+        obj.triggerTargetY = Number(message.triggerTargetY || 0);
+        
+        // Tileset crop coordinates
+        obj.tileX = message.tileX !== undefined ? Number(message.tileX) : -1;
+        obj.tileY = message.tileY !== undefined ? Number(message.tileY) : -1;
+        obj.tileW = message.tileW !== undefined ? Number(message.tileW) : 0;
+        obj.tileH = message.tileH !== undefined ? Number(message.tileH) : 0;
+        
+        // Anim speed/framerate
+        obj.frameRate = message.frameRate !== undefined ? Number(message.frameRate) : 6;
 
-      // Custom collision fields
-      obj.solidWidth = message.solidWidth !== undefined ? Number(message.solidWidth) : 0;
-      obj.solidHeight = message.solidHeight !== undefined ? Number(message.solidHeight) : 0;
-      obj.solidOffsetX = message.solidOffsetX !== undefined ? Number(message.solidOffsetX) : 0;
-      obj.solidOffsetY = message.solidOffsetY !== undefined ? Number(message.solidOffsetY) : 0;
-      obj.patrolPath = String(message.patrolPath || "");
-      obj.patrolSpeed = message.patrolSpeed !== undefined ? Number(message.patrolSpeed) : 45;
- 
-      if (obj.assetId && (obj.assetId.startsWith("maple_tree_") || obj.assetId.startsWith("dekor_tree_"))) {
-        obj.treeState = "grown";
-        obj.treeHp = 10;
-        // Auto-enforce 2.5x scale and trunk collision for all maple trees
-        obj.scaleX = 2.5;
-        obj.scaleY = 2.5;
-        obj.isSolid = true;
-        obj.solidWidth = 40;
-        obj.solidHeight = 25;
-        obj.solidOffsetX = 0;
-        obj.solidOffsetY = -15;
-      }
+        // Custom collision fields
+        obj.solidWidth = message.solidWidth !== undefined ? Number(message.solidWidth) : 0;
+        obj.solidHeight = message.solidHeight !== undefined ? Number(message.solidHeight) : 0;
+        obj.solidOffsetX = message.solidOffsetX !== undefined ? Number(message.solidOffsetX) : 0;
+        obj.solidOffsetY = message.solidOffsetY !== undefined ? Number(message.solidOffsetY) : 0;
+        obj.patrolPath = String(message.patrolPath || "");
+        obj.patrolSpeed = message.patrolSpeed !== undefined ? Number(message.patrolSpeed) : 45;
+   
+        if (obj.assetId && (obj.assetId.startsWith("maple_tree_") || obj.assetId.startsWith("dekor_tree_"))) {
+          obj.treeState = "grown";
+          obj.treeHp = 10;
+          // Auto-enforce 2.5x scale and trunk collision for all maple trees
+          obj.scaleX = 2.5;
+          obj.scaleY = 2.5;
+          obj.isSolid = true;
+          obj.solidWidth = 40;
+          obj.solidHeight = 25;
+          obj.solidOffsetX = 0;
+          obj.solidOffsetY = -15;
+        }
 
-      // Route static terrain tiles (terrain_*, wf_*, zemin_tileset) to staticMapTiles
-      // This matches what batch_place_objects already does
-      const aId = obj.assetId || "";
-      const isStaticTile = aId.startsWith("terrain_") || aId.startsWith("wf_") || aId === "zemin_tileset";
-      if (isStaticTile && !obj.isSolid && !obj.isClimbable && (obj.triggerType === "none" || !obj.triggerType)) {
-        const mId = obj.mapId || player.currentMap || "world_1";
-        const dLayer = obj.depthLayer || "below";
-        const rx = Math.round(obj.x); const ry = Math.round(obj.y);
-        // Remove ANY previous static tile at the exact same map, depthLayer, and (x, y) coordinates
-        const posKey = `${mId}:${dLayer}:${rx}:${ry}`;
-        this.staticMapTiles = this.staticMapTiles.filter((t: any) => {
-          const tk = `${t.mapId || "world_1"}:${t.depthLayer || "below"}:${Math.round(t.x)}:${Math.round(t.y)}`;
-          return tk !== posKey;
-        });
-        const plainObj = {
-          id: obj.id, assetId: obj.assetId, mapId: mId,
-          x: obj.x, y: obj.y, scaleX: obj.scaleX, scaleY: obj.scaleY,
-          rotation: obj.rotation, flipX: obj.flipX, flipY: obj.flipY,
-          isSolid: false, isWater: obj.isWater, isClimbable: false,
-          depthLayer: dLayer, triggerType: "none",
-          triggerTargetX: 0, triggerTargetY: 0,
-          tileX: obj.tileX, tileY: obj.tileY, tileW: obj.tileW, tileH: obj.tileH,
-          frameRate: obj.frameRate,
-          solidWidth: 0, solidHeight: 0, solidOffsetX: 0, solidOffsetY: 0,
-          treeState: "", treeHp: 0, cropType: "none", cropStage: 0, cropWatered: false
-        };
-        this.staticMapTiles.push(plainObj);
-        this.broadcast("batch_place_static", { objects: [plainObj] });
-        this.spatialGridDirty = true;
-        this.saveMapToDisk();
-        console.log(`[GameRoom] Player ${player.name} placed static tile: ${obj.assetId} at (${obj.x}, ${obj.y})`);
-      } else {
-        this.state.mapObjects.set(obj.id, obj);
-        this.spatialGridDirty = true;
-        this.saveMapToDisk();
-        console.log(`[GameRoom] Player ${player.name} placed object: ${obj.assetId} at (${obj.x}, ${obj.y})`);
+        // Route static terrain tiles (terrain_*, wf_*, zemin_tileset) to staticMapTiles
+        const aId = obj.assetId || "";
+        const isStaticTile = aId.startsWith("terrain_") || aId.startsWith("wf_") || aId === "zemin_tileset";
+        if (isStaticTile && !obj.isSolid && !obj.isClimbable && (obj.triggerType === "none" || !obj.triggerType)) {
+          const mId = obj.mapId || player.currentMap || "world_1";
+          const dLayer = obj.depthLayer || "below";
+          const rx = Math.round(obj.x); const ry = Math.round(obj.y);
+          // Remove ANY previous static tile at the exact same map, depthLayer, and (x, y) coordinates
+          const posKey = `${mId}:${dLayer}:${rx}:${ry}`;
+          this.staticMapTiles = this.staticMapTiles.filter((t: any) => {
+            const tk = `${t.mapId || "world_1"}:${t.depthLayer || "below"}:${Math.round(t.x)}:${Math.round(t.y)}`;
+            return tk !== posKey;
+          });
+          const plainObj = {
+            id: obj.id, assetId: obj.assetId, mapId: mId,
+            x: obj.x, y: obj.y, scaleX: obj.scaleX, scaleY: obj.scaleY,
+            rotation: obj.rotation, flipX: obj.flipX, flipY: obj.flipY,
+            isSolid: false, isWater: obj.isWater, isClimbable: false,
+            depthLayer: dLayer, triggerType: "none",
+            triggerTargetX: 0, triggerTargetY: 0,
+            tileX: obj.tileX, tileY: obj.tileY, tileW: obj.tileW, tileH: obj.tileH,
+            frameRate: obj.frameRate,
+            solidWidth: 0, solidHeight: 0, solidOffsetX: 0, solidOffsetY: 0,
+            treeState: "", treeHp: 0, cropType: "none", cropStage: 0, cropWatered: false
+          };
+          this.staticMapTiles.push(plainObj);
+          this.broadcast("batch_place_static", { objects: [plainObj] });
+          this.spatialGridDirty = true;
+          this.saveMapToDisk();
+          console.log(`[GameRoom] Player ${player.name} placed static tile: ${obj.assetId} at (${obj.x}, ${obj.y})`);
+        } else {
+          this.state.mapObjects.set(obj.id, obj);
+          this.spatialGridDirty = true;
+          this.saveMapToDisk();
+          console.log(`[GameRoom] Player ${player.name} placed object: ${obj.assetId} at (${obj.x}, ${obj.y})`);
+        }
+      } catch (err) {
+        console.error("[GameRoom] Error in place_object:", err);
       }
     });
 
@@ -1289,74 +1292,82 @@ export class GameRoom extends Room<GameState> {
 
     // Register message handler for batch deleting map objects
     this.onMessage("batch_delete_objects", (client: Client, message: { ids: string[] }) => {
-      const player = this.state.players.get(client.sessionId);
-      if (!player) return;
+      try {
+        const player = this.state.players.get(client.sessionId);
+        if (!player || !message) return;
 
-      if (Array.isArray(message.ids) && message.ids.length > 0) {
-        let count = 0;
-        const idSet = new Set(message.ids);
-        message.ids.forEach((id: string) => {
-          if (this.state.mapObjects.has(id)) {
-            this.state.mapObjects.delete(id);
-            count++;
+        if (Array.isArray(message.ids) && message.ids.length > 0) {
+          let count = 0;
+          const idSet = new Set(message.ids);
+          message.ids.forEach((id: string) => {
+            if (this.state.mapObjects.has(id)) {
+              this.state.mapObjects.delete(id);
+              count++;
+            }
+          });
+
+          const initialStaticLen = this.staticMapTiles.length;
+          this.staticMapTiles = this.staticMapTiles.filter((t: any) => !idSet.has(t.id));
+          const staticDeletedCount = initialStaticLen - this.staticMapTiles.length;
+
+          if (count > 0 || staticDeletedCount > 0) {
+            this.broadcast("batch_delete_static", { objectIds: message.ids });
+            this.spatialGridDirty = true;
+            this.saveMapToDisk();
+            console.log(`[GameRoom] Player ${player.name} batch deleted ${count + staticDeletedCount} objects/static tiles`);
           }
-        });
-
-        const initialStaticLen = this.staticMapTiles.length;
-        this.staticMapTiles = this.staticMapTiles.filter((t: any) => !idSet.has(t.id));
-        const staticDeletedCount = initialStaticLen - this.staticMapTiles.length;
-
-        if (count > 0 || staticDeletedCount > 0) {
-          this.broadcast("batch_delete_static", { objectIds: message.ids });
-          this.spatialGridDirty = true;
-          this.saveMapToDisk();
-          console.log(`[GameRoom] Player ${player.name} batch deleted ${count + staticDeletedCount} objects/static tiles`);
         }
+      } catch (err) {
+        console.error("[GameRoom] Error in batch_delete_objects:", err);
       }
     });
 
     // Register message handler for deleting a map object
     this.onMessage("delete_object", (client: Client, message: { id: string, x?: number, y?: number, mapId?: string, depthLayer?: string }) => {
-      const player = this.state.players.get(client.sessionId);
-      if (!player) return;
+      try {
+        const player = this.state.players.get(client.sessionId);
+        if (!player || !message) return;
 
-      let deleted = false;
-      if (this.state.mapObjects.has(message.id)) {
-        this.state.mapObjects.delete(message.id);
-        deleted = true;
-      }
+        let deleted = false;
+        if (this.state.mapObjects.has(message.id)) {
+          this.state.mapObjects.delete(message.id);
+          deleted = true;
+        }
 
-      const initialLen = this.staticMapTiles.length;
-      const targetMap = message.mapId || player.currentMap || "world_1";
-      const targetLayer = message.depthLayer || "below";
-      const deletedStaticIds: string[] = [];
+        const initialLen = this.staticMapTiles.length;
+        const targetMap = message.mapId || player.currentMap || "world_1";
+        const targetLayer = message.depthLayer || "below";
+        const deletedStaticIds: string[] = [];
 
-      this.staticMapTiles = this.staticMapTiles.filter((t: any) => {
-        let remove = false;
-        if (t.id === message.id) remove = true;
-        if (message.x !== undefined && message.y !== undefined) {
-          if ((t.mapId || "world_1") === targetMap && (t.depthLayer || "below") === targetLayer) {
-            if (Math.round(t.x) === Math.round(message.x) && Math.round(t.y) === Math.round(message.y)) {
-              remove = true;
+        this.staticMapTiles = this.staticMapTiles.filter((t: any) => {
+          let remove = false;
+          if (t.id === message.id) remove = true;
+          if (message.x !== undefined && message.y !== undefined) {
+            if ((t.mapId || "world_1") === targetMap && (t.depthLayer || "below") === targetLayer) {
+              if (Math.round(t.x) === Math.round(message.x) && Math.round(t.y) === Math.round(message.y)) {
+                remove = true;
+              }
             }
           }
-        }
-        if (remove) {
-          deletedStaticIds.push(t.id);
-          return false;
-        }
-        return true;
-      });
+          if (remove) {
+            deletedStaticIds.push(t.id);
+            return false;
+          }
+          return true;
+        });
 
-      if (deletedStaticIds.length > 0) {
-        deleted = true;
-        this.broadcast("batch_delete_static", { objectIds: [message.id, ...deletedStaticIds] });
-      }
+        if (deletedStaticIds.length > 0) {
+          deleted = true;
+          this.broadcast("batch_delete_static", { objectIds: [message.id, ...deletedStaticIds] });
+        }
 
-      if (deleted) {
-        this.spatialGridDirty = true;
-        this.saveMapToDisk();
-        console.log(`[GameRoom] Player ${player.name} deleted object: ${message.id}`);
+        if (deleted) {
+          this.spatialGridDirty = true;
+          this.saveMapToDisk();
+          console.log(`[GameRoom] Player ${player.name} deleted object: ${message.id}`);
+        }
+      } catch (err) {
+        console.error("[GameRoom] Error in delete_object:", err);
       }
     });
 
@@ -2510,42 +2521,43 @@ export class GameRoom extends Room<GameState> {
       console.error("[GameRoom] Error saving map to disk:", err);
     }
 
-    // Debounce GitHub save: wait 5s after last change before pushing to map-data branch on GitHub
-    // Using map-data branch ensures Render auto-deploy (on main) is NEVER triggered during gameplay!
+    // Save map to cloud Gist 5s after last edit.
+    // Cloud Gists do NOT trigger Render repository webhooks, so the server NEVER restarts!
     if (this.githubSaveTimer) clearTimeout(this.githubSaveTimer);
-    this.githubSaveTimer = setTimeout(() => this.saveMapToGitHub(), 5000);
+    this.githubSaveTimer = setTimeout(() => this.saveMapToGist(), 5000);
   }
 
-  /** Push map data to GitHub repository file via API on map-data branch */
-  private saveMapToGitHub(): void {
-    if (!this.GITHUB_TOKEN) {
-      console.warn("[GameRoom] ⚠️ GITHUB_TOKEN is missing, map cannot be synced to GitHub.");
-      return;
-    }
+  private gistId: string = "";
+  private readonly GIST_DESCRIPTION = "SproutTale Master Map Save Data";
 
-    const executePut = (sha?: string) => {
+  /** Save map to cloud Gist via GitHub API (does NOT trigger Render webhooks) */
+  private saveMapToGist(): void {
+    if (!this.GITHUB_TOKEN) return;
+
+    const executeSave = (id: string) => {
       try {
-        const content = Buffer.from(JSON.stringify(this.serializeMap(), null, 2), "utf8").toString("base64");
-        const payload: any = {
-          message: "auto: update world_save.json",
-          content,
-          branch: this.GITHUB_BRANCH
-        };
-        const activeSha = sha || this.githubFileSha;
-        if (activeSha) payload.sha = activeSha;
+        const serialized = JSON.stringify(this.serializeMap(), null, 2);
+        const payload = JSON.stringify({
+          description: this.GIST_DESCRIPTION,
+          public: false,
+          files: {
+            "world_save.json": { content: serialized }
+          }
+        });
 
-        const body = JSON.stringify(payload);
+        const path = id ? `/gists/${id}` : "/gists";
+        const method = id ? "PATCH" : "POST";
 
         const req = https.request({
           hostname: "api.github.com",
-          path: `/repos/${this.GITHUB_OWNER}/${this.GITHUB_REPO}/contents/${this.GITHUB_PATH}`,
-          method: "PUT",
+          path,
+          method,
           headers: {
             "Authorization": `token ${this.GITHUB_TOKEN}`,
             "User-Agent": "SproutTale-Server",
             "Accept": "application/vnd.github.v3+json",
             "Content-Type": "application/json",
-            "Content-Length": Buffer.byteLength(body)
+            "Content-Length": Buffer.byteLength(payload)
           }
         }, (res) => {
           let data = "";
@@ -2553,45 +2565,36 @@ export class GameRoom extends Room<GameState> {
           res.on("end", () => {
             try {
               const json = JSON.parse(data);
-              if (res.statusCode === 200 || res.statusCode === 201) {
-                if (json.content?.sha) {
-                  this.githubFileSha = json.content.sha;
-                } else if (json.sha) {
-                  this.githubFileSha = json.sha;
-                }
-                console.log(`[GameRoom] ✅ Map permanently saved to GitHub (${this.GITHUB_BRANCH} branch) (${this.state.mapObjects.size} objects)`);
-              } else {
-                console.error(`[GameRoom] ❌ GitHub save error (${res.statusCode}): ${json.message || data}`);
-                if (res.statusCode === 409 || res.statusCode === 422) {
-                  this.githubFileSha = "";
-                  this.fetchFreshShaAndRetry();
-                }
+              if (json.id) {
+                this.gistId = json.id;
+                console.log(`[GameRoom] ☁️ Map permanently saved to cloud Gist (${json.id}) - NO server restarts!`);
               }
             } catch (err) {
-              console.error("[GameRoom] Error parsing GitHub save response:", err);
+              console.error("[GameRoom] Error parsing Gist save response:", err);
             }
           });
         });
-        req.on("error", (e) => console.error("[GameRoom] GitHub HTTP request error:", e.message));
-        req.write(body);
+        req.on("error", (e) => console.error("[GameRoom] Gist HTTP save error:", e.message));
+        req.write(payload);
         req.end();
       } catch (err) {
-        console.error("[GameRoom] Error pushing map to GitHub:", err);
+        console.error("[GameRoom] Error executing Gist save:", err);
       }
     };
 
-    if (!this.githubFileSha) {
-      this.fetchFreshSha((sha) => executePut(sha));
+    if (this.gistId) {
+      executeSave(this.gistId);
     } else {
-      executePut();
+      this.findOrCreateGist((id) => executeSave(id));
     }
   }
 
-  /** Helper to fetch fresh file SHA from GitHub API on map-data branch */
-  private fetchFreshSha(callback: (sha: string) => void): void {
+  /** Search user's Gists for SproutTale map save data */
+  private findOrCreateGist(callback: (id: string) => void): void {
+    if (!this.GITHUB_TOKEN) { callback(""); return; }
     const req = https.request({
       hostname: "api.github.com",
-      path: `/repos/${this.GITHUB_OWNER}/${this.GITHUB_REPO}/contents/${this.GITHUB_PATH}?ref=${this.GITHUB_BRANCH}`,
+      path: "/gists",
       method: "GET",
       headers: {
         "Authorization": `token ${this.GITHUB_TOKEN}`,
@@ -2603,62 +2606,61 @@ export class GameRoom extends Room<GameState> {
       res.on("data", (c) => data += c);
       res.on("end", () => {
         try {
-          const json = JSON.parse(data);
-          if (json.sha) {
-            this.githubFileSha = json.sha;
-            callback(json.sha);
-          }
-        } catch {}
-      });
-    });
-    req.on("error", () => {});
-    req.end();
-  }
-
-  /** Fetch latest map data from GitHub map-data branch on startup */
-  private syncMapFromGitHub(): void {
-    if (!this.GITHUB_TOKEN) return;
-    const req = https.request({
-      hostname: "api.github.com",
-      path: `/repos/${this.GITHUB_OWNER}/${this.GITHUB_REPO}/contents/${this.GITHUB_PATH}?ref=${this.GITHUB_BRANCH}`,
-      method: "GET",
-      headers: {
-        "Authorization": `token ${this.GITHUB_TOKEN}`,
-        "User-Agent": "SproutTale-Server",
-        "Accept": "application/vnd.github.v3+json"
-      }
-    }, (res) => {
-      let data = "";
-      res.on("data", (c) => data += c);
-      res.on("end", () => {
-        try {
-          const json = JSON.parse(data);
-          if (json.content) {
-            const decoded = Buffer.from(json.content, "base64").toString("utf8");
-            const objects = JSON.parse(decoded);
-            if (Array.isArray(objects) && objects.length > 0) {
-              this.deserializeMap(objects, "world_1");
-              console.log(`[GameRoom] ☁️ Synced ${objects.length} map objects from GitHub (${this.GITHUB_BRANCH})`);
+          const gists = JSON.parse(data);
+          if (Array.isArray(gists)) {
+            const target = gists.find((g: any) => g.description === this.GIST_DESCRIPTION || g.files?.["world_save.json"]);
+            if (target && target.id) {
+              this.gistId = target.id;
+              callback(target.id);
+              return;
             }
           }
-          if (json.sha) {
-            this.githubFileSha = json.sha;
-          }
-        } catch (err) {
-          console.error("[GameRoom] Error parsing GitHub map sync response:", err);
-        }
+        } catch {}
+        callback("");
       });
     });
-    req.on("error", (e) => console.error("[GameRoom] Error fetching map from GitHub:", e.message));
+    req.on("error", () => callback(""));
     req.end();
   }
 
-  private fetchFreshShaAndRetry(): void {
-    this.fetchFreshSha((sha) => {
-      console.log(`[GameRoom] 🔄 Retrying GitHub auto-save with fresh SHA (${sha})...`);
-      this.saveMapToGitHub();
+  /** Restore latest map objects from cloud Gist on server boot */
+  private syncMapFromGist(): void {
+    this.findOrCreateGist((id) => {
+      if (!id) return;
+      const req = https.request({
+        hostname: "api.github.com",
+        path: `/gists/${id}`,
+        method: "GET",
+        headers: {
+          "Authorization": `token ${this.GITHUB_TOKEN}`,
+          "User-Agent": "SproutTale-Server",
+          "Accept": "application/vnd.github.v3+json"
+        }
+      }, (res) => {
+        let data = "";
+        res.on("data", (c) => data += c);
+        res.on("end", () => {
+          try {
+            const json = JSON.parse(data);
+            const content = json.files?.["world_save.json"]?.content;
+            if (content) {
+              const objects = JSON.parse(content);
+              if (Array.isArray(objects) && objects.length > 0) {
+                this.deserializeMap(objects, "world_1");
+                console.log(`[GameRoom] ☁️ Restored ${objects.length} map objects from cloud Gist (${id})!`);
+              }
+            }
+          } catch (err) {
+            console.error("[GameRoom] Error restoring map from Gist:", err);
+          }
+        });
+      });
+      req.on("error", (e) => console.error("[GameRoom] Gist sync error:", e.message));
+      req.end();
     });
   }
+
+
 
   /** On startup: load from local disk (map_save.json or _mapdata/world_save.json); if missing, fetch from GitHub */
   private loadMapFromDisk(): void {
@@ -2861,8 +2863,7 @@ export class GameRoom extends Room<GameState> {
       }
     }
 
-    this.fetchGitHubFileSha();
-    this.syncMapFromGitHub();
+    this.syncMapFromGist();
   }
 
   /** Fetch the current SHA of the file (needed for updates) */

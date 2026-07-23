@@ -267,56 +267,63 @@ export class GameRoom extends Room<GameState> {
 
     // Register message handler for planting seeds
     this.onMessage("plant_seed", (client: Client, message: { seedType: string, x: number, y: number }) => {
-      const player = this.state.players.get(client.sessionId);
-      if (!player) return;
+      try {
+        const player = this.state.players.get(client.sessionId);
+        if (!player || !message) return;
 
-      const seedType = message.seedType; // "apple", "carrot", "wheat"
-      const seedCount = player.seeds.get(seedType) || 0;
-      if (seedCount <= 0) {
-        client.send("error", { message: "Tohumunuz yok!" });
-        return;
-      }
+        const seedType = message.seedType; // "apple", "carrot", "wheat", "tomato", "strawberry", etc.
+        const seedCount = player.seeds.get(seedType) || 0;
+        if (seedCount <= 0) {
+          client.send("error", { message: "Tohumunuz yok!" });
+          return;
+        }
 
-      // Find the closest tilled soil in range of (message.x, message.y)
-      let targetSoil: any = null;
-      let closestDist = Infinity;
-      this.state.mapObjects.forEach((obj: any) => {
-        if ((obj.mapId || "world_1") !== (player.currentMap || "world_1")) return;
-        if (obj.assetId && (obj.assetId === "tilled_soil_dry" || obj.assetId === "tilled_soil_wet")) {
-          const dx = obj.x - message.x;
-          const dy = obj.y - message.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < closestDist) {
-            closestDist = dist;
-            targetSoil = obj;
+        // Find the closest tilled soil in range of (message.x, message.y)
+        let targetSoil: any = null;
+        let closestDist = Infinity;
+        this.state.mapObjects.forEach((obj: any) => {
+          if ((obj.mapId || "world_1") !== (player.currentMap || "world_1")) return;
+          if (this.isTilledSoil(obj)) {
+            const dx = obj.x - message.x;
+            const dy = obj.y - message.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < closestDist) {
+              closestDist = dist;
+              targetSoil = obj;
+            }
           }
+        });
+
+        // Target soil must be within 48px of click and 100px of player
+        if (targetSoil && closestDist < 48) {
+          const distToPlayer = Math.sqrt((targetSoil.x - player.x) ** 2 + (targetSoil.y - player.y) ** 2);
+          if (distToPlayer > 100) {
+            client.send("error", { message: "Çok uzaktasınız!" });
+            return;
+          }
+
+          if (targetSoil.cropType && targetSoil.cropType !== "none") {
+            client.send("error", { message: "Bu tarlada zaten ekin var!" });
+            return;
+          }
+
+          // Deduct 1 seed
+          player.seeds.set(seedType, seedCount - 1);
+
+          // Plant
+          targetSoil.cropType = seedType;
+          targetSoil.cropStage = 0;
+          targetSoil.cropGrowthProgress = 0;
+          targetSoil.cropGrowthNeeded = 10; // 10 seconds growth per stage
+
+          client.send("seed_planted", { seedType });
+          this.saveMapToDisk();
+          console.log(`[GameRoom] Player ${player.name} planted ${seedType} at (${targetSoil.x}, ${targetSoil.y})`);
+        } else {
+          client.send("error", { message: "Burada sürülmüş toprak bulunamadı!" });
         }
-      });
-
-      // Target soil must be within 16px of mouse click and 80px of player
-      if (targetSoil && closestDist < 16) {
-        const distToPlayer = Math.sqrt((targetSoil.x - player.x) ** 2 + (targetSoil.y - player.y) ** 2);
-        if (distToPlayer > 80) {
-          client.send("error", { message: "Çok uzaktasınız!" });
-          return;
-        }
-
-        if (targetSoil.cropType !== "none") {
-          client.send("error", { message: "Bu tarlada zaten ekin var!" });
-          return;
-        }
-
-        // Deduct seed
-        player.seeds.set(seedType, seedCount - 1);
-
-        // Plant
-        targetSoil.cropType = seedType;
-        targetSoil.cropStage = 0;
-        targetSoil.cropGrowthProgress = 0;
-        targetSoil.cropGrowthNeeded = 10; // 10 seconds growth per stage
-
-        client.send("seed_planted", { seedType });
-        console.log(`[GameRoom] Player ${player.name} planted ${seedType} at (${targetSoil.x}, ${targetSoil.y})`);
+      } catch (err) {
+        console.error("[GameRoom] Error in plant_seed:", err);
       }
     });
 
@@ -666,7 +673,7 @@ export class GameRoom extends Room<GameState> {
             let closestSoil: any = null;
             let closestDist = Infinity;
             this.state.mapObjects.forEach((obj: any) => {
-              if (obj.assetId && (obj.assetId === "tilled_soil_dry" || obj.assetId === "tilled_soil_wet")) {
+              if ((obj.mapId || "world_1") === (player.currentMap || "world_1") && this.isTilledSoil(obj)) {
                 const dx = obj.x - player.x;
                 const dy = obj.y - player.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
@@ -678,7 +685,9 @@ export class GameRoom extends Room<GameState> {
             });
             if (closestSoil && closestDist < 60) {
               closestSoil.cropWatered = true;
-              closestSoil.assetId = "tilled_soil_wet";
+              if (closestSoil.assetId === "tilled_soil_dry") closestSoil.assetId = "tilled_soil_wet";
+              client.send("crop_watered", { soilId: closestSoil.id });
+              this.saveMapToDisk();
               console.log(`[GameRoom] Player ${player.name} watered soil ${closestSoil.id}`);
             }
           }
@@ -688,7 +697,7 @@ export class GameRoom extends Room<GameState> {
             let closestSoil: any = null;
             let closestDist = Infinity;
             this.state.mapObjects.forEach((obj: any) => {
-              if (obj.assetId && (obj.assetId === "tilled_soil_dry" || obj.assetId === "tilled_soil_wet") && obj.cropType !== "none") {
+              if ((obj.mapId || "world_1") === (player.currentMap || "world_1") && this.isTilledSoil(obj) && obj.cropType && obj.cropType !== "none" && obj.cropStage >= 2) {
                 const dx = obj.x - player.x;
                 const dy = obj.y - player.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
@@ -699,18 +708,15 @@ export class GameRoom extends Room<GameState> {
               }
             });
             if (closestSoil && closestDist < 60) {
-              if (closestSoil.cropStage === 3) {
-                const cType = closestSoil.cropType;
-                const currentCount = player.harvests.get(cType) || 0;
-                player.harvests.set(cType, currentCount + 1);
-                client.send("harvested", { item: cType, quantity: 1 });
-                console.log(`[GameRoom] Player ${player.name} harvested crop ${cType}`);
-                closestSoil.cropType = "none";
-                closestSoil.cropStage = 0;
-                closestSoil.cropWatered = false;
-                closestSoil.cropGrowthProgress = 0;
-                closestSoil.assetId = "tilled_soil_dry";
-              }
+              const cropType = closestSoil.cropType;
+              const currentHarvest = player.harvests.get(cropType) || 0;
+              player.harvests.set(cropType, currentHarvest + 1);
+              closestSoil.cropType = "none";
+              closestSoil.cropStage = 0;
+              closestSoil.cropWatered = false;
+              client.send("crop_harvested", { cropType, count: currentHarvest + 1 });
+              this.saveMapToDisk();
+              console.log(`[GameRoom] Player ${player.name} harvested ${cropType}! Total: ${currentHarvest + 1}`);
             }
           }
 
@@ -722,7 +728,7 @@ export class GameRoom extends Room<GameState> {
               let closestSoil: any = null;
               let closestDist = Infinity;
               this.state.mapObjects.forEach((obj: any) => {
-                if (obj.assetId && (obj.assetId === "tilled_soil_dry" || obj.assetId === "tilled_soil_wet")) {
+                if ((obj.mapId || "world_1") === (player.currentMap || "world_1") && this.isTilledSoil(obj)) {
                   const dx = obj.x - player.x;
                   const dy = obj.y - player.y;
                   const dist = Math.sqrt(dx * dx + dy * dy);
@@ -734,7 +740,7 @@ export class GameRoom extends Room<GameState> {
               });
 
               if (closestSoil && closestDist < 60) {
-                if (closestSoil.cropType === "none") {
+                if (!closestSoil.cropType || closestSoil.cropType === "none") {
                   player.seeds.set(seedType, seedCount - 1);
                   closestSoil.cropType = seedType;
                   closestSoil.cropStage = 0;
@@ -742,6 +748,7 @@ export class GameRoom extends Room<GameState> {
                   closestSoil.cropGrowthNeeded = 10;
 
                   client.send("seed_planted", { seedType });
+                  this.saveMapToDisk();
                   console.log(`[GameRoom] Player ${player.name} planted ${seedType} at (${closestSoil.x}, ${closestSoil.y})`);
                   
                   if (seedCount - 1 <= 0) {
@@ -1103,8 +1110,9 @@ export class GameRoom extends Room<GameState> {
         }
 
         // Route static terrain tiles (terrain_*, wf_*, zemin_tileset) to staticMapTiles
+        // EXCEPT terrain_tilled_soil which are interactive farm plots
         const aId = obj.assetId || "";
-        const isStaticTile = aId.startsWith("terrain_") || aId.startsWith("wf_") || aId === "zemin_tileset";
+        const isStaticTile = (aId.startsWith("terrain_") && !aId.startsWith("terrain_tilled_soil")) || aId.startsWith("wf_") || aId === "zemin_tileset";
         if (isStaticTile && !obj.isSolid && !obj.isClimbable && (obj.triggerType === "none" || !obj.triggerType)) {
           const mId = obj.mapId || player.currentMap || "world_1";
           const dLayer = obj.depthLayer || "below";
@@ -1255,8 +1263,8 @@ export class GameRoom extends Room<GameState> {
           }
 
           // Route static terrain tiles to staticMapTiles to avoid schema overhead.
-          // Deduplicate against ANY existing static tile at exact same position+layer
-          const isStaticTile = aId.startsWith("terrain_") || aId.startsWith("wf_") || aId === "zemin_tileset";
+          // EXCEPT terrain_tilled_soil which are interactive farm plots
+          const isStaticTile = (aId.startsWith("terrain_") && !aId.startsWith("terrain_tilled_soil")) || aId.startsWith("wf_") || aId === "zemin_tileset";
           if (isStaticTile && !obj.isSolid && !obj.isClimbable && (obj.triggerType === "none" || !obj.triggerType)) {
             const posKey = `${mId}:${dLayer}:${rx}:${ry}`;
             this.staticMapTiles = this.staticMapTiles.filter((t: any) => {
@@ -2292,19 +2300,26 @@ export class GameRoom extends Room<GameState> {
     });
   }
 
+  private isTilledSoil(obj: any): boolean {
+    if (!obj) return false;
+    const aId = String(obj.assetId || "");
+    if (aId === "tilled_soil_dry" || aId === "tilled_soil_wet") return true;
+    if (aId.startsWith("terrain_tilled_soil")) return true;
+    return false;
+  }
+
   private updateCropGrowth(): void {
     this.state.mapObjects.forEach((obj: any) => {
-      if (obj.assetId && (obj.assetId === "tilled_soil_dry" || obj.assetId === "tilled_soil_wet")) {
-        if (obj.cropType !== "none" && obj.cropStage < 3) {
-          if (obj.cropWatered) {
-            obj.cropGrowthProgress += 1;
-            if (obj.cropGrowthProgress >= obj.cropGrowthNeeded) {
-              obj.cropStage += 1;
-              obj.cropGrowthProgress = 0;
-              obj.cropWatered = false;
-              obj.assetId = "tilled_soil_dry";
-              console.log(`[GameRoom] Crop ${obj.id} grew to stage ${obj.cropStage}`);
-            }
+      if (this.isTilledSoil(obj)) {
+        if (obj.cropType && obj.cropType !== "none" && obj.cropStage < 3) {
+          const growthInc = obj.cropWatered ? 1.0 : 0.5;
+          obj.cropGrowthProgress += growthInc;
+          if (obj.cropGrowthProgress >= obj.cropGrowthNeeded) {
+            obj.cropStage += 1;
+            obj.cropGrowthProgress = 0;
+            obj.cropWatered = false;
+            if (obj.assetId === "tilled_soil_wet") obj.assetId = "tilled_soil_dry";
+            console.log(`[GameRoom] Crop ${obj.id} (${obj.cropType}) grew to stage ${obj.cropStage}`);
           }
         }
       }

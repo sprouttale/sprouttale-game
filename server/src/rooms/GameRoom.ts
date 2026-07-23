@@ -1423,9 +1423,10 @@ export class GameRoom extends Room<GameState> {
       player.currentMap = targetMap;
       
       // Spawn at the center of the selected map
+      const is1500x1000 = (targetMap === "world_8");
       const is1500Map = (targetMap === "world_4" || targetMap === "world_5" || targetMap === "world_6" || targetMap === "world_7");
-      const activeWorldW = is1500Map ? 1500 : (targetMap === "world_1" ? WORLD_WIDTH : 2000);
-      const activeWorldH = is1500Map ? 1500 : (targetMap === "world_1" ? WORLD_HEIGHT : 2000);
+      const activeWorldW = (is1500Map || is1500x1000) ? 1500 : (targetMap === "world_1" ? WORLD_WIDTH : 2000);
+      const activeWorldH = is1500x1000 ? 1000 : (is1500Map ? 1500 : (targetMap === "world_1" ? WORLD_HEIGHT : 2000));
       player.x = activeWorldW / 2;
       player.y = activeWorldH / 2;
       
@@ -1713,9 +1714,10 @@ export class GameRoom extends Room<GameState> {
 
       // --- Map Clamping & Arrow/Teleport Transition ---
       const activeMap = player.currentMap || "world_1";
+      const is1500x1000 = (activeMap === "world_8");
       const is1500Map = (activeMap === "world_4" || activeMap === "world_5" || activeMap === "world_6" || activeMap === "world_7");
-      const activeWorldW = is1500Map ? 1500 : (activeMap === "world_1" ? WORLD_WIDTH : 2000);
-      const activeWorldH = is1500Map ? 1500 : (activeMap === "world_1" ? WORLD_HEIGHT : 2000);
+      const activeWorldW = (is1500Map || is1500x1000) ? 1500 : (activeMap === "world_1" ? WORLD_WIDTH : 2000);
+      const activeWorldH = is1500x1000 ? 1000 : (is1500Map ? 1500 : (activeMap === "world_1" ? WORLD_HEIGHT : 2000));
 
       // Always clamp player position to current map boundaries (cannot pass empty walls)
       const HALF_SIZE = 16;
@@ -1760,24 +1762,38 @@ export class GameRoom extends Room<GameState> {
             const arrowDir = obj.assetId; // "yon_sag" | "yon_sol" | "yon_yukari" | "yon_asagi"
 
             if (activeMap === "world_1") {
-              if (arrowDir === "yon_asagi") {
+              if (arrowDir === "yon_yukari") {
+                player.currentMap = "world_8";
+                player.x = Math.min(1450, Math.max(50, obj.x));
+                player.y = 920;
+                this.mapTransitionCooldown.set(sessionId, Date.now());
+                console.log(`[GameRoom] ⬆️ world_1 yon_yukari -> world_8 at (${player.x}, ${player.y})`);
+              } else if (arrowDir === "yon_asagi") {
                 player.currentMap = "world_7";
                 player.x = Math.min(1450, Math.max(50, obj.x));
                 player.y = 80;
                 this.mapTransitionCooldown.set(sessionId, Date.now());
-                console.log(`[GameRoom] ??? world_1 yon_asagi -> world_7 at (${player.x}, ${player.y})`);
+                console.log(`[GameRoom] ⬇️ world_1 yon_asagi -> world_7 at (${player.x}, ${player.y})`);
               } else if (arrowDir === "yon_sag") {
                 player.currentMap = "world_4";
                 player.x = 80;
                 player.y = Math.min(1450, Math.max(50, obj.y));
                 this.mapTransitionCooldown.set(sessionId, Date.now());
-                console.log(`[GameRoom] ??? world_1 yon_sag -> world_4 at (${player.x}, ${player.y})`);
+                console.log(`[GameRoom] ➡️ world_1 yon_sag -> world_4 at (${player.x}, ${player.y})`);
               } else if (arrowDir === "yon_sol") {
                 player.currentMap = "world_2";
                 player.x = 1920;
                 player.y = Math.min(1950, Math.max(50, obj.y));
                 this.mapTransitionCooldown.set(sessionId, Date.now());
-                console.log(`[GameRoom] ??? world_1 yon_sol -> world_2 at (${player.x}, ${player.y})`);
+                console.log(`[GameRoom] ⬅️ world_1 yon_sol -> world_2 at (${player.x}, ${player.y})`);
+              }
+            } else if (activeMap === "world_8") {
+              if (arrowDir === "yon_asagi") {
+                player.currentMap = "world_1";
+                player.x = Math.min(1450, Math.max(50, obj.x));
+                player.y = 80;
+                this.mapTransitionCooldown.set(sessionId, Date.now());
+                console.log(`[GameRoom] ⬇️ world_8 yon_asagi -> world_1 at (${player.x}, ${player.y})`);
               }
             } else if (activeMap === "world_7") {
               if (arrowDir === "yon_yukari") {
@@ -2485,6 +2501,10 @@ export class GameRoom extends Room<GameState> {
       const world7Path = path.join(process.cwd(), "_mapdata", "world7_save.json");
       const world7Objs = allObjects.filter(o => o.mapId === "world_7");
       fs.writeFileSync(world7Path, JSON.stringify(world7Objs, null, 2), "utf8");
+
+      const world8Path = path.join(process.cwd(), "_mapdata", "world8_save.json");
+      const world8Objs = allObjects.filter(o => o.mapId === "world_8");
+      fs.writeFileSync(world8Path, JSON.stringify(world8Objs, null, 2), "utf8");
     } catch (err) {
       console.error("[GameRoom] Error saving map to disk:", err);
     }
@@ -2770,6 +2790,31 @@ export class GameRoom extends Room<GameState> {
             if (newObjs.length > 0) {
               this.deserializeMap(newObjs, "world_7");
               console.log(`[GameRoom] ✅ Loaded ${newObjs.length} extra world_7 objects from ${candidate}`);
+            }
+            break;
+          }
+        } catch (err) {
+          console.error(`[GameRoom] Error reading ${candidate}:`, err);
+        }
+      }
+    }
+
+    // 8. Load world_8 map data if extra objects exist
+    const candidates8 = [
+      path.join(process.cwd(), "_mapdata", "world8_save.json"),
+      path.resolve(__dirname, "..", "..", "..", "_mapdata", "world8_save.json"),
+      path.resolve(__dirname, "..", "..", "..", "..", "_mapdata", "world8_save.json"),
+    ];
+    for (const candidate of candidates8) {
+      if (fs.existsSync(candidate)) {
+        try {
+          const raw = fs.readFileSync(candidate, "utf8");
+          const objects = JSON.parse(raw);
+          if (Array.isArray(objects) && objects.length > 0) {
+            const newObjs = objects.filter((o: any) => !this.state.mapObjects.has(o.id));
+            if (newObjs.length > 0) {
+              this.deserializeMap(newObjs, "world_8");
+              console.log(`[GameRoom] ✅ Loaded ${newObjs.length} extra world_8 objects from ${candidate}`);
             }
             break;
           }

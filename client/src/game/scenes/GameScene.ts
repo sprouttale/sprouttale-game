@@ -4282,18 +4282,20 @@ export class GameScene extends Phaser.Scene {
     const isWorld5 = this.currentMapId === "world_5";
     const isWorld6 = this.currentMapId === "world_6";
     const isWorld7 = this.currentMapId === "world_7";
+    const isWorld8 = this.currentMapId === "world_8";
 
+    const is1500x1000 = isWorld8;
     const is1500 = isWorld4 || isWorld5 || isWorld6 || isWorld7;
-    const mapW = w ?? (is1500 ? 1500 : (isWorld1 ? WORLD_WIDTH : 2000));
-    const mapH = h ?? (is1500 ? 1500 : (isWorld1 ? WORLD_HEIGHT : 2000));
+    const mapW = w ?? ((is1500 || is1500x1000) ? 1500 : (isWorld1 ? WORLD_WIDTH : 2000));
+    const mapH = h ?? (is1500x1000 ? 1000 : (is1500 ? 1500 : (isWorld1 ? WORLD_HEIGHT : 2000)));
 
     if (this.groundLayer) {
       this.groundLayer.destroy();
     }
 
-    const bgFill = isWorld7 ? 0x092230 : (isWorld6 ? 0x072018 : (isWorld5 ? 0x2a0d18 : (isWorld4 ? 0x291f0d : (isWorld3 ? 0x181328 : (isWorld2 ? 0x0f2229 : 0x0d2918)))));
-    const gridColor = isWorld7 ? 0x165063 : (isWorld6 ? 0x114a33 : (isWorld5 ? 0x4a182a : (isWorld4 ? 0x4a3412 : (isWorld3 ? 0x2a224a : (isWorld2 ? 0x18444a : 0x1a472a)))));
-    const borderColor = isWorld7 ? 0x00e5ff : (isWorld6 ? 0x00ff88 : (isWorld5 ? 0xff4757 : (isWorld4 ? 0xffa502 : (isWorld3 ? 0x9c88ff : (isWorld2 ? 0x00d2d3 : 0x52b788)))));
+    const bgFill = isWorld8 ? 0x0e241c : (isWorld7 ? 0x092230 : (isWorld6 ? 0x072018 : (isWorld5 ? 0x2a0d18 : (isWorld4 ? 0x291f0d : (isWorld3 ? 0x181328 : (isWorld2 ? 0x0f2229 : 0x0d2918))))));
+    const gridColor = isWorld8 ? 0x184537 : (isWorld7 ? 0x165063 : (isWorld6 ? 0x114a33 : (isWorld5 ? 0x4a182a : (isWorld4 ? 0x4a3412 : (isWorld3 ? 0x2a224a : (isWorld2 ? 0x18444a : 0x1a472a))))));
+    const borderColor = isWorld8 ? 0x2ed573 : (isWorld7 ? 0x00e5ff : (isWorld6 ? 0x00ff88 : (isWorld5 ? 0xff4757 : (isWorld4 ? 0xffa502 : (isWorld3 ? 0x9c88ff : (isWorld2 ? 0x00d2d3 : 0x52b788))))));
 
     this.groundLayer = this.add.graphics();
     this.groundLayer.fillStyle(bgFill, 1);
@@ -4315,7 +4317,14 @@ export class GameScene extends Phaser.Scene {
     this.groundLayer.strokeRect(0, 0, mapW, mapH);
 
     // Glowing border on the map transition edges
-    if (isWorld2) {
+    if (isWorld8) {
+      // Harita 8: bottom edge glows green (back to Harita 1)
+      this.groundLayer.lineStyle(8, 0x2ed573, 0.8);
+      this.groundLayer.beginPath();
+      this.groundLayer.moveTo(0, mapH - 4);
+      this.groundLayer.lineTo(mapW, mapH - 4);
+      this.groundLayer.strokePath();
+    } else if (isWorld2) {
       // Harita 2: right edge glows cyan (to Harita 1), left edge glows purple (to Harita 3)
       this.groundLayer.lineStyle(8, 0x00d2d3, 0.8);
       this.groundLayer.beginPath();
@@ -4376,7 +4385,13 @@ export class GameScene extends Phaser.Scene {
       this.groundLayer.lineTo(mapW, 4);
       this.groundLayer.strokePath();
     } else {
-      // Harita 1: left edge glows emerald (to Harita 2), right edge glows amber (to Harita 4), bottom edge glows cyan (to Harita 7)
+      // Harita 1: top edge glows green (to Harita 8), left edge glows emerald (to Harita 2), right edge glows amber (to Harita 4), bottom edge glows cyan (to Harita 7)
+      this.groundLayer.lineStyle(8, 0x2ed573, 0.8);
+      this.groundLayer.beginPath();
+      this.groundLayer.moveTo(0, 4);
+      this.groundLayer.lineTo(mapW, 4);
+      this.groundLayer.strokePath();
+
       this.groundLayer.lineStyle(8, 0x52b788, 0.8);
       this.groundLayer.beginPath();
       this.groundLayer.moveTo(4, 0);
@@ -4406,9 +4421,11 @@ export class GameScene extends Phaser.Scene {
     const isWorld5 = this.currentMapId === "world_5";
     const isWorld6 = this.currentMapId === "world_6";
     const isWorld7 = this.currentMapId === "world_7";
+    const isWorld8 = this.currentMapId === "world_8";
+    const is1500x1000 = isWorld8;
     const is1500 = isWorld4 || isWorld5 || isWorld6 || isWorld7;
-    const mapW = is1500 ? 1500 : (isWorld1 ? WORLD_WIDTH : 2000);
-    const mapH = is1500 ? 1500 : (isWorld1 ? WORLD_HEIGHT : 2000);
+    const mapW = (is1500 || is1500x1000) ? 1500 : (isWorld1 ? WORLD_WIDTH : 2000);
+    const mapH = is1500x1000 ? 1000 : (is1500 ? 1500 : (isWorld1 ? WORLD_HEIGHT : 2000));
 
     this.physics.world.setBounds(0, 0, mapW, mapH);
     this.cameras.main.setBounds(0, 0, mapW, mapH);

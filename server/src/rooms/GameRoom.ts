@@ -99,6 +99,8 @@ export class GameRoom extends Room<GameState> {
   // Spatial Grid — rebuilt when map objects change, gives O(1) nearby-object lookup
   // ---------------------------------------------------------------------------
   private staticMapTiles: any[] = [];
+  private githubSyncReady = false; // true after syncMapFromGitHub() finishes loading all 8 maps
+  private pendingStaticTileClients: Client[] = []; // clients waiting for sync to complete
   private readonly GRID_CELL = 128; // px per grid cell
   // key = "mapId:cellX:cellY"  value = array of MapObject refs
   private spatialGrid = new Map<string, any[]>();
@@ -181,29 +183,16 @@ export class GameRoom extends Room<GameState> {
 
     // Static tile request — stream chunks smoothly with 10ms intervals to prevent WebSocket buffer saturation
     this.onMessage("request_static_tiles", (client: Client) => {
-      const CHUNK_SIZE = 5000;
-      const total = this.staticMapTiles.length;
-      let index = 0;
-
-      const sendNextChunk = () => {
-        if (!client || (client as any).readyState === 2 || (client as any).readyState === 3) return;
-        const end = Math.min(index + CHUNK_SIZE, total);
-        const chunk = this.staticMapTiles.slice(index, end);
-        const isLast = end >= total;
-
-        try {
-          client.send("static_map_tiles_chunk", { tiles: chunk, isLast });
-        } catch (e) {
-          return;
+      if (!this.githubSyncReady) {
+        // GitHub sync not yet complete — queue this client to receive tiles when ready
+        if (!this.pendingStaticTileClients.includes(client)) {
+          this.pendingStaticTileClients.push(client);
         }
-
-        index = end;
-        if (!isLast) {
-          setTimeout(sendNextChunk, 10);
-        }
-      };
-
-      sendNextChunk();
+        // Also send whatever is on disk right now so the client isn't blank
+        this.sendStaticTilesToClient(client);
+        return;
+      }
+      this.sendStaticTilesToClient(client);
     });
 
     // Register message handler for switching maps via Minimap UI dropdown or teleports
@@ -2499,6 +2488,34 @@ export class GameRoom extends Room<GameState> {
     return objects;
   }
 
+  /** Send all staticMapTiles to a specific client in 5000-tile chunks */
+  private sendStaticTilesToClient(client: Client): void {
+    const CHUNK_SIZE = 5000;
+    const tiles = this.staticMapTiles;
+    const total = tiles.length;
+    let index = 0;
+
+    const sendNextChunk = () => {
+      if (!client || (client as any).readyState === 2 || (client as any).readyState === 3) return;
+      const end = Math.min(index + CHUNK_SIZE, total);
+      const chunk = tiles.slice(index, end);
+      const isLast = end >= total;
+
+      try {
+        client.send("static_map_tiles_chunk", { tiles: chunk, isLast });
+      } catch (e) {
+        return;
+      }
+
+      index = end;
+      if (!isLast) {
+        setTimeout(sendNextChunk, 10);
+      }
+    };
+
+    sendNextChunk();
+  }
+
   /** Load serialized objects into game state */
   private deserializeMap(objects: any[], defaultMapId: string = "world_1"): void {
     // IMPORTANT: Only remove existing tiles that belong to the SAME mapId being loaded.
@@ -2846,7 +2863,14 @@ export class GameRoom extends Room<GameState> {
     // making half the maps appear empty after every server restart.
     const loadNext = (index: number): void => {
       if (index >= maps.length) {
-        console.log(`[GameRoom] ☁️ All ${maps.length} maps fully synced from GitHub map-data branch!`);
+        console.log(`[GameRoom] ☁️ All ${maps.length} maps fully synced from GitHub map-data branch! (${this.staticMapTiles.length} total tiles)`);
+        this.githubSyncReady = true;
+        // Flush all clients that connected while GitHub was still loading
+        const pending = [...this.pendingStaticTileClients];
+        this.pendingStaticTileClients = [];
+        for (const c of pending) {
+          try { this.sendStaticTilesToClient(c); } catch {}
+        }
         return;
       }
       const m = maps[index];

@@ -2949,8 +2949,11 @@ export class GameScene extends Phaser.Scene {
             }
           });
 
-          // Also search placedObjectSprites map for any sprite in range
+          // Also search placedObjectSprites map for any sprite in range (MUST filter by currentMapId!)
           this.placedObjectSprites.forEach((sprite: any, id: string) => {
+            const spriteMap = this.staticTileMapIds.get(id) || (sprite as any).mapId || "world_1";
+            if (spriteMap !== this.currentMapId) return; // CRITICAL: Only delete tiles belonging to current map!
+
             if (sprite.x >= minX - 4 && sprite.x <= maxX + 4 && sprite.y >= minY - 4 && sprite.y <= maxY + 4) {
               if (!toDelete.find(d => d.id === id)) {
                 toDelete.push({ id, data: { id, x: sprite.x, y: sprite.y, mapId: this.currentMapId } });
@@ -3009,11 +3012,14 @@ export class GameScene extends Phaser.Scene {
             });
           }
 
-          // Also search by sprite position
+          // Also search by sprite position (MUST filter by currentMapId!)
           if (!targetObj) {
             this.placedObjectSprites.forEach((sprite: any, id: string) => {
+              const spriteMap = this.staticTileMapIds.get(id) || (sprite as any).mapId || "world_1";
+              if (spriteMap !== this.currentMapId) return; // CRITICAL: Only match tiles on current map!
+
               if (Math.round(sprite.x) === minX && Math.round(sprite.y) === minY) {
-                if (!targetObj) targetObj = { id, x: sprite.x, y: sprite.y, assetId: sprite.assetId || id.split("_")[0], mapId: this.currentMapId };
+                if (!targetObj) targetObj = { id, x: sprite.x, y: sprite.y, assetId: (sprite as any).assetId || id.split("_")[0], mapId: this.currentMapId };
               }
             });
           }
@@ -4680,6 +4686,8 @@ export class GameScene extends Phaser.Scene {
           this.createPlacedObject(tile, tile.id);
           // Track mapId so switchMap() can update static tile visibility
           this.staticTileMapIds.set(tile.id, tile.mapId || "world_1");
+          // Cache tile data for fill_erase lookups
+          this.staticTilesCache.push({ ...tile });
         });
       }
     });

@@ -2628,83 +2628,122 @@ export class GameRoom extends Room<GameState> {
       console.error("[GameRoom] Error saving map to disk:", err);
     }
 
-    // Push map data directly to GitHub repo 5 seconds after last edit (survives Render redeploys)
+    // Push map data to GitHub repo 1 second after last edit (survives Render redeploys)
     if (this.githubSaveTimer) clearTimeout(this.githubSaveTimer);
-    this.githubSaveTimer = setTimeout(() => this.pushMapToGitHub(), 5000);
+    this.githubSaveTimer = setTimeout(() => this.pushMapToGitHub(), 1000);
   }
 
-  /** Push _mapdata/*.json files directly into GitHub repo via Contents API so data survives Render redeploys */
+  private githubPushInProgress = false;
+  private githubPushQueued   = false;
+
+  /** Push all _mapdata/*.json files to GitHub sequentially (one at a time) to avoid SHA conflicts */
   private pushMapToGitHub(): void {
     if (!this.GITHUB_TOKEN) {
       console.warn("[GameRoom] ⚠️ No GITHUB_TOKEN set — map changes will be lost on redeploy!");
       return;
     }
 
+    // Mutex: if a push is already running, queue one more run when it finishes
+    if (this.githubPushInProgress) {
+      this.githubPushQueued = true;
+      return;
+    }
+    this.githubPushInProgress = true;
+    this.githubPushQueued = false;
+
     const allObjects = this.serializeMap();
     const maps = ["world_1","world_2","world_3","world_4","world_5","world_6","world_7","world_8"];
 
-    maps.forEach(m => {
-      const mapObjs = allObjects.filter(o => (o.mapId || "world_1") === m);
-      if (mapObjs.length === 0) return;
+    // Commit maps one by one (sequential) to avoid SHA conflicts
+    const commitNext = (index: number): void => {
+      if (index >= maps.length) {
+        this.githubPushInProgress = false;
+        // If another save happened while we were pushing, run again
+        if (this.githubPushQueued) {
+          this.githubPushQueued = false;
+          setTimeout(() => this.pushMapToGitHub(), 200);
+        }
+        return;
+      }
 
+      const m = maps[index];
+      const mapObjs = allObjects.filter(o => (o.mapId || "world_1") === m);
+      // Always commit even empty maps (important: empty = player deleted everything)
       const filePath = `_mapdata/${m}_save.json`;
       const content = Buffer.from(JSON.stringify(mapObjs)).toString("base64");
 
-      // First GET the current SHA of the file (required for update)
-      const getReq = https.request({
-        hostname: "api.github.com",
-        path: `/repos/${this.GITHUB_OWNER}/${this.GITHUB_REPO}/contents/${filePath}`,
-        method: "GET",
-        headers: {
-          "Authorization": `token ${this.GITHUB_TOKEN}`,
-          "User-Agent": "SproutTale-Server",
-          "Accept": "application/vnd.github.v3+json"
-        }
-      }, (res) => {
-        let data = "";
-        res.on("data", c => data += c);
-        res.on("end", () => {
-          let sha = "";
-          try { sha = JSON.parse(data).sha || ""; } catch {}
+      const doCommit = (retryCount: number) => {
+        // GET current SHA first
+        const getReq = https.request({
+          hostname: "api.github.com",
+          path: `/repos/${this.GITHUB_OWNER}/${this.GITHUB_REPO}/contents/${filePath}`,
+          method: "GET",
+          headers: {
+            "Authorization": `token ${this.GITHUB_TOKEN}`,
+            "User-Agent": "SproutTale-Server",
+            "Accept": "application/vnd.github.v3+json"
+          }
+        }, (res) => {
+          let data = "";
+          res.on("data", c => data += c);
+          res.on("end", () => {
+            let sha = "";
+            try { sha = JSON.parse(data).sha || ""; } catch {}
 
-          // PUT to update (or create) the file
-          const body = JSON.stringify({
-            message: `auto: save ${m} map data [skip ci] [skip render]`,
-            content,
-            sha: sha || undefined,
-            branch: "main"
-          });
-
-          const putReq = https.request({
-            hostname: "api.github.com",
-            path: `/repos/${this.GITHUB_OWNER}/${this.GITHUB_REPO}/contents/${filePath}`,
-            method: "PUT",
-            headers: {
-              "Authorization": `token ${this.GITHUB_TOKEN}`,
-              "User-Agent": "SproutTale-Server",
-              "Accept": "application/vnd.github.v3+json",
-              "Content-Type": "application/json",
-              "Content-Length": Buffer.byteLength(body)
-            }
-          }, (putRes) => {
-            let putData = "";
-            putRes.on("data", c => putData += c);
-            putRes.on("end", () => {
-              if (putRes.statusCode === 200 || putRes.statusCode === 201) {
-                console.log(`[GameRoom] ✅ GitHub auto-committed ${m} (${mapObjs.length} objects) — deploy-safe!`);
-              } else {
-                console.error(`[GameRoom] ❌ GitHub push failed for ${m}: ${putRes.statusCode} — ${putData.slice(0, 200)}`);
-              }
+            const body = JSON.stringify({
+              message: `auto: save ${m} map data [skip ci] [skip render]`,
+              content,
+              ...(sha ? { sha } : {}),
+              branch: "main"
             });
+
+            const putReq = https.request({
+              hostname: "api.github.com",
+              path: `/repos/${this.GITHUB_OWNER}/${this.GITHUB_REPO}/contents/${filePath}`,
+              method: "PUT",
+              headers: {
+                "Authorization": `token ${this.GITHUB_TOKEN}`,
+                "User-Agent": "SproutTale-Server",
+                "Accept": "application/vnd.github.v3+json",
+                "Content-Type": "application/json",
+                "Content-Length": Buffer.byteLength(body)
+              }
+            }, (putRes) => {
+              let putData = "";
+              putRes.on("data", c => putData += c);
+              putRes.on("end", () => {
+                if (putRes.statusCode === 200 || putRes.statusCode === 201) {
+                  console.log(`[GameRoom] ✅ Saved ${m} to GitHub (${mapObjs.length} objects)`);
+                  commitNext(index + 1); // Next map
+                } else if (putRes.statusCode === 409 && retryCount < 3) {
+                  // SHA conflict - retry after short delay
+                  console.warn(`[GameRoom] ⚠️ SHA conflict for ${m}, retrying (${retryCount + 1}/3)...`);
+                  setTimeout(() => doCommit(retryCount + 1), 500);
+                } else {
+                  console.error(`[GameRoom] ❌ GitHub push failed for ${m}: ${putRes.statusCode}`);
+                  commitNext(index + 1); // Continue with next map despite error
+                }
+              });
+            });
+            putReq.on("error", e => {
+              console.error(`[GameRoom] GitHub PUT error for ${m}:`, e.message);
+              commitNext(index + 1);
+            });
+            putReq.write(body);
+            putReq.end();
           });
-          putReq.on("error", e => console.error(`[GameRoom] GitHub PUT error for ${m}:`, e.message));
-          putReq.write(body);
-          putReq.end();
         });
-      });
-      getReq.on("error", e => console.error(`[GameRoom] GitHub GET error for ${m}:`, e.message));
-      getReq.end();
-    });
+        getReq.on("error", e => {
+          console.error(`[GameRoom] GitHub GET error for ${m}:`, e.message);
+          commitNext(index + 1);
+        });
+        getReq.end();
+      };
+
+      doCommit(0);
+    };
+
+    commitNext(0);
   }
 
   private readonly GIST_DESCRIPTION = "SproutTale Master Map Save Data";

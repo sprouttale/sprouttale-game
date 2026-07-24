@@ -187,6 +187,18 @@ export class GameRoom extends Room<GameState> {
       }
     });
 
+    // Register message handler for switching maps via Minimap UI dropdown or teleports
+    this.onMessage("switch_map", (client: Client, message: { mapId: string }) => {
+      const player = this.state.players.get(client.sessionId);
+      if (player && message?.mapId) {
+        const validMaps = ["world_1", "world_2", "world_3", "world_4", "world_5", "world_6", "world_7", "world_8"];
+        if (validMaps.includes(message.mapId)) {
+          player.currentMap = message.mapId;
+          console.log(`[GameRoom] 🗺️ Player ${player.name} switched map to ${message.mapId}`);
+        }
+      }
+    });
+
     // Register message handler for client input.
     // "input" is the channel name — must match client-side send call.
     this.onMessage("input", (client: Client, input: InputPayload) => {
@@ -2781,6 +2793,7 @@ export class GameRoom extends Room<GameState> {
         }
       }
     }
+    this.syncMapFromGist();
   }
 
   /** Fetch the current SHA of the file (needed for updates) */

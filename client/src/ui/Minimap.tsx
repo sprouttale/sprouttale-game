@@ -319,17 +319,33 @@ export const Minimap: React.FC<MinimapProps> = ({
         }}
       >
         <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-          🗺️ {(() => {
-            const p = room?.state?.players?.get ? room.state.players.get(sessionId) : null;
-            if (p?.currentMap === "world_8") return "HARİTA 8";
-            if (p?.currentMap === "world_7") return "HARİTA 7";
-            if (p?.currentMap === "world_6") return "HARİTA 6";
-            if (p?.currentMap === "world_5") return "HARİTA 5";
-            if (p?.currentMap === "world_4") return "HARİTA 4";
-            if (p?.currentMap === "world_3") return "HARİTA 3";
-            if (p?.currentMap === "world_2") return "HARİTA 2";
-            return "HARİTA 1";
-          })()}
+          🗺️ <select
+            value={room?.state?.players?.get ? (room.state.players.get(sessionId)?.currentMap || "world_1") : "world_1"}
+            onChange={(e) => {
+              const selected = e.target.value;
+              if (room) room.send("switch_map", { mapId: selected });
+            }}
+            style={{
+              background: "rgba(10, 25, 18, 0.9)",
+              border: "1px solid #2ed573",
+              color: "#2ed573",
+              borderRadius: "4px",
+              fontSize: "8.5px",
+              fontFamily: "'Press Start 2P', sans-serif",
+              padding: "2px 4px",
+              cursor: "pointer",
+              outline: "none"
+            }}
+          >
+            <option value="world_1">HARİTA 1</option>
+            <option value="world_2">HARİTA 2</option>
+            <option value="world_3">HARİTA 3</option>
+            <option value="world_4">HARİTA 4</option>
+            <option value="world_5">HARİTA 5</option>
+            <option value="world_6">HARİTA 6</option>
+            <option value="world_7">HARİTA 7</option>
+            <option value="world_8">HARİTA 8</option>
+          </select>
           {playerCount !== undefined && (
             <span style={{ fontSize: "6.5px", color: "#2ed573", marginLeft: "2px" }}>
               ● {playerCount}

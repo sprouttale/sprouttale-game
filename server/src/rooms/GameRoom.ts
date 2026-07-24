@@ -1323,7 +1323,7 @@ export class GameRoom extends Room<GameState> {
     });
 
     // Register message handler for batch deleting map objects
-    this.onMessage("batch_delete_objects", (client: Client, message: { ids: string[] }) => {
+    this.onMessage("batch_delete_objects", (client: Client, message: { ids: string[], mapId?: string }) => {
       try {
         const player = this.state.players.get(client.sessionId);
         if (!player || !message) return;
@@ -1331,22 +1331,36 @@ export class GameRoom extends Room<GameState> {
         if (Array.isArray(message.ids) && message.ids.length > 0) {
           let count = 0;
           const idSet = new Set(message.ids);
+          // Use player's current map as the authoritative mapId for this delete operation
+          const deleteMapId = message.mapId || player.currentMap || "world_1";
+
           message.ids.forEach((id: string) => {
             if (this.state.mapObjects.has(id)) {
-              this.state.mapObjects.delete(id);
-              count++;
+              const obj = this.state.mapObjects.get(id);
+              // Only delete if it belongs to the same map
+              if (!obj || (obj.mapId || "world_1") === deleteMapId) {
+                this.state.mapObjects.delete(id);
+                count++;
+              }
             }
           });
 
           const initialStaticLen = this.staticMapTiles.length;
-          this.staticMapTiles = this.staticMapTiles.filter((t: any) => !idSet.has(t.id));
+          // CRITICAL FIX: Only delete static tiles that belong to the current map!
+          // Without this check, deleting tiles on map_4 would also delete same-id tiles on map_1, map_2, etc.
+          this.staticMapTiles = this.staticMapTiles.filter((t: any) => {
+            if (!idSet.has(t.id)) return true; // Keep tiles not in delete list
+            const tileMap = t.mapId || "world_1";
+            if (tileMap !== deleteMapId) return true; // Keep tiles from OTHER maps!
+            return false; // Remove: same id AND same map
+          });
           const staticDeletedCount = initialStaticLen - this.staticMapTiles.length;
 
           if (count > 0 || staticDeletedCount > 0) {
-            this.broadcast("batch_delete_static", { objectIds: message.ids });
+            this.broadcast("batch_delete_static", { objectIds: message.ids, mapId: deleteMapId });
             this.spatialGridDirty = true;
             this.saveMapToDisk();
-            console.log(`[GameRoom] Player ${player.name} batch deleted ${count + staticDeletedCount} objects/static tiles`);
+            console.log(`[GameRoom] Player ${player.name} batch deleted ${count + staticDeletedCount} objects/static tiles on ${deleteMapId}`);
           }
         }
       } catch (err) {
@@ -1360,20 +1374,25 @@ export class GameRoom extends Room<GameState> {
         const player = this.state.players.get(client.sessionId);
         if (!player || !message) return;
 
+        const targetMap = message.mapId || player.currentMap || "world_1";
         let deleted = false;
         if (this.state.mapObjects.has(message.id)) {
-          this.state.mapObjects.delete(message.id);
-          deleted = true;
+          const obj = this.state.mapObjects.get(message.id);
+          // Only delete if it belongs to the target map
+          if (!obj || (obj.mapId || "world_1") === targetMap) {
+            this.state.mapObjects.delete(message.id);
+            deleted = true;
+          }
         }
 
         const initialLen = this.staticMapTiles.length;
-        const targetMap = message.mapId || player.currentMap || "world_1";
         const targetLayer = message.depthLayer || "below";
         const deletedStaticIds: string[] = [];
 
         this.staticMapTiles = this.staticMapTiles.filter((t: any) => {
           let remove = false;
-          if (t.id === message.id) remove = true;
+          // CRITICAL FIX: id match must ALSO check mapId to prevent cross-map deletion!
+          if (t.id === message.id && (t.mapId || "world_1") === targetMap) remove = true;
           if (message.x !== undefined && message.y !== undefined) {
             if ((t.mapId || "world_1") === targetMap && (t.depthLayer || "below") === targetLayer) {
               if (Math.round(t.x) === Math.round(message.x) && Math.round(t.y) === Math.round(message.y)) {
@@ -1390,13 +1409,13 @@ export class GameRoom extends Room<GameState> {
 
         if (deletedStaticIds.length > 0) {
           deleted = true;
-          this.broadcast("batch_delete_static", { objectIds: [message.id, ...deletedStaticIds] });
+          this.broadcast("batch_delete_static", { objectIds: [message.id, ...deletedStaticIds], mapId: targetMap });
         }
 
         if (deleted) {
           this.spatialGridDirty = true;
           this.saveMapToDisk();
-          console.log(`[GameRoom] Player ${player.name} deleted object: ${message.id}`);
+          console.log(`[GameRoom] Player ${player.name} deleted object: ${message.id} on ${targetMap}`);
         }
       } catch (err) {
         console.error("[GameRoom] Error in delete_object:", err);

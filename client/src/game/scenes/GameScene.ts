@@ -2976,7 +2976,8 @@ export class GameScene extends Phaser.Scene {
               if (!this.room || !wsOpen || idx >= deleteIds.length) return;
               try {
                 const chunk = deleteIds.slice(idx, idx + CHUNK_SIZE);
-                this.room.send("batch_delete_objects", { ids: chunk });
+                // Always send mapId so server only deletes tiles on the current map!
+                this.room.send("batch_delete_objects", { ids: chunk, mapId: this.currentMapId });
                 idx += CHUNK_SIZE;
                 if (idx < deleteIds.length) {
                   setTimeout(sendNextDelete, 15);
@@ -3113,7 +3114,8 @@ export class GameScene extends Phaser.Scene {
                 if (!this.room || !wsOpen || idx >= floodDeleteIds.length) return;
                 try {
                   const chunk = floodDeleteIds.slice(idx, idx + CHUNK_SIZE);
-                  this.room.send("batch_delete_objects", { ids: chunk });
+                  // Always send mapId so server only deletes tiles on the current map!
+                  this.room.send("batch_delete_objects", { ids: chunk, mapId: this.currentMapId });
                   idx += CHUNK_SIZE;
                   if (idx < floodDeleteIds.length) {
                     setTimeout(sendNextFloodDelete, 15);

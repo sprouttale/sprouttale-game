@@ -2694,7 +2694,7 @@ export class GameRoom extends Room<GameState> {
               message: `auto: save ${m} map data [skip ci] [skip render]`,
               content,
               ...(sha ? { sha } : {}),
-              branch: "main"
+              branch: "map-data" // Commit to map-data branch to prevent Render auto-deploys
             });
 
             const putReq = https.request({
@@ -2796,7 +2796,48 @@ export class GameRoom extends Room<GameState> {
         }
       }
     }
-    this.syncMapFromGist();
+    this.syncMapFromGitHub();
+  }
+
+  /** Restore latest map objects from GitHub map-data branch on server boot */
+  private syncMapFromGitHub(): void {
+    if (!this.GITHUB_TOKEN) return;
+
+    const maps = ["world_1", "world_2", "world_3", "world_4", "world_5", "world_6", "world_7", "world_8"];
+
+    maps.forEach((m) => {
+      const filePath = `_mapdata/${m}_save.json`;
+      const req = https.request({
+        hostname: "api.github.com",
+        path: `/repos/${this.GITHUB_OWNER}/${this.GITHUB_REPO}/contents/${filePath}?ref=map-data`,
+        method: "GET",
+        headers: {
+          "Authorization": `token ${this.GITHUB_TOKEN}`,
+          "User-Agent": "SproutTale-Server",
+          "Accept": "application/vnd.github.v3+json"
+        }
+      }, (res) => {
+        let data = "";
+        res.on("data", (c) => data += c);
+        res.on("end", () => {
+          try {
+            const json = JSON.parse(data);
+            if (json.content) {
+              const decoded = Buffer.from(json.content, "base64").toString("utf8");
+              const objects = JSON.parse(decoded);
+              if (Array.isArray(objects) && objects.length > 0) {
+                this.deserializeMap(objects, m);
+                console.log(`[GameRoom] ☁️ Restored ${objects.length} map objects for ${m} from GitHub map-data branch!`);
+              }
+            }
+          } catch (err) {
+            console.error(`[GameRoom] Error restoring ${m} from GitHub map-data branch:`, err);
+          }
+        });
+      });
+      req.on("error", (e) => console.error(`[GameRoom] GitHub sync error for ${m}:`, e.message));
+      req.end();
+    });
   }
 
   /** Fetch the current SHA of the file (needed for updates) */

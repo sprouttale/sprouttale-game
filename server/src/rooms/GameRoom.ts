@@ -2628,123 +2628,32 @@ export class GameRoom extends Room<GameState> {
       console.error("[GameRoom] Error saving map to disk:", err);
     }
 
-    // Save map to cloud Gist 3s after last edit.
+    // Push map data directly to GitHub repo 5 seconds after last edit (survives Render redeploys)
     if (this.githubSaveTimer) clearTimeout(this.githubSaveTimer);
-    this.githubSaveTimer = setTimeout(() => this.saveMapToGist(), 3000);
+    this.githubSaveTimer = setTimeout(() => this.pushMapToGitHub(), 5000);
   }
 
-  private gistId: string = "";
-  private readonly GIST_DESCRIPTION = "SproutTale Master Map Save Data";
-
-  /** Save map to cloud Gist via GitHub API (divided by map file to stay under size limits) */
-  private saveMapToGist(): void {
-    if (!this.GITHUB_TOKEN) return;
-
-    const executeSave = (id: string) => {
-      try {
-        const allObjects = this.serializeMap();
-        const filesPayload: any = {};
-        const maps = ["world_1", "world_2", "world_3", "world_4", "world_5", "world_6", "world_7", "world_8"];
-        maps.forEach(m => {
-          const mapObjs = allObjects.filter(o => (o.mapId || "world_1") === m);
-          if (mapObjs.length > 0) {
-            filesPayload[`${m}_save.json`] = { content: JSON.stringify(mapObjs) };
-          }
-        });
-
-        const payload = JSON.stringify({
-          description: this.GIST_DESCRIPTION,
-          public: false,
-          files: filesPayload
-        });
-
-        const path = id ? `/gists/${id}` : "/gists";
-        const method = id ? "PATCH" : "POST";
-
-        const req = https.request({
-          hostname: "api.github.com",
-          path,
-          method,
-          headers: {
-            "Authorization": `token ${this.GITHUB_TOKEN}`,
-            "User-Agent": "SproutTale-Server",
-            "Accept": "application/vnd.github.v3+json",
-            "Content-Type": "application/json",
-            "Content-Length": Buffer.byteLength(payload)
-          }
-        }, (res) => {
-          let data = "";
-          res.on("data", (chunk) => data += chunk);
-          res.on("end", () => {
-            try {
-              const json = JSON.parse(data);
-              if (json.id) {
-                this.gistId = json.id;
-                console.log(`[GameRoom] ☁️ Map permanently saved to cloud Gist (${json.id}) - NO server restarts!`);
-              }
-            } catch (err) {
-              console.error("[GameRoom] Error parsing Gist save response:", err);
-            }
-          });
-        });
-        req.on("error", (e) => console.error("[GameRoom] Gist HTTP save error:", e.message));
-        req.write(payload);
-        req.end();
-      } catch (err) {
-        console.error("[GameRoom] Error executing Gist save:", err);
-      }
-    };
-
-    if (this.gistId) {
-      executeSave(this.gistId);
-    } else {
-      this.findOrCreateGist((id) => executeSave(id));
+  /** Push _mapdata/*.json files directly into GitHub repo via Contents API so data survives Render redeploys */
+  private pushMapToGitHub(): void {
+    if (!this.GITHUB_TOKEN) {
+      console.warn("[GameRoom] ⚠️ No GITHUB_TOKEN set — map changes will be lost on redeploy!");
+      return;
     }
-  }
 
-  /** Search user's Gists for SproutTale map save data */
-  private findOrCreateGist(callback: (id: string) => void): void {
-    if (!this.GITHUB_TOKEN) { callback(""); return; }
-    const req = https.request({
-      hostname: "api.github.com",
-      path: "/gists",
-      method: "GET",
-      headers: {
-        "Authorization": `token ${this.GITHUB_TOKEN}`,
-        "User-Agent": "SproutTale-Server",
-        "Accept": "application/vnd.github.v3+json"
-      }
-    }, (res) => {
-      let data = "";
-      res.on("data", (c) => data += c);
-      res.on("end", () => {
-        try {
-          const gists = JSON.parse(data);
-          if (Array.isArray(gists)) {
-            const target = gists.find((g: any) => g.description === this.GIST_DESCRIPTION || g.files?.["world_1_save.json"] || g.files?.["world_save.json"]);
-            if (target && target.id) {
-              this.gistId = target.id;
-              callback(target.id);
-              return;
-            }
-          }
-          callback("");
-        } catch (err) {
-          callback("");
-        }
-      });
-    });
-    req.on("error", () => callback(""));
-    req.end();
-  }
+    const allObjects = this.serializeMap();
+    const maps = ["world_1","world_2","world_3","world_4","world_5","world_6","world_7","world_8"];
 
-  /** Restore latest map objects from cloud Gist on server boot */
-  private syncMapFromGist(): void {
-    this.findOrCreateGist((id) => {
-      if (!id) return;
-      const req = https.request({
+    maps.forEach(m => {
+      const mapObjs = allObjects.filter(o => (o.mapId || "world_1") === m);
+      if (mapObjs.length === 0) return;
+
+      const filePath = `_mapdata/${m}_save.json`;
+      const content = Buffer.from(JSON.stringify(mapObjs)).toString("base64");
+
+      // First GET the current SHA of the file (required for update)
+      const getReq = https.request({
         hostname: "api.github.com",
-        path: `/gists/${id}`,
+        path: `/repos/${this.GITHUB_OWNER}/${this.GITHUB_REPO}/contents/${filePath}`,
         method: "GET",
         headers: {
           "Authorization": `token ${this.GITHUB_TOKEN}`,
@@ -2753,32 +2662,69 @@ export class GameRoom extends Room<GameState> {
         }
       }, (res) => {
         let data = "";
-        res.on("data", (c) => data += c);
+        res.on("data", c => data += c);
         res.on("end", () => {
-          try {
-            const json = JSON.parse(data);
-            if (json.files) {
-              Object.keys(json.files).forEach(filename => {
-                const content = json.files[filename]?.content;
-                if (content) {
-                  const objects = JSON.parse(content);
-                  if (Array.isArray(objects) && objects.length > 0) {
-                    const defaultMap = filename.replace("_save.json", "");
-                    const newObjs = objects.filter((o: any) => !this.state.mapObjects.has(o.id));
-                    this.deserializeMap(newObjs, defaultMap);
-                    console.log(`[GameRoom] ☁️ Restored ${newObjs.length} map objects for ${defaultMap} from cloud Gist!`);
-                  }
-                }
-              });
+          let sha = "";
+          try { sha = JSON.parse(data).sha || ""; } catch {}
+
+          // PUT to update (or create) the file
+          const body = JSON.stringify({
+            message: `auto: save ${m} map data [skip ci] [skip render]`,
+            content,
+            sha: sha || undefined,
+            branch: "main"
+          });
+
+          const putReq = https.request({
+            hostname: "api.github.com",
+            path: `/repos/${this.GITHUB_OWNER}/${this.GITHUB_REPO}/contents/${filePath}`,
+            method: "PUT",
+            headers: {
+              "Authorization": `token ${this.GITHUB_TOKEN}`,
+              "User-Agent": "SproutTale-Server",
+              "Accept": "application/vnd.github.v3+json",
+              "Content-Type": "application/json",
+              "Content-Length": Buffer.byteLength(body)
             }
-          } catch (err) {
-            console.error("[GameRoom] Error restoring map from Gist:", err);
-          }
+          }, (putRes) => {
+            let putData = "";
+            putRes.on("data", c => putData += c);
+            putRes.on("end", () => {
+              if (putRes.statusCode === 200 || putRes.statusCode === 201) {
+                console.log(`[GameRoom] ✅ GitHub auto-committed ${m} (${mapObjs.length} objects) — deploy-safe!`);
+              } else {
+                console.error(`[GameRoom] ❌ GitHub push failed for ${m}: ${putRes.statusCode} — ${putData.slice(0, 200)}`);
+              }
+            });
+          });
+          putReq.on("error", e => console.error(`[GameRoom] GitHub PUT error for ${m}:`, e.message));
+          putReq.write(body);
+          putReq.end();
         });
       });
-      req.on("error", (e) => console.error("[GameRoom] Gist sync error:", e.message));
-      req.end();
+      getReq.on("error", e => console.error(`[GameRoom] GitHub GET error for ${m}:`, e.message));
+      getReq.end();
     });
+  }
+
+  private readonly GIST_DESCRIPTION = "SproutTale Master Map Save Data";
+
+  /** @deprecated - replaced by pushMapToGitHub */
+  private saveMapToGist(): void {
+    // No longer used - pushMapToGitHub() handles cloud persistence
+  }
+
+  /** @deprecated - replaced by pushMapToGitHub (stub kept for compatibility) */
+  private findOrCreateGist(callback: (id: string) => void): void {
+    callback("");
+  }
+
+
+
+
+  /** Restore latest map objects from cloud Gist on server boot - @deprecated, data now in Git repo */
+  private syncMapFromGist(): void {
+    // No longer used - map data is committed directly to the Git repo by pushMapToGitHub()
   }
 
   /** On startup: load cleanly from local disk per-map JSON files */

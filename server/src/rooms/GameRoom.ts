@@ -2465,7 +2465,7 @@ export class GameRoom extends Room<GameState> {
   // Map data is stored locally AND synced to GitHub so it survives redeployments.
   // ---------------------------------------------------------------------------
 
-  private readonly GITHUB_TOKEN   = process.env.GITHUB_TOKEN || Buffer.from("Z2hwX2NDTlNab2VaV3NNRlBVaEhzZDdXN3RkVHMwNzFIZTNmZ214bw==", "base64").toString("utf8");
+  private readonly GITHUB_TOKEN   = process.env.GITHUB_TOKEN || "";
   private readonly GITHUB_OWNER   = "sprouttale";
   private readonly GITHUB_REPO    = "sprouttale-game";
   private readonly GITHUB_PATH    = "_mapdata/world_save.json";

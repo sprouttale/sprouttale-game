@@ -623,29 +623,32 @@ export default function App() {
 
   // Synchronize Editor States with window.editorConfig
   useEffect(() => {
+    const existing = (window as any).editorConfig ?? {};
+    const isAnyEditorActive = isEditorOpen || isTerrainEditorOpen || isAnimalEditorOpen;
     (window as any).editorConfig = {
-      active: isEditorOpen || isTerrainEditorOpen || isAnimalEditorOpen,
+      ...existing,
+      active: isAnyEditorActive,
       tool: activeEditorTool,
-      selectedAsset: selectedPaletteAsset,
+      selectedAsset: selectedPaletteAsset || existing.selectedAsset || "",
       gridSnap: editorGridSnap,
-      snapSize: (selectedPaletteAsset && selectedPaletteAsset.startsWith("wf_")) ? wfGridSize : 16,
+      snapSize: (selectedPaletteAsset && selectedPaletteAsset.startsWith("wf_")) ? wfGridSize : (existing.snapSize ?? 16),
       depthLayer: editorDepthLayer,
       selectedObjectId: selectedObject?.id || null,
-      selectedTile: selectedTile,
+      selectedTile: selectedTile || existing.selectedTile,
       solidWidth: editorSolidWidth,
       solidHeight: editorSolidHeight,
       solidOffsetX: editorSolidOffsetX,
       solidOffsetY: editorSolidOffsetY,
-      brushIsSolid: brushIsSolid,
-      brushIsWater: brushIsWater,
-      brushIsClimbable: brushIsClimbable,
+      brushIsSolid: brushIsSolid ?? existing.brushIsSolid,
+      brushIsWater: brushIsWater ?? existing.brushIsWater,
+      brushIsClimbable: brushIsClimbable ?? existing.brushIsClimbable,
       pathDrawingTargetId: pathDrawingTargetId,
       tempPathPoints: tempPathPoints,
       copiedTileTemplate: copiedTileTemplate
     };
 
     if (room) {
-      room.send("editor_mode", { active: isEditorOpen || isTerrainEditorOpen || isAnimalEditorOpen });
+      room.send("editor_mode", { active: isAnyEditorActive });
     }
   }, [
     isEditorOpen, isTerrainEditorOpen, isAnimalEditorOpen, activeEditorTool, selectedPaletteAsset, editorGridSnap, editorDepthLayer,

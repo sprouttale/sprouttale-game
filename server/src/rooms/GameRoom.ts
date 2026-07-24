@@ -2746,43 +2746,25 @@ export class GameRoom extends Room<GameState> {
     });
   }
 
-  /** On startup: load from local disk (map_save.json or _mapdata/*.json); if missing, fetch from GitHub */
+  /** On startup: load cleanly from local disk per-map JSON files */
   private loadMapFromDisk(): void {
     const maps = ["world_1", "world_2", "world_3", "world_4", "world_5", "world_6", "world_7", "world_8"];
 
     for (const m of maps) {
-      const numStr = m.replace("world_", "");
-      const masterCandidates = [
-        path.join(process.cwd(), "_mapdata", `${m}_save.json`),
-        path.join(process.cwd(), "_mapdata", `world${numStr}_save.json`),
-        path.resolve(__dirname, "..", "..", "..", "_mapdata", `${m}_save.json`),
-        path.resolve(__dirname, "..", "..", "..", "..", "_mapdata", `${m}_save.json`),
-      ];
-
-      if (m === "world_1") {
-        masterCandidates.push(path.join(process.cwd(), "_mapdata", "world_save.json"));
-        masterCandidates.push(path.join(process.cwd(), "map_save.json"));
-      }
-
-      for (const candidate of masterCandidates) {
-        if (fs.existsSync(candidate)) {
-          try {
-            const raw = fs.readFileSync(candidate, "utf8");
-            const objects = JSON.parse(raw);
-            if (Array.isArray(objects) && objects.length > 0) {
-              const newObjs = objects.filter((o: any) => !this.state.mapObjects.has(o.id));
-              this.deserializeMap(newObjs, m);
-              console.log(`[GameRoom] ✅ Loaded ${newObjs.length} objects for ${m} from ${candidate}`);
-              break;
-            }
-          } catch (err) {
-            console.error(`[GameRoom] Error reading ${candidate}:`, err);
+      const candidate = path.join(process.cwd(), "_mapdata", `${m}_save.json`);
+      if (fs.existsSync(candidate)) {
+        try {
+          const raw = fs.readFileSync(candidate, "utf8");
+          const objects = JSON.parse(raw);
+          if (Array.isArray(objects) && objects.length > 0) {
+            this.deserializeMap(objects, m);
+            console.log(`[GameRoom] ✅ Fast-loaded ${objects.length} objects for ${m}`);
           }
+        } catch (err) {
+          console.error(`[GameRoom] Error reading ${candidate}:`, err);
         }
       }
     }
-
-    this.syncMapFromGist();
   }
 
   /** Fetch the current SHA of the file (needed for updates) */

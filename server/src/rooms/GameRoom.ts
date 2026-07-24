@@ -1742,7 +1742,62 @@ export class GameRoom extends Room<GameState> {
       const activeWorldW = (is1500Map || is1500x1000) ? 1500 : (activeMap === "world_1" ? WORLD_WIDTH : 2000);
       const activeWorldH = is1500x1000 ? 1000 : (is1500Map ? 1500 : (activeMap === "world_1" ? WORLD_HEIGHT : 2000));
 
-      // Always clamp player position to current map boundaries (cannot pass empty walls)
+      // Check automatic map border transitions (stepping off map edges)
+      const now = Date.now();
+      const lastTransition = this.mapTransitionCooldown.get(sessionId) || 0;
+      if (now - lastTransition >= this.MAP_TRANSITION_COOLDOWN_MS) {
+        if (activeMap === "world_1" && player.y <= 20) {
+          player.currentMap = "world_8";
+          player.x = Math.min(1450, Math.max(50, player.x));
+          player.y = 940;
+          this.mapTransitionCooldown.set(sessionId, now);
+          console.log(`[GameRoom] ⬆️ Auto border transition: world_1 -> world_8 at (${player.x}, ${player.y})`);
+        } else if (activeMap === "world_8" && player.y >= 980) {
+          player.currentMap = "world_1";
+          player.x = Math.min(1450, Math.max(50, player.x));
+          player.y = 50;
+          this.mapTransitionCooldown.set(sessionId, now);
+          console.log(`[GameRoom] ⬇️ Auto border transition: world_8 -> world_1 at (${player.x}, ${player.y})`);
+        } else if (activeMap === "world_1" && player.y >= 2480) {
+          player.currentMap = "world_7";
+          player.x = Math.min(1450, Math.max(50, player.x));
+          player.y = 50;
+          this.mapTransitionCooldown.set(sessionId, now);
+          console.log(`[GameRoom] ⬇️ Auto border transition: world_1 -> world_7 at (${player.x}, ${player.y})`);
+        } else if (activeMap === "world_7" && player.y <= 20) {
+          player.currentMap = "world_1";
+          player.x = Math.min(1450, Math.max(50, player.x));
+          player.y = 2450;
+          this.mapTransitionCooldown.set(sessionId, now);
+          console.log(`[GameRoom] ⬆️ Auto border transition: world_7 -> world_1 at (${player.x}, ${player.y})`);
+        } else if (activeMap === "world_1" && player.x >= 1480) {
+          player.currentMap = "world_4";
+          player.x = 50;
+          player.y = Math.min(1450, Math.max(50, player.y));
+          this.mapTransitionCooldown.set(sessionId, now);
+          console.log(`[GameRoom] ➡️ Auto border transition: world_1 -> world_4 at (${player.x}, ${player.y})`);
+        } else if (activeMap === "world_4" && player.x <= 20) {
+          player.currentMap = "world_1";
+          player.x = 1450;
+          player.y = Math.min(2450, Math.max(50, player.y));
+          this.mapTransitionCooldown.set(sessionId, now);
+          console.log(`[GameRoom] ⬅️ Auto border transition: world_4 -> world_1 at (${player.x}, ${player.y})`);
+        } else if (activeMap === "world_1" && player.x <= 20) {
+          player.currentMap = "world_2";
+          player.x = 1950;
+          player.y = Math.min(1950, Math.max(50, player.y));
+          this.mapTransitionCooldown.set(sessionId, now);
+          console.log(`[GameRoom] ⬅️ Auto border transition: world_1 -> world_2 at (${player.x}, ${player.y})`);
+        } else if (activeMap === "world_2" && player.x >= 1980) {
+          player.currentMap = "world_1";
+          player.x = 50;
+          player.y = Math.min(2450, Math.max(50, player.y));
+          this.mapTransitionCooldown.set(sessionId, now);
+          console.log(`[GameRoom] ➡️ Auto border transition: world_2 -> world_1 at (${player.x}, ${player.y})`);
+        }
+      }
+
+      // Always clamp player position to current map boundaries
       const HALF_SIZE = 16;
       player.x = Math.max(HALF_SIZE, Math.min(activeWorldW - HALF_SIZE, player.x));
       player.y = Math.max(HALF_SIZE, Math.min(activeWorldH - HALF_SIZE, player.y));

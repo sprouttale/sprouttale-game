@@ -1266,7 +1266,7 @@ export class GameRoom extends Room<GameState> {
               obj.solidOffsetY = -15;
             }
 
-            const isStaticTile = (aId.startsWith("terrain_") && !aId.startsWith("terrain_tilled_soil")) || aId.startsWith("wf_") || aId === "zemin_tileset";
+            const isStaticTile = aId.startsWith("terrain_") || aId.startsWith("wf_") || aId === "zemin_tileset";
             if (isStaticTile && !obj.isSolid && !obj.isClimbable && (obj.triggerType === "none" || !obj.triggerType)) {
               const posKey = `${mId}:${dLayer}:${rx}:${ry}`;
               this.staticMapTiles = this.staticMapTiles.filter((t: any) => {
@@ -2486,7 +2486,7 @@ export class GameRoom extends Room<GameState> {
           aId.startsWith("terrain_") ||
           aId.startsWith("wf_") ||
           aId === "zemin_tileset"
-        ) && !aId.startsWith("terrain_tilled_soil") && !o.isSolid && !o.isClimbable && (!o.triggerType || o.triggerType === "none")
+        ) && !o.isSolid && !o.isClimbable && (!o.triggerType || o.triggerType === "none")
       );
 
       if (isStaticTerrain) {

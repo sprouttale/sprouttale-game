@@ -1113,7 +1113,9 @@ export default function App() {
     };
     console.warn = (...args) => {
       const msg = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(" ");
-      setConsoleErrors(prev => [...prev, "[WARN] " + msg].slice(-10));
+      if (!msg.includes("trying to remove reference")) {
+        setConsoleErrors(prev => [...prev, "[WARN] " + msg].slice(-10));
+      }
       originalWarn.apply(console, args);
     };
     return () => {

@@ -64,7 +64,13 @@ import path from "path";
 // Static Client Serving (Production & Live Deployment)
 // ---------------------------------------------------------------------------
 const clientDistPath = path.join(__dirname, "../../client/dist");
-app.use(express.static(clientDistPath));
+app.use(express.static(clientDistPath, {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith(".html")) {
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    }
+  }
+}));
 
 // ---------------------------------------------------------------------------
 // Health Check
@@ -77,6 +83,7 @@ app.get("/health", (_req, res) => {
 app.get("*", (req, res, next) => {
   if (req.path.startsWith("/colyseus") || req.path.startsWith("/health")) return next();
   const indexPath = path.join(clientDistPath, "index.html");
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
   res.sendFile(indexPath, (err) => {
     if (err) next();
   });

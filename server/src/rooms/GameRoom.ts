@@ -178,13 +178,31 @@ export class GameRoom extends Room<GameState> {
     // Maximum players per room
     this.maxClients = 50;
 
-    // Static tile request — client sends this after registering static_map_tiles_chunk listener
+    // Static tile request — stream chunks smoothly with 10ms intervals to prevent WebSocket buffer saturation
     this.onMessage("request_static_tiles", (client: Client) => {
-      const CHUNK_SIZE = 1000;
-      for (let i = 0; i < this.staticMapTiles.length; i += CHUNK_SIZE) {
-        const chunk = this.staticMapTiles.slice(i, i + CHUNK_SIZE);
-        client.send("static_map_tiles_chunk", { tiles: chunk, isLast: (i + CHUNK_SIZE >= this.staticMapTiles.length) });
-      }
+      const CHUNK_SIZE = 5000;
+      const total = this.staticMapTiles.length;
+      let index = 0;
+
+      const sendNextChunk = () => {
+        if (!client || (client as any).readyState === 2 || (client as any).readyState === 3) return;
+        const end = Math.min(index + CHUNK_SIZE, total);
+        const chunk = this.staticMapTiles.slice(index, end);
+        const isLast = end >= total;
+
+        try {
+          client.send("static_map_tiles_chunk", { tiles: chunk, isLast });
+        } catch (e) {
+          return;
+        }
+
+        index = end;
+        if (!isLast) {
+          setTimeout(sendNextChunk, 10);
+        }
+      };
+
+      sendNextChunk();
     });
 
     // Register message handler for switching maps via Minimap UI dropdown or teleports

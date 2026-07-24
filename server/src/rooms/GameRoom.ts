@@ -2756,17 +2756,28 @@ export class GameRoom extends Room<GameState> {
     const maps = ["world_1", "world_2", "world_3", "world_4", "world_5", "world_6", "world_7", "world_8"];
 
     for (const m of maps) {
-      const candidate = path.join(process.cwd(), "_mapdata", `${m}_save.json`);
-      if (fs.existsSync(candidate)) {
-        try {
-          const raw = fs.readFileSync(candidate, "utf8");
-          const objects = JSON.parse(raw);
-          if (Array.isArray(objects) && objects.length > 0) {
-            this.deserializeMap(objects, m);
-            console.log(`[GameRoom] ✅ Fast-loaded ${objects.length} objects for ${m}`);
+      const numStr = m.replace("world_", "");
+      const masterCandidates = [
+        path.join(process.cwd(), "_mapdata", `${m}_save.json`),
+        path.join(process.cwd(), "..", "_mapdata", `${m}_save.json`),
+        path.resolve(__dirname, "..", "..", "_mapdata", `${m}_save.json`),
+        path.resolve(__dirname, "..", "..", "..", "_mapdata", `${m}_save.json`),
+        path.resolve(__dirname, "..", "..", "..", "..", "_mapdata", `${m}_save.json`),
+      ];
+
+      for (const candidate of masterCandidates) {
+        if (fs.existsSync(candidate)) {
+          try {
+            const raw = fs.readFileSync(candidate, "utf8");
+            const objects = JSON.parse(raw);
+            if (Array.isArray(objects) && objects.length > 0) {
+              this.deserializeMap(objects, m);
+              console.log(`[GameRoom] ✅ Fast-loaded ${objects.length} objects for ${m} from ${candidate}`);
+              break;
+            }
+          } catch (err) {
+            console.error(`[GameRoom] Error reading ${candidate}:`, err);
           }
-        } catch (err) {
-          console.error(`[GameRoom] Error reading ${candidate}:`, err);
         }
       }
     }

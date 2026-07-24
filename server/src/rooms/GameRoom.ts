@@ -1137,10 +1137,11 @@ export class GameRoom extends Room<GameState> {
           const mId = obj.mapId || player.currentMap || "world_1";
           const dLayer = obj.depthLayer || "below";
           const rx = Math.round(obj.x); const ry = Math.round(obj.y);
-          // Remove ANY previous static tile at the exact same map, depthLayer, and (x, y) coordinates
-          const posKey = `${mId}:${dLayer}:${rx}:${ry}`;
+          // Only replace an existing static tile if it has the exact SAME id or exact SAME assetId at the exact same (x, y) & depthLayer
+          const posKey = `${mId}:${dLayer}:${obj.assetId}:${rx}:${ry}`;
           this.staticMapTiles = this.staticMapTiles.filter((t: any) => {
-            const tk = `${t.mapId || "world_1"}:${t.depthLayer || "below"}:${Math.round(t.x)}:${Math.round(t.y)}`;
+            if (t.id === obj.id) return false;
+            const tk = `${t.mapId || "world_1"}:${t.depthLayer || "below"}:${t.assetId}:${Math.round(t.x)}:${Math.round(t.y)}`;
             return tk !== posKey;
           });
           const plainObj = {

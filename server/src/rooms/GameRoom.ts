@@ -3,6 +3,7 @@ import { GameState, PlayerState, MapObject, EnemyState } from "../schema/GameSta
 import fs from "fs";
 import path from "path";
 import https from "https";
+import zlib from "zlib";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -2668,9 +2669,11 @@ export class GameRoom extends Room<GameState> {
 
       const m = maps[index];
       const mapObjs = allObjects.filter(o => (o.mapId || "world_1") === m);
-      // Always commit even empty maps (important: empty = player deleted everything)
-      const filePath = `_mapdata/${m}_save.json`;
-      const content = Buffer.from(JSON.stringify(mapObjs)).toString("base64");
+      // Gzip compress JSON string to keep payload small (~150KB) and prevent GitHub API 1MB limits
+      const jsonStr = JSON.stringify(mapObjs);
+      const gzBuffer = zlib.gzipSync(Buffer.from(jsonStr));
+      const filePath = `_mapdata/${m}_save.json.gz`;
+      const content = gzBuffer.toString("base64");
 
       const doCommit = (retryCount: number) => {
         // GET current SHA first
@@ -2771,20 +2774,26 @@ export class GameRoom extends Room<GameState> {
     const maps = ["world_1", "world_2", "world_3", "world_4", "world_5", "world_6", "world_7", "world_8"];
 
     for (const m of maps) {
-      const numStr = m.replace("world_", "");
       const masterCandidates = [
+        path.join(process.cwd(), "_mapdata", `${m}_save.json.gz`),
         path.join(process.cwd(), "_mapdata", `${m}_save.json`),
-        path.join(process.cwd(), "..", "_mapdata", `${m}_save.json`),
+        path.resolve(__dirname, "..", "..", "_mapdata", `${m}_save.json.gz`),
         path.resolve(__dirname, "..", "..", "_mapdata", `${m}_save.json`),
-        path.resolve(__dirname, "..", "..", "..", "_mapdata", `${m}_save.json`),
-        path.resolve(__dirname, "..", "..", "..", "..", "_mapdata", `${m}_save.json`),
       ];
 
       for (const candidate of masterCandidates) {
         if (fs.existsSync(candidate)) {
           try {
-            const raw = fs.readFileSync(candidate, "utf8");
-            const objects = JSON.parse(raw);
+            let objects: any[] = [];
+            if (candidate.endsWith(".gz")) {
+              const gzBuffer = fs.readFileSync(candidate);
+              const rawStr = zlib.gunzipSync(gzBuffer).toString("utf8");
+              objects = JSON.parse(rawStr);
+            } else {
+              const raw = fs.readFileSync(candidate, "utf8");
+              objects = JSON.parse(raw);
+            }
+
             if (Array.isArray(objects) && objects.length > 0) {
               this.deserializeMap(objects, m);
               console.log(`[GameRoom] ✅ Fast-loaded ${objects.length} objects for ${m} from ${candidate}`);
@@ -2806,7 +2815,7 @@ export class GameRoom extends Room<GameState> {
     const maps = ["world_1", "world_2", "world_3", "world_4", "world_5", "world_6", "world_7", "world_8"];
 
     maps.forEach((m) => {
-      const filePath = `_mapdata/${m}_save.json`;
+      const filePath = `_mapdata/${m}_save.json.gz`;
       const req = https.request({
         hostname: "api.github.com",
         path: `/repos/${this.GITHUB_OWNER}/${this.GITHUB_REPO}/contents/${filePath}?ref=map-data`,
@@ -2823,8 +2832,9 @@ export class GameRoom extends Room<GameState> {
           try {
             const json = JSON.parse(data);
             if (json.content) {
-              const decoded = Buffer.from(json.content, "base64").toString("utf8");
-              const objects = JSON.parse(decoded);
+              const gzBuffer = Buffer.from(json.content, "base64");
+              const decompressedStr = zlib.gunzipSync(gzBuffer).toString("utf8");
+              const objects = JSON.parse(decompressedStr);
               if (Array.isArray(objects) && objects.length > 0) {
                 this.deserializeMap(objects, m);
                 console.log(`[GameRoom] ☁️ Restored ${objects.length} map objects for ${m} from GitHub map-data branch!`);

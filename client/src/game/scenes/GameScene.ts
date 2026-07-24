@@ -267,6 +267,7 @@ export class GameScene extends Phaser.Scene {
   private editorPreviewPlant!: Phaser.GameObjects.Sprite;
   private fillRegionGfx!: Phaser.GameObjects.Graphics;
   private fillRegionStart: { x: number; y: number } | null = null;
+  private staticTilesCache: any[] = []; // Cache of all static tile data for fill_erase lookups
   private placedObjectSprites = new Map<string, Phaser.GameObjects.Rectangle | Phaser.GameObjects.Sprite>();
   private staticTileMapIds = new Map<string, string>(); // key -> mapId for static terrain tiles
   private waterfallSprites = new Set<Phaser.GameObjects.Sprite>();
@@ -2926,12 +2927,34 @@ export class GameScene extends Phaser.Scene {
         if (dist > 8) {
           // Drag Region Erase Mode: Delete all objects inside dragged box
           const toDelete: { id: string; data: any }[] = [];
+
+          // Search dynamic mapObjects
           this.room.state.mapObjects.forEach((obj: any, key: string) => {
             const objMap = obj.mapId || "world_1";
             if (objMap !== this.currentMapId) return;
-
             if (obj.x >= minX - 4 && obj.x <= maxX + 4 && obj.y >= minY - 4 && obj.y <= maxY + 4) {
               toDelete.push({ id: obj.id || key, data: { ...obj } });
+            }
+          });
+
+          // Also search static map tiles (terrain tiles stored client-side)
+          const clientStaticTiles: any[] = (this as any).staticTilesCache || [];
+          clientStaticTiles.forEach((tile: any) => {
+            const tileMap = tile.mapId || "world_1";
+            if (tileMap !== this.currentMapId) return;
+            if (tile.x >= minX - 4 && tile.x <= maxX + 4 && tile.y >= minY - 4 && tile.y <= maxY + 4) {
+              if (!toDelete.find(d => d.id === tile.id)) {
+                toDelete.push({ id: tile.id, data: { ...tile } });
+              }
+            }
+          });
+
+          // Also search placedObjectSprites map for any sprite in range
+          this.placedObjectSprites.forEach((sprite: any, id: string) => {
+            if (sprite.x >= minX - 4 && sprite.x <= maxX + 4 && sprite.y >= minY - 4 && sprite.y <= maxY + 4) {
+              if (!toDelete.find(d => d.id === id)) {
+                toDelete.push({ id, data: { id, x: sprite.x, y: sprite.y, mapId: this.currentMapId } });
+              }
             }
           });
 
@@ -2964,17 +2987,39 @@ export class GameScene extends Phaser.Scene {
         } else {
           // Single Click Flood-Erase Mode: Delete clicked object + all connected objects with SAME assetId (BFS)
           let targetObj: any = null;
+
+          // Search dynamic mapObjects first
           this.room.state.mapObjects.forEach((obj: any) => {
             const objMap = obj.mapId || "world_1";
             if (objMap !== this.currentMapId) return;
-
             if (Math.round(obj.x) === minX && Math.round(obj.y) === minY) {
               targetObj = obj;
             }
           });
 
+          // Also search static tiles (terrain tiles)
+          const staticTilesForFlood: any[] = (this as any).staticTilesCache || [];
           if (!targetObj) {
-            let closestDist = 32;
+            staticTilesForFlood.forEach((tile: any) => {
+              const tileMap = tile.mapId || "world_1";
+              if (tileMap !== this.currentMapId) return;
+              if (Math.round(tile.x) === minX && Math.round(tile.y) === minY) {
+                targetObj = tile;
+              }
+            });
+          }
+
+          // Also search by sprite position
+          if (!targetObj) {
+            this.placedObjectSprites.forEach((sprite: any, id: string) => {
+              if (Math.round(sprite.x) === minX && Math.round(sprite.y) === minY) {
+                if (!targetObj) targetObj = { id, x: sprite.x, y: sprite.y, assetId: sprite.assetId || id.split("_")[0], mapId: this.currentMapId };
+              }
+            });
+          }
+
+          if (!targetObj) {
+            let closestDist = 48;
             this.room.state.mapObjects.forEach((obj: any) => {
               const objMap = obj.mapId || "world_1";
               if (objMap !== this.currentMapId) return;
@@ -2982,6 +3027,16 @@ export class GameScene extends Phaser.Scene {
               if (d < closestDist) {
                 closestDist = d;
                 targetObj = obj;
+              }
+            });
+            // Also check static tiles
+            staticTilesForFlood.forEach((tile: any) => {
+              const tileMap = tile.mapId || "world_1";
+              if (tileMap !== this.currentMapId) return;
+              const d = Phaser.Math.Distance.Between(minX, minY, tile.x, tile.y);
+              if (d < closestDist) {
+                closestDist = d;
+                targetObj = tile;
               }
             });
           }
@@ -2994,6 +3049,7 @@ export class GameScene extends Phaser.Scene {
             const visited = new Set<string>();
             const toDeleteItems: { id: string; data: any }[] = [];
 
+            // Build mapGrid from BOTH mapObjects AND static tiles
             const mapGrid = new Map<string, any[]>();
             this.room.state.mapObjects.forEach((obj: any) => {
               const oMap = obj.mapId || "world_1";
@@ -3001,6 +3057,14 @@ export class GameScene extends Phaser.Scene {
               const k = `${Math.round(obj.x)},${Math.round(obj.y)}`;
               if (!mapGrid.has(k)) mapGrid.set(k, []);
               mapGrid.get(k)!.push(obj);
+            });
+            // Add static tiles to grid
+            staticTilesForFlood.forEach((tile: any) => {
+              const tileMap = tile.mapId || "world_1";
+              if (tileMap !== targetMap || tile.assetId !== targetAssetId) return;
+              const k = `${Math.round(tile.x)},${Math.round(tile.y)}`;
+              if (!mapGrid.has(k)) mapGrid.set(k, []);
+              mapGrid.get(k)!.push(tile);
             });
 
             const step = snap || 16;
@@ -4629,18 +4693,24 @@ export class GameScene extends Phaser.Scene {
         data.objects.forEach((tile: any) => {
           this.createPlacedObject(tile, tile.id);
           this.staticTileMapIds.set(tile.id, tile.mapId || "world_1");
+          // Cache tile data for fill_erase lookups
+          this.staticTilesCache.push({ ...tile });
         });
       }
     });
 
     this.room.onMessage("batch_delete_static", (data: { objectIds: string[] }) => {
       if (Array.isArray(data.objectIds)) {
+        const idSet = new Set(data.objectIds);
         data.objectIds.forEach((id: string) => {
           this.destroyPlacedObject(id);
           this.staticTileMapIds.delete(id);
         });
+        // Remove from cache
+        this.staticTilesCache = this.staticTilesCache.filter(t => !idSet.has(t.id));
       }
     });
+
   }
 
   // -------------------------------------------------------------------------

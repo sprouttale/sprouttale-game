@@ -2470,6 +2470,15 @@ export class GameRoom extends Room<GameState> {
 
   /** Load serialized objects into game state */
   private deserializeMap(objects: any[], defaultMapId: string = "world_1"): void {
+    const staticMapTileMap = new Map<string, any>();
+    this.staticMapTiles.forEach((t: any) => {
+      const mId = t.mapId || "world_1";
+      const dLayer = t.depthLayer || "below";
+      const rx = Math.round(Number(t.x || 0));
+      const ry = Math.round(Number(t.y || 0));
+      staticMapTileMap.set(`${mId}:${dLayer}:${rx}:${ry}`, t);
+    });
+
     objects.forEach((o: any) => {
       const aId = String(o.assetId || "");
       const isStaticTerrain = Boolean(
@@ -2488,12 +2497,7 @@ export class GameRoom extends Room<GameState> {
         const tileId = String(o.id || `obj_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`);
 
         const posKey = `${mId}:${dLayer}:${rx}:${ry}`;
-        this.staticMapTiles = this.staticMapTiles.filter((t: any) => {
-          const tk = `${t.mapId || "world_1"}:${t.depthLayer || "below"}:${Math.round(t.x)}:${Math.round(t.y)}`;
-          return tk !== posKey && t.id !== tileId;
-        });
-
-        this.staticMapTiles.push({
+        staticMapTileMap.set(posKey, {
           id: tileId,
           assetId: aId,
           mapId: mId,
@@ -2560,6 +2564,7 @@ export class GameRoom extends Room<GameState> {
         this.state.mapObjects.set(obj.id, obj);
       }
     });
+    this.staticMapTiles = Array.from(staticMapTileMap.values());
     this.spatialGridDirty = true;
   }
 

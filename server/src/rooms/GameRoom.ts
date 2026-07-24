@@ -1550,7 +1550,12 @@ export class GameRoom extends Room<GameState> {
 
   onDispose(): void {
     clearInterval(this.simulationInterval);
-    console.log(`[GameRoom] Room "${this.roomId}" disposed.`);
+    console.log(`[GameRoom] Room "${this.roomId}" disposed. Saving map to disk...`);
+    try {
+      this.performDiskSave();
+    } catch (err) {
+      console.error("[GameRoom] Error in onDispose performDiskSave:", err);
+    }
   }
 
   private cancelFishing(sessionId: string): void {
@@ -2476,10 +2481,22 @@ export class GameRoom extends Room<GameState> {
       );
 
       if (isStaticTerrain) {
+        const mId = String(o.mapId || defaultMapId);
+        const dLayer = String(o.depthLayer || "below");
+        const rx = Math.round(Number(o.x || 0));
+        const ry = Math.round(Number(o.y || 0));
+        const tileId = String(o.id || `obj_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`);
+
+        const posKey = `${mId}:${dLayer}:${rx}:${ry}`;
+        this.staticMapTiles = this.staticMapTiles.filter((t: any) => {
+          const tk = `${t.mapId || "world_1"}:${t.depthLayer || "below"}:${Math.round(t.x)}:${Math.round(t.y)}`;
+          return tk !== posKey && t.id !== tileId;
+        });
+
         this.staticMapTiles.push({
-          id: String(o.id || `obj_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`),
+          id: tileId,
           assetId: aId,
-          mapId: String(o.mapId || defaultMapId),
+          mapId: mId,
           x: Number(o.x || 0),
           y: Number(o.y || 0),
           scaleX: Number(o.scaleX !== undefined ? o.scaleX : 1),
@@ -2490,7 +2507,7 @@ export class GameRoom extends Room<GameState> {
           isSolid: false,
           isWater: Boolean(o.isWater),
           isClimbable: false,
-          depthLayer: String(o.depthLayer || "below"),
+          depthLayer: dLayer,
           tileX: o.tileX !== undefined ? Number(o.tileX) : -1,
           tileY: o.tileY !== undefined ? Number(o.tileY) : -1,
           tileW: o.tileW !== undefined ? Number(o.tileW) : 0,
@@ -2548,10 +2565,10 @@ export class GameRoom extends Room<GameState> {
 
   private activeSavingMaps: Set<string> = new Set();
 
-  /** Save map locally to disk with non-blocking 2000ms debounce */
+  /** Save map locally to disk with immediate 300ms debounce */
   private saveMapToDisk(): void {
     if (this.diskSaveTimer) clearTimeout(this.diskSaveTimer);
-    this.diskSaveTimer = setTimeout(() => this.performDiskSave(), 2000);
+    this.diskSaveTimer = setTimeout(() => this.performDiskSave(), 300);
   }
 
   private performDiskSave(): void {
@@ -2563,29 +2580,22 @@ export class GameRoom extends Room<GameState> {
         try { fs.mkdirSync(mapDataDir, { recursive: true }); } catch (e) {}
       }
 
-      // Save per-map JSON files asynchronously (non-blocking)
+      // Save per-map JSON files synchronously (bulletproof zero-data-loss)
       for (let m = 1; m <= 8; m++) {
         const mapName = `world_${m}`;
-        if (this.activeSavingMaps.has(mapName)) continue;
-
         const mapObjs = allObjects.filter(o => (o.mapId || "world_1") === mapName);
         const mapPath = path.join(mapDataDir, `${mapName}_save.json`);
-        
-        this.activeSavingMaps.add(mapName);
         const content = JSON.stringify(mapObjs);
-
-        fs.writeFile(mapPath, content, "utf8", (err) => {
-          this.activeSavingMaps.delete(mapName);
-          if (err) console.error(`[GameRoom] Error writing ${mapName}_save.json:`, err);
-        });
+        fs.writeFileSync(mapPath, content, "utf8");
       }
+      console.log(`[GameRoom] 💾 Successfully saved all 8 maps (${allObjects.length} total tiles/objects) to disk!`);
     } catch (err) {
       console.error("[GameRoom] Error saving map to disk:", err);
     }
 
-    // Save map to cloud Gist 10s after last edit.
+    // Save map to cloud Gist 3s after last edit.
     if (this.githubSaveTimer) clearTimeout(this.githubSaveTimer);
-    this.githubSaveTimer = setTimeout(() => this.saveMapToGist(), 10000);
+    this.githubSaveTimer = setTimeout(() => this.saveMapToGist(), 3000);
   }
 
   private gistId: string = "";

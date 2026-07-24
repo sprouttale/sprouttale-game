@@ -5699,7 +5699,8 @@ private tryPlaceObjectAt(x: number, y: number): void {
     if (!config || !config.selectedAsset) return;
 
     // ── Multi-tile terrain brush (from TerrainEditorPanel) ──────────────────
-    if (config.terrainBrush) {
+    const isTerrainAsset = config.selectedAsset && (config.selectedAsset.startsWith("terrain_") || config.selectedAsset.startsWith("wf_"));
+    if (config.terrainBrush && isTerrainAsset) {
       const tb = config.terrainBrush;
       const { startCol, startRow, endCol, endRow, tileW, tileH, tilesetKey, animated } = tb;
       const scaleX = tb.tileScaleX ?? 1;

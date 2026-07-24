@@ -625,11 +625,13 @@ export default function App() {
   useEffect(() => {
     const existing = (window as any).editorConfig ?? {};
     const isAnyEditorActive = isEditorOpen || isTerrainEditorOpen || isAnimalEditorOpen;
+    const isTerrainAsset = selectedPaletteAsset && (selectedPaletteAsset.startsWith("terrain_") || selectedPaletteAsset.startsWith("wf_"));
     (window as any).editorConfig = {
       ...existing,
       active: isAnyEditorActive,
       tool: activeEditorTool,
       selectedAsset: selectedPaletteAsset || existing.selectedAsset || "",
+      terrainBrush: isTerrainAsset ? existing.terrainBrush : null,
       gridSnap: editorGridSnap,
       snapSize: (selectedPaletteAsset && selectedPaletteAsset.startsWith("wf_")) ? wfGridSize : (existing.snapSize ?? 16),
       depthLayer: editorDepthLayer,

@@ -4270,12 +4270,17 @@ export class GameScene extends Phaser.Scene {
 
     // 3. Perform camera frustum culling on all placed tiles for 60 FPS locked smoothness
     const cam = this.cameras.main;
-    const margin = 256;
-    const worldView = cam.worldView;
-    const cLeft = worldView.x - margin;
-    const cRight = worldView.right + margin;
-    const cTop = worldView.y - margin;
-    const cBottom = worldView.bottom + margin;
+    const zoom = cam.zoom > 0 ? cam.zoom : 1;
+    const viewW = cam.width / zoom;
+    const viewH = cam.height / zoom;
+    const camCenterX = cam.scrollX + cam.width / 2;
+    const camCenterY = cam.scrollY + cam.height / 2;
+
+    const margin = 512; // Generous 512px margin so no edge tiles are ever hidden by mistake
+    const cLeft = camCenterX - viewW / 2 - margin;
+    const cRight = camCenterX + viewW / 2 + margin;
+    const cTop = camCenterY - viewH / 2 - margin;
+    const cBottom = camCenterY + viewH / 2 + margin;
 
     this.placedObjectSprites.forEach((sp, key) => {
       if (sp && sp.active) {

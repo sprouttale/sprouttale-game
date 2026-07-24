@@ -2501,13 +2501,40 @@ export class GameRoom extends Room<GameState> {
 
   /** Load serialized objects into game state */
   private deserializeMap(objects: any[], defaultMapId: string = "world_1"): void {
+    // IMPORTANT: Only remove existing tiles that belong to the SAME mapId being loaded.
+    // This prevents parallel loads from erasing each other's data.
+    const mapsBeingLoaded = new Set<string>();
+    objects.forEach((o: any) => {
+      const aId = String(o.assetId || "");
+      const isStaticTerrain = Boolean(
+        aId && (
+          aId.startsWith("terrain_") ||
+          aId.startsWith("wf_") ||
+          aId === "zemin_tileset"
+        ) && !o.isSolid && !o.isClimbable && (!o.triggerType || o.triggerType === "none")
+      );
+      if (isStaticTerrain) mapsBeingLoaded.add(String(o.mapId || defaultMapId));
+    });
+    // Also consider defaultMapId for dynamic objects
+    if (mapsBeingLoaded.size === 0) mapsBeingLoaded.add(defaultMapId);
+
     const staticMapTileMap = new Map<string, any>();
+    // Preserve tiles from OTHER maps that are NOT being overwritten
     this.staticMapTiles.forEach((t: any) => {
       const mId = t.mapId || "world_1";
+      if (mapsBeingLoaded.has(mId)) return; // Will be replaced by new data
       const dLayer = t.depthLayer || "below";
       const rx = Math.round(Number(t.x || 0));
       const ry = Math.round(Number(t.y || 0));
       staticMapTileMap.set(`${mId}:${dLayer}:${rx}:${ry}`, t);
+    });
+    // Also clear dynamic objects only for mapIds being loaded
+    mapsBeingLoaded.forEach((mId) => {
+      const toDelete: string[] = [];
+      this.state.mapObjects.forEach((obj, key) => {
+        if ((obj.mapId || "world_1") === mId) toDelete.push(key);
+      });
+      toDelete.forEach(key => this.state.mapObjects.delete(key));
     });
 
     objects.forEach((o: any) => {
@@ -2814,7 +2841,15 @@ export class GameRoom extends Room<GameState> {
 
     const maps = ["world_1", "world_2", "world_3", "world_4", "world_5", "world_6", "world_7", "world_8"];
 
-    maps.forEach((m) => {
+    // CRITICAL: Load maps SEQUENTIALLY (one at a time) to prevent race conditions.
+    // Parallel loading caused deserializeMap() calls to overwrite each other's staticMapTiles,
+    // making half the maps appear empty after every server restart.
+    const loadNext = (index: number): void => {
+      if (index >= maps.length) {
+        console.log(`[GameRoom] ☁️ All ${maps.length} maps fully synced from GitHub map-data branch!`);
+        return;
+      }
+      const m = maps[index];
       const filePath = `_mapdata/${m}_save.json.gz`;
       const req = https.request({
         hostname: "api.github.com",
@@ -2843,11 +2878,17 @@ export class GameRoom extends Room<GameState> {
           } catch (err) {
             console.error(`[GameRoom] Error restoring ${m} from GitHub map-data branch:`, err);
           }
+          loadNext(index + 1); // Load next map AFTER this one finishes
         });
       });
-      req.on("error", (e) => console.error(`[GameRoom] GitHub sync error for ${m}:`, e.message));
+      req.on("error", (e) => {
+        console.error(`[GameRoom] GitHub sync error for ${m}:`, e.message);
+        loadNext(index + 1); // Continue to next map even on error
+      });
       req.end();
-    });
+    };
+
+    loadNext(0); // Start loading from world_1
   }
 
   /** Fetch the current SHA of the file (needed for updates) */

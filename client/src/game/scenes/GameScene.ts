@@ -1365,6 +1365,9 @@ export class GameScene extends Phaser.Scene {
     for (let i = 1; i <= 27; i++) {
       this.load.image(`house_${i}`, `/assets/editor/house_${i}.png`);
     }
+    ['house_bank', 'house_blacksmith', 'house_games', 'house_marketplace', 'house_nft', 'house_shop'].forEach(b => {
+      this.load.image(b, `/assets/editor/${b}.png`);
+    });
     const barnParts = [
       'indoor_barn_summer_full',
       'indoor_barn_summer_frame',

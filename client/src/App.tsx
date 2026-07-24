@@ -3690,6 +3690,52 @@ export default function App() {
 
               {editorCategory === "ev" && (
                 <>
+                  {[
+                    { id: "house_bank", name: "🏦 Banka", file: "house_bank.png" },
+                    { id: "house_blacksmith", name: "⚒️ Demirci", file: "house_blacksmith.png" },
+                    { id: "house_games", name: "🎮 Oyun Salonu", file: "house_games.png" },
+                    { id: "house_marketplace", name: "🛒 Pazar Yeri", file: "house_marketplace.png" },
+                    { id: "house_nft", name: "💎 NFT Binası", file: "house_nft.png" },
+                    { id: "house_shop", name: "🛍️ Dükkan / Shop", file: "house_shop.png" },
+                  ].map((building) => (
+                    <div 
+                      key={building.id}
+                      onClick={() => {
+                        setSelectedPaletteAsset(building.id);
+                        setActiveEditorTool("brush");
+                      }}
+                      style={{
+                        minWidth: "95px",
+                        height: "90px",
+                        background: selectedPaletteAsset === building.id ? "rgba(0, 210, 211, 0.3)" : "rgba(255,255,255,0.06)",
+                        border: selectedPaletteAsset === building.id ? "2px solid #00d2d3" : "1px solid rgba(255,255,255,0.15)",
+                        borderRadius: "6px",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        cursor: "pointer",
+                        boxSizing: "border-box",
+                        padding: "4px"
+                      }}
+                    >
+                      <div style={{ width: "52px", height: "52px", overflow: "hidden", display: "flex", justifyContent: "center", alignItems: "center", background: "rgba(0,0,0,0.25)", borderRadius: "4px" }}>
+                        <img 
+                          src={`/assets/editor/${building.file}`} 
+                          style={{ 
+                            maxWidth: "100%", 
+                            maxHeight: "100%", 
+                            objectFit: "contain",
+                            imageRendering: "pixelated" 
+                          }} 
+                          alt={building.name}
+                        />
+                      </div>
+                      <span style={{ fontSize: "9px", marginTop: "4px", fontWeight: "bold", color: selectedPaletteAsset === building.id ? "#00d2d3" : "#f1c40f", whiteSpace: "nowrap" }}>
+                        {building.name}
+                      </span>
+                    </div>
+                  ))}
                   {Array.from({ length: 27 }, (_, i) => i + 1).map((num) => (
                     <div 
                       key={`house_${num}`}

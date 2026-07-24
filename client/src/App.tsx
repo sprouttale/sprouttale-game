@@ -3695,6 +3695,8 @@ export default function App() {
                     { id: "house_blacksmith", name: "⚒️ Demirci", file: "house_blacksmith.png" },
                     { id: "house_games", name: "🎮 Oyun Salonu", file: "house_games.png" },
                     { id: "house_marketplace", name: "🛒 Pazar Yeri", file: "house_marketplace.png" },
+                    { id: "house_farm_market", name: "🌾 Çiftlik Pazarı", file: "house_farm_market.png" },
+                    { id: "house_gem_trader", name: "💎 Mücevher Tüccarı", file: "house_gem_trader.png" },
                     { id: "house_nft", name: "💎 NFT Binası", file: "house_nft.png" },
                     { id: "house_shop", name: "🛍️ Dükkan / Shop", file: "house_shop.png" },
                   ].map((building) => (

@@ -1365,7 +1365,7 @@ export class GameScene extends Phaser.Scene {
     for (let i = 1; i <= 27; i++) {
       this.load.image(`house_${i}`, `/assets/editor/house_${i}.png`);
     }
-    ['house_bank', 'house_blacksmith', 'house_games', 'house_marketplace', 'house_nft', 'house_shop'].forEach(b => {
+    ['house_bank', 'house_blacksmith', 'house_games', 'house_marketplace', 'house_nft', 'house_shop', 'house_farm_market', 'house_gem_trader'].forEach(b => {
       this.load.image(b, `/assets/editor/${b}.png`);
     });
     const barnParts = [
@@ -5799,11 +5799,16 @@ private tryPlaceObjectAt(x: number, y: number): void {
     });
     if (skip) return;
 
-    // For terrain tiles or tree assets, apply custom scales
+    // For terrain tiles, tree assets, or custom high-res building assets, apply custom scales
     const isTerrain = config.selectedAsset && (config.selectedAsset.startsWith("terrain_") || config.selectedAsset.startsWith("wf_"));
     const isTree = config.selectedAsset && (config.selectedAsset.startsWith("maple_tree_") || config.selectedAsset.startsWith("dekor_tree_"));
-    const scaleX = isTree ? 2.5 : (isTerrain ? (config.tileScaleX ?? 1) : 1);
-    const scaleY = isTree ? 2.5 : (isTerrain ? (config.tileScaleY ?? 1) : 1);
+    const isCustomBigHouse = config.selectedAsset && [
+      "house_bank", "house_blacksmith", "house_games", "house_marketplace",
+      "house_nft", "house_shop", "house_farm_market", "house_gem_trader"
+    ].includes(config.selectedAsset);
+    const defaultScale = isCustomBigHouse ? 0.15 : 1;
+    const scaleX = isTree ? 2.5 : (isTerrain ? (config.tileScaleX ?? 1) : defaultScale);
+    const scaleY = isTree ? 2.5 : (isTerrain ? (config.tileScaleY ?? 1) : defaultScale);
 
     const objId = `obj_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
     const objData = {

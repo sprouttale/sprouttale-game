@@ -2739,10 +2739,10 @@ export class GameRoom extends Room<GameState> {
       const content = gzBuffer.toString("base64");
 
       const doCommit = (retryCount: number) => {
-        // GET current SHA first
+        // GET current SHA from map-data branch first (CRITICAL: must specify ?ref=map-data!)
         const getReq = https.request({
           hostname: "api.github.com",
-          path: `/repos/${this.GITHUB_OWNER}/${this.GITHUB_REPO}/contents/${filePath}`,
+          path: `/repos/${this.GITHUB_OWNER}/${this.GITHUB_REPO}/contents/${filePath}?ref=map-data`,
           method: "GET",
           headers: {
             "Authorization": `token ${this.GITHUB_TOKEN}`,

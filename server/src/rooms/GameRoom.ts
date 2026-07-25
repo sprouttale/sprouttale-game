@@ -2680,8 +2680,6 @@ export class GameRoom extends Room<GameState> {
 
   private activeSavingMaps: Set<string> = new Set();
 
-  private githubSaveTimer: any = null;
-
   /** Save map locally to disk with 300ms debounce AND schedule automatic GitHub API sync 15s after last edit */
   private saveMapToDisk(): void {
     if (this.diskSaveTimer) clearTimeout(this.diskSaveTimer);

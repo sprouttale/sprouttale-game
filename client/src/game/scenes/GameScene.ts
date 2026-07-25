@@ -5048,6 +5048,17 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private isPathOrOverlayTileAsset(assetId?: string): boolean {
+    if (!assetId) return false;
+    return (
+      assetId.startsWith("terrain_path") ||
+      assetId.startsWith("terrain_carpet") ||
+      assetId.startsWith("path_tiles") ||
+      assetId.startsWith("carpet") ||
+      assetId.startsWith("tilled_soil")
+    );
+  }
+
   private isGroundBaseTileAsset(assetId?: string): boolean {
     if (!assetId) return false;
     return (
@@ -5058,6 +5069,8 @@ export class GameScene extends Phaser.Scene {
       assetId.startsWith("terrain_frozen") ||
       assetId.startsWith("terrain_beach") ||
       assetId.startsWith("terrain_carpet") ||
+      assetId.startsWith("path_tiles") ||
+      assetId.startsWith("carpet") ||
       assetId.startsWith("wf_") ||
       assetId === "zemin_tileset" ||
       assetId.startsWith("tilled_soil")
@@ -5390,12 +5403,13 @@ export class GameScene extends Phaser.Scene {
     const _ts = _tsMatch ? Number(_tsMatch[1]) % 1000000 : 0;
     const _subDepth = _ts / 1000000000; // tiny fraction: 0 to 0.001
 
-    if (obj.assetId === "tilled_soil_dry" || obj.assetId === "tilled_soil_wet") {
-      sprite.setDepth(1.2 + obj.y / 100000 + _subDepth);
+    if (this.isPathOrOverlayTileAsset(obj.assetId)) {
+      // Path, carpet & tilled soil overlay tiles render ABOVE base grass (depth 1.0 - 1.5)
+      sprite.setDepth(1.0 + obj.y / 1000000 + _subDepth);
       this.belowPlayerGroup.add(sprite);
     } else if (this.isGroundBaseTileAsset(obj.assetId) || obj.depthLayer === "below") {
-      // Base ground tiles ALWAYS render below players & houses at depth 0.5!
-      sprite.setDepth(0.5 + obj.y / 1000000 + _subDepth);
+      // Base grass/beach/water ground tiles render at depth 0.3
+      sprite.setDepth(0.3 + obj.y / 1000000 + _subDepth);
       this.belowPlayerGroup.add(sprite);
     } else if (obj.depthLayer === "above") {
       sprite.setDepth(4.0 + _subDepth);
@@ -5693,11 +5707,11 @@ export class GameScene extends Phaser.Scene {
     this.samePlayerGroup.remove(sprite);
     this.abovePlayerGroup.remove(sprite);
 
-    if (obj.assetId === "tilled_soil_dry" || obj.assetId === "tilled_soil_wet") {
-      sprite.setDepth(1.2 + obj.y / 100000);
+    if (this.isPathOrOverlayTileAsset(obj.assetId)) {
+      sprite.setDepth(1.0 + obj.y / 1000000);
       this.belowPlayerGroup.add(sprite);
     } else if (this.isGroundBaseTileAsset(obj.assetId) || obj.depthLayer === "below") {
-      sprite.setDepth(0.5 + obj.y / 1000000);
+      sprite.setDepth(0.3 + obj.y / 1000000);
       this.belowPlayerGroup.add(sprite);
     } else if (obj.depthLayer === "above") {
       sprite.setDepth(4.0);
@@ -5785,13 +5799,42 @@ export class GameScene extends Phaser.Scene {
   }
 
   private lastPlacedTime = 0;
-private tryPlaceObjectAt(x: number, y: number): void {
-    const now = Date.now();
-    if (now - this.lastPlacedTime < 120) return;
-    this.lastPlacedTime = now;
+  private lastPlacedX = -99999;
+  private lastPlacedY = -99999;
 
+  private tryPlaceObjectAt(x: number, y: number): void {
     const config = (window as any).editorConfig;
     if (!config || !config.selectedAsset) return;
+
+    let targetX = x;
+    let targetY = y;
+
+    // Force 16px grid alignment for all terrain/ground/path tiles even if gridSnap is off,
+    // so paths and ground tiles ALWAYS snap neatly to 16x16 grid squares without overlaps.
+    const isGroundOrTerrain = this.isGroundBaseTileAsset(config.selectedAsset) || (
+      config.selectedAsset.startsWith("terrain_") ||
+      config.selectedAsset.startsWith("wf_") ||
+      config.selectedAsset.startsWith("path_") ||
+      config.selectedAsset.startsWith("carpet") ||
+      config.selectedAsset === "zemin_tileset"
+    );
+    if (!config.gridSnap && isGroundOrTerrain) {
+      targetX = Math.round(targetX / 16) * 16;
+      targetY = Math.round(targetY / 16) * 16;
+    }
+
+    // Rate-limit dragging placement when Grid Snap is off for free prop placement:
+    // Do not place another object unless mouse has moved at least 12px from previous placed position.
+    if (!config.gridSnap) {
+      const distFromLast = Phaser.Math.Distance.Between(targetX, targetY, this.lastPlacedX, this.lastPlacedY);
+      if (distFromLast < 12) return;
+    }
+
+    const now = Date.now();
+    if (now - this.lastPlacedTime < 60) return;
+    this.lastPlacedTime = now;
+    this.lastPlacedX = targetX;
+    this.lastPlacedY = targetY;
 
     // ── Multi-tile terrain brush (from TerrainEditorPanel) ──────────────────
     const isTerrainAsset = config.selectedAsset && (config.selectedAsset.startsWith("terrain_") || config.selectedAsset.startsWith("wf_"));
@@ -5808,8 +5851,8 @@ private tryPlaceObjectAt(x: number, y: number): void {
         for (let col = startCol; col <= endCol; col++) {
           const tileOffsetX = (col - startCol) * stepX;
           const tileOffsetY = (row - startRow) * stepY;
-          const tileX = x + tileOffsetX;
-          const tileY = y + tileOffsetY;
+          const tileX = targetX + tileOffsetX;
+          const tileY = targetY + tileOffsetY;
 
           // Build assetId for this specific tile in the grid
           let assetId: string;
@@ -5883,7 +5926,7 @@ private tryPlaceObjectAt(x: number, y: number): void {
       const objMap = obj.mapId || "world_1";
       if (objMap !== this.currentMapId) return;
 
-      if (Math.round(obj.x) === Math.round(x) && Math.round(obj.y) === Math.round(y)) {
+      if (Math.round(obj.x) === Math.round(targetX) && Math.round(obj.y) === Math.round(targetY)) {
         if (obj.assetId === config.selectedAsset) {
           skip = true;
         }
@@ -5893,8 +5936,8 @@ private tryPlaceObjectAt(x: number, y: number): void {
       // Also check staticTilesCache so same terrain tile is not placed twice
       const cacheHit = this.staticTilesCache.find((t: any) =>
         t.assetId === config.selectedAsset &&
-        Math.round(t.x) === Math.round(x) &&
-        Math.round(t.y) === Math.round(y) &&
+        Math.round(t.x) === Math.round(targetX) &&
+        Math.round(t.y) === Math.round(targetY) &&
         (t.mapId || "world_1") === this.currentMapId
       );
       if (cacheHit) skip = true;
@@ -5918,8 +5961,8 @@ private tryPlaceObjectAt(x: number, y: number): void {
       id: objId,
       assetId: config.selectedAsset,
       mapId: this.currentMapId,
-      x: x,
-      y: y,
+      x: targetX,
+      y: targetY,
       scaleX: scaleX,
       scaleY: scaleY,
       rotation: 0,

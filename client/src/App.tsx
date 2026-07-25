@@ -790,44 +790,8 @@ export default function App() {
 
   const handleSaveMap = useCallback(() => {
     if (!room) return;
-    const objectsArray: any[] = [];
-    room.state.mapObjects.forEach((obj: any) => {
-      objectsArray.push({
-        id: obj.id,
-        assetId: obj.assetId,
-        x: obj.x,
-        y: obj.y,
-        scaleX: obj.scaleX,
-        scaleY: obj.scaleY,
-        rotation: obj.rotation,
-        flipX: obj.flipX,
-        flipY: obj.flipY,
-        isSolid: obj.isSolid,
-        depthLayer: obj.depthLayer,
-        triggerType: obj.triggerType,
-        triggerTargetX: obj.triggerTargetX,
-        triggerTargetY: obj.triggerTargetY,
-        tileX: obj.tileX,
-        tileY: obj.tileY,
-        tileW: obj.tileW,
-        tileH: obj.tileH,
-        frameRate: obj.frameRate,
-        solidWidth: obj.solidWidth,
-        solidHeight: obj.solidHeight,
-        solidOffsetX: obj.solidOffsetX,
-        solidOffsetY: obj.solidOffsetY,
-        treeState: obj.treeState,
-        treeHp: obj.treeHp
-      });
-    });
-
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(objectsArray, null, 2));
-    const downloadAnchor = document.createElement("a");
-    downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", `map_${Date.now()}.json`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
+    room.send("save_map");
+    alert("Harita başarıyla sunucuya ve GitHub'a kaydedildi!");
   }, [room]);
 
   const handleLoadMap = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {

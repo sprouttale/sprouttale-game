@@ -195,6 +195,12 @@ export class GameRoom extends Room<GameState> {
       this.sendStaticTilesToClient(client);
     });
 
+    this.onMessage("save_map", (client: Client) => {
+      console.log(`[GameRoom] 💾 Save map requested by player ${client.sessionId}`);
+      this.performDiskSave();
+      this.pushMapToGitHub();
+    });
+
     // Register message handler for switching maps via Minimap UI dropdown or teleports
     this.onMessage("switch_map", (client: Client, message: { mapId: string }) => {
       const player = this.state.players.get(client.sessionId);
@@ -1598,9 +1604,10 @@ export class GameRoom extends Room<GameState> {
 
   onDispose(): void {
     clearInterval(this.simulationInterval);
-    console.log(`[GameRoom] Room "${this.roomId}" disposed. Saving map to disk...`);
+    console.log(`[GameRoom] Room "${this.roomId}" disposed. Saving map to disk & pushing to GitHub...`);
     try {
       this.performDiskSave();
+      this.pushMapToGitHub();
     } catch (err) {
       console.error("[GameRoom] Error in onDispose performDiskSave:", err);
     }
@@ -2673,10 +2680,18 @@ export class GameRoom extends Room<GameState> {
 
   private activeSavingMaps: Set<string> = new Set();
 
-  /** Save map locally to disk with immediate 300ms debounce */
+  private githubSaveTimer: any = null;
+
+  /** Save map locally to disk with 300ms debounce AND schedule automatic GitHub API sync 15s after last edit */
   private saveMapToDisk(): void {
     if (this.diskSaveTimer) clearTimeout(this.diskSaveTimer);
     this.diskSaveTimer = setTimeout(() => this.performDiskSave(), 300);
+
+    if (this.githubSaveTimer) clearTimeout(this.githubSaveTimer);
+    this.githubSaveTimer = setTimeout(() => {
+      console.log("[GameRoom] 🔄 Auto-syncing map data to GitHub API...");
+      this.pushMapToGitHub();
+    }, 15000);
   }
 
   private performDiskSave(): void {

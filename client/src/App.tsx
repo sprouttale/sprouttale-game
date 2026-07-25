@@ -621,15 +621,28 @@ export default function App() {
     }
   }, [room]);
 
+  const prevPaletteAssetRef = useRef<string>(selectedPaletteAsset);
+
   // Synchronize Editor States with window.editorConfig
   useEffect(() => {
     const existing = (window as any).editorConfig ?? {};
     const isAnyEditorActive = isEditorOpen || isTerrainEditorOpen || isAnimalEditorOpen;
     const isTerrainAsset = selectedPaletteAsset && (selectedPaletteAsset.startsWith("terrain_") || selectedPaletteAsset.startsWith("wf_"));
+
+    // Auto-switch to brush ONLY when the palette asset itself changed (user clicked a palette item).
+    // If only the tool changed (user clicked eraser/select button), do NOT override it.
+    const paletteChanged = prevPaletteAssetRef.current !== selectedPaletteAsset;
+    prevPaletteAssetRef.current = selectedPaletteAsset;
+
+    const toolToUse: typeof activeEditorTool =
+      paletteChanged && (activeEditorTool === "eraser" || activeEditorTool === "select" || activeEditorTool === "solid" || activeEditorTool === "pipette")
+        ? "brush"
+        : activeEditorTool;
+
     (window as any).editorConfig = {
       ...existing,
       active: isAnyEditorActive,
-      tool: activeEditorTool,
+      tool: toolToUse,
       selectedAsset: selectedPaletteAsset || existing.selectedAsset || "",
       terrainBrush: isTerrainAsset ? existing.terrainBrush : null,
       gridSnap: editorGridSnap,

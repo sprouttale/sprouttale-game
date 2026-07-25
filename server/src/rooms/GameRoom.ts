@@ -1386,17 +1386,18 @@ export class GameRoom extends Room<GameState> {
           }
         }
 
-        const initialLen = this.staticMapTiles.length;
-        const targetLayer = message.depthLayer || "below";
+        const targetLayer = message.depthLayer || null; // null = no depthLayer filter
         const deletedStaticIds: string[] = [];
 
         this.staticMapTiles = this.staticMapTiles.filter((t: any) => {
           let remove = false;
-          // CRITICAL FIX: id match must ALSO check mapId to prevent cross-map deletion!
+          // id match must ALSO check mapId to prevent cross-map deletion!
           if (t.id === message.id && (t.mapId || "world_1") === targetMap) remove = true;
-          if (message.x !== undefined && message.y !== undefined) {
-            if ((t.mapId || "world_1") === targetMap && (t.depthLayer || "below") === targetLayer) {
-              if (Math.round(t.x) === Math.round(message.x) && Math.round(t.y) === Math.round(message.y)) {
+          if (!remove && message.x !== undefined && message.y !== undefined) {
+            if ((t.mapId || "world_1") === targetMap) {
+              // Only apply depthLayer filter if client explicitly provided one
+              const layerMatch = !targetLayer || (t.depthLayer || "below") === targetLayer;
+              if (layerMatch && Math.round(t.x) === Math.round(message.x) && Math.round(t.y) === Math.round(message.y)) {
                 remove = true;
               }
             }

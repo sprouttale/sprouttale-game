@@ -2696,19 +2696,20 @@ export class GameScene extends Phaser.Scene {
 
       // Erasing continuously when dragging/holding mouse down
       if (pointer.isDown && config.tool === "eraser") {
+        // Erase dynamic mapObjects (no depthLayer filter so all layers get erased)
         this.room.state.mapObjects.forEach((obj: any) => {
           const objMap = obj.mapId || "world_1";
           if (objMap !== this.currentMapId) return;
 
-          if (Math.round(obj.x) === Math.round(targetX) && Math.round(obj.y) === Math.round(targetY) && obj.depthLayer === config.depthLayer) {
+          if (Math.round(obj.x) === Math.round(targetX) && Math.round(obj.y) === Math.round(targetY)) {
             window.dispatchEvent(new CustomEvent("editor_action_performed", {
               detail: { type: "delete", id: obj.id, data: { ...obj } }
             }));
-            this.room.send("delete_object", { id: obj.id, x: targetX, y: targetY, mapId: this.currentMapId, depthLayer: config.depthLayer });
+            this.room.send("delete_object", { id: obj.id, x: targetX, y: targetY, mapId: this.currentMapId });
           }
         });
 
-        // ALSO erase static tiles at (targetX, targetY) on current map and depthLayer
+        // ALSO erase static tiles at (targetX, targetY) on current map
         this.staticTileMapIds.forEach((tileMapId, tileId) => {
           if (tileMapId !== this.currentMapId) return;
           const sprite = this.placedObjectSprites.get(tileId);
@@ -2716,7 +2717,7 @@ export class GameScene extends Phaser.Scene {
             window.dispatchEvent(new CustomEvent("editor_action_performed", {
               detail: { type: "delete", id: tileId, data: { id: tileId, x: targetX, y: targetY } }
             }));
-            this.room.send("delete_object", { id: tileId, x: targetX, y: targetY, mapId: this.currentMapId, depthLayer: config.depthLayer });
+            this.room.send("delete_object", { id: tileId, x: targetX, y: targetY, mapId: this.currentMapId });
           }
         });
       }
@@ -2830,9 +2831,11 @@ export class GameScene extends Phaser.Scene {
           window.dispatchEvent(new CustomEvent("editor_action_performed", {
             detail: { type: "delete", id: objId, data: oldData }
           }));
-          this.room.send("delete_object", { id: objId, x: targetX, y: targetY, mapId: this.currentMapId, depthLayer: config.depthLayer });
+          // Send delete_object without depthLayer so server checks both id AND x/y
+          this.room.send("delete_object", { id: objId, x: targetX, y: targetY, mapId: this.currentMapId });
         } else {
-          this.room.send("delete_object", { id: `static_${targetX}_${targetY}`, x: targetX, y: targetY, mapId: this.currentMapId, depthLayer: config.depthLayer });
+          // No sprite found: just send x/y delete so server removes any static tile there
+          this.room.send("delete_object", { id: `static_${targetX}_${targetY}`, x: targetX, y: targetY, mapId: this.currentMapId });
         }
         window.dispatchEvent(new CustomEvent("editor_object_selected", { detail: null }));
       }
@@ -4726,7 +4729,7 @@ export class GameScene extends Phaser.Scene {
           // Track mapId so switchMap() can update static tile visibility
           this.staticTileMapIds.set(tile.id, tile.mapId || "world_1");
           // Cache tile data for fill_erase lookups
-          this.staticTilesCache.push({ ...tile });
+          if (!this.staticTilesCache.find((t: any) => t.id === tile.id)) this.staticTilesCache.push({ ...tile });
         });
       }
     });
@@ -4741,7 +4744,7 @@ export class GameScene extends Phaser.Scene {
           this.createPlacedObject(tile, tile.id);
           this.staticTileMapIds.set(tile.id, tile.mapId || "world_1");
           // Cache tile data for fill_erase lookups
-          this.staticTilesCache.push({ ...tile });
+          if (!this.staticTilesCache.find((t: any) => t.id === tile.id)) this.staticTilesCache.push({ ...tile });
         });
       }
     });
@@ -5846,19 +5849,29 @@ private tryPlaceObjectAt(x: number, y: number): void {
     }
 
     // ── Single-tile placement (existing behaviour) ───────────────────────────
-    // Stack tiles: only skip if the exact same asset already exists here
+    // Stack tiles: only skip if the exact same asset already exists here (check both dynamic mapObjects AND static cache)
     let skip = false;
     const finalDepthLayer = (config.selectedAsset === "tilled_soil_dry" || config.selectedAsset === "tilled_soil_wet") ? "below" : config.depthLayer;
     this.room.state.mapObjects.forEach((obj: any) => {
       const objMap = obj.mapId || "world_1";
       if (objMap !== this.currentMapId) return;
 
-      if (Math.round(obj.x) === Math.round(x) && Math.round(obj.y) === Math.round(y) && obj.depthLayer === finalDepthLayer) {
+      if (Math.round(obj.x) === Math.round(x) && Math.round(obj.y) === Math.round(y)) {
         if (obj.assetId === config.selectedAsset) {
           skip = true;
         }
       }
     });
+    if (!skip) {
+      // Also check staticTilesCache so same terrain tile is not placed twice
+      const cacheHit = this.staticTilesCache.find((t: any) =>
+        t.assetId === config.selectedAsset &&
+        Math.round(t.x) === Math.round(x) &&
+        Math.round(t.y) === Math.round(y) &&
+        (t.mapId || "world_1") === this.currentMapId
+      );
+      if (cacheHit) skip = true;
+    }
     if (skip) return;
 
     // For terrain tiles, tree assets, or custom high-res building assets, apply custom scales

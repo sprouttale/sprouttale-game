@@ -11,8 +11,8 @@ export const WORLD_HEIGHT = 2500;
 const GRID_SIZE = 16;
 
 /** How often to send input to the server (milliseconds).
- *  20Hz = every 50ms. Keeps bandwidth low without feeling laggy. */
-const INPUT_SEND_INTERVAL_MS = 50;
+ *  50Hz = every 20ms. Ultra-responsive controls without lag. */
+const INPUT_SEND_INTERVAL_MS = 20;
 
 
 
@@ -3501,19 +3501,10 @@ export class GameScene extends Phaser.Scene {
 
     this.playerSprites.forEach((sprite, sessionId) => {
       // Smoothly lerp position for both remote and local players when settling
-      if (sessionId !== this.localSessionId) {
-        sprite.container.x = Phaser.Math.Linear(sprite.container.x, sprite.targetX, lerpFactor);
-        sprite.container.y = Phaser.Math.Linear(sprite.container.y, sprite.targetY, lerpFactor);
-      } else {
-        const isKeysDown = this.cursors.left.isDown || this.cursors.right.isDown || this.cursors.up.isDown || this.cursors.down.isDown ||
-                           this.wasd.A.isDown || this.wasd.D.isDown || this.wasd.W.isDown || this.wasd.S.isDown;
-        if (!isKeysDown && sprite.targetX !== undefined && sprite.targetY !== undefined) {
-          const d = Phaser.Math.Distance.Between(sprite.container.x, sprite.container.y, sprite.targetX, sprite.targetY);
-          if (d > 0.5) {
-            sprite.container.x = Phaser.Math.Linear(sprite.container.x, sprite.targetX, lerpFactor);
-            sprite.container.y = Phaser.Math.Linear(sprite.container.y, sprite.targetY, lerpFactor);
-          }
-        }
+      if (sprite.targetX !== undefined && sprite.targetY !== undefined) {
+        const pLerp = sessionId === this.localSessionId ? 0.35 : lerpFactor;
+        sprite.container.x = Phaser.Math.Linear(sprite.container.x, sprite.targetX, pLerp);
+        sprite.container.y = Phaser.Math.Linear(sprite.container.y, sprite.targetY, pLerp);
       }
 
       // Update player depth dynamically by Y so they sort correctly against same-layer tiles.
@@ -4987,7 +4978,7 @@ export class GameScene extends Phaser.Scene {
         this.switchMap(data.currentMap);
       }
       const dist = Phaser.Math.Distance.Between(sprite.container.x, sprite.container.y, data.x, data.y);
-      if (dist > 48) {
+      if (dist > 120) {
         sprite.container.setPosition(data.x, data.y);
       }
       sprite.targetX = data.x;

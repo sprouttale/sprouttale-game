@@ -4737,8 +4737,11 @@ export class GameScene extends Phaser.Scene {
           this.createPlacedObject(tile, tile.id);
           // Track mapId so switchMap() can update static tile visibility
           this.staticTileMapIds.set(tile.id, tile.mapId || "world_1");
-          // Cache tile data for fill_erase lookups
-          if (!this.staticTilesCache.find((t: any) => t.id === tile.id)) this.staticTilesCache.push({ ...tile });
+          // Fast O(1) Cache tile data
+          if (!this.staticTilesCacheSet.has(tile.id)) {
+            this.staticTilesCacheSet.add(tile.id);
+            this.staticTilesCache.push({ ...tile });
+          }
         });
       }
     });
@@ -5415,8 +5418,14 @@ export class GameScene extends Phaser.Scene {
       this.samePlayerGroup.add(sprite);
     }
 
-    sprite.setInteractive({ useHandCursor: true });
-    this.input.setDraggable(sprite);
+    const isGroundTile = this.isGroundBaseTileAsset(obj.assetId);
+    if (!isGroundTile) {
+      sprite.setInteractive({ useHandCursor: true });
+      this.input.setDraggable(sprite);
+    }
+    if ((sprite as any).setCullPadding) {
+      (sprite as any).setCullPadding(64, 64);
+    }
 
     (sprite as any).objId = obj.id;
     (sprite as any).assetId = obj.assetId;
@@ -5754,11 +5763,18 @@ export class GameScene extends Phaser.Scene {
    * Handles tilesetKeys that contain underscores (d3_all_props_seasons, insaat_fence_iron, etc.)
    * by trying all possible split points from the right.
    */
+  private resolvedTerrainCache = new Map<string, { texKey: string; col2: number; row2: number; tw2: number; th2: number } | null>();
+
   private resolveTerrainAsset(assetId: string): { texKey: string; col2: number; row2: number; tw2: number; th2: number } | null {
+    if (this.resolvedTerrainCache.has(assetId)) {
+      return this.resolvedTerrainCache.get(assetId)!;
+    }
     const withoutPrefix = assetId.slice("terrain_".length);
     const parts = withoutPrefix.split("_");
-    if (parts.length < 5) return null;
-    // Try longest possible key first (most specific match)
+    if (parts.length < 5) {
+      this.resolvedTerrainCache.set(assetId, null);
+      return null;
+    }
     for (let keyLen = parts.length - 4; keyLen >= 1; keyLen--) {
       const numParts = parts.slice(keyLen);
       const col2 = parseInt(numParts[0], 10);
@@ -5768,9 +5784,12 @@ export class GameScene extends Phaser.Scene {
       if (isNaN(col2) || isNaN(row2) || isNaN(tw2) || isNaN(th2)) continue;
       const texKey = "terrain_" + parts.slice(0, keyLen).join("_");
       if (this.textures.exists(texKey)) {
-        return { texKey, col2, row2, tw2, th2 };
+        const res = { texKey, col2, row2, tw2, th2 };
+        this.resolvedTerrainCache.set(assetId, res);
+        return res;
       }
     }
+    this.resolvedTerrainCache.set(assetId, null);
     return null;
   }
 

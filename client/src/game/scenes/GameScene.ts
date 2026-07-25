@@ -5383,33 +5383,18 @@ export class GameScene extends Phaser.Scene {
     const _ts = _tsMatch ? Number(_tsMatch[1]) % 1000000 : 0;
     const _subDepth = _ts / 1000000000; // tiny fraction: 0 to 0.001
 
-    // Only TRUE base ground tiles (grass, water, path, cave, frozen, beach, zemin_tileset, wf_) belong on depth 0.5.
-    // Fences (fence_*), bridges, boxes, trees, bushes, and decor tilesets should render on 'same' (depth ~2.5)!
-    const isGroundBaseTile = Boolean(
-      obj.assetId && (
-        obj.assetId.startsWith("terrain_grass_") ||
-        obj.assetId.startsWith("terrain_water_") ||
-        obj.assetId.startsWith("terrain_path_") ||
-        obj.assetId.startsWith("terrain_cave_") ||
-        obj.assetId.startsWith("terrain_frozen_") ||
-        obj.assetId.startsWith("terrain_beach_") ||
-        obj.assetId.startsWith("wf_") ||
-        obj.assetId === "zemin_tileset"
-      )
-    );
-
     if (obj.assetId === "tilled_soil_dry" || obj.assetId === "tilled_soil_wet") {
       sprite.setDepth(1.2 + obj.y / 100000 + _subDepth);
+      this.belowPlayerGroup.add(sprite);
+    } else if (this.isGroundBaseTileAsset(obj.assetId) || obj.depthLayer === "below") {
+      // Base ground tiles ALWAYS render below players & houses at depth 0.5!
+      sprite.setDepth(0.5 + obj.y / 1000000 + _subDepth);
       this.belowPlayerGroup.add(sprite);
     } else if (obj.depthLayer === "above") {
       sprite.setDepth(4.0 + _subDepth);
       this.abovePlayerGroup.add(sprite);
-    } else if (obj.depthLayer === "below" || (isGroundBaseTile && obj.depthLayer !== "same")) {
-      sprite.setDepth(0.5 + obj.y / 1000000 + _subDepth);
-      this.belowPlayerGroup.add(sprite);
     } else {
       // "same" level (Trees, Buildings, Fences, Props, Decorations):
-      // Calculate depth from the bottom/roots of the sprite so ground tiles (0.5) never clip tree roots!
       const displayH = sprite.displayHeight || 32;
       const originY = sprite.originY !== undefined ? sprite.originY : 0.5;
       const bottomY = obj.y + (1 - originY) * displayH;

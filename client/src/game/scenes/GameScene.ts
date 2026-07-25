@@ -5929,7 +5929,32 @@ private tryPlaceObjectAt(x: number, y: number): void {
   }
 
   private selectObjectById(id: string): void {
-    const obj = this.room.state.mapObjects.get(id);
+    let obj = this.room.state.mapObjects.get(id);
+    if (!obj) {
+      const cached = this.staticTilesCache.find((t: any) => t.id === id);
+      if (cached) {
+        obj = cached;
+      } else {
+        const sprite = this.placedObjectSprites.get(id);
+        if (sprite) {
+          obj = {
+            id,
+            assetId: (sprite as any).assetId || "",
+            x: sprite.x,
+            y: sprite.y,
+            scaleX: sprite.scaleX,
+            scaleY: sprite.scaleY,
+            rotation: sprite.angle,
+            flipX: (sprite as any).flipX || false,
+            flipY: (sprite as any).flipY || false,
+            isSolid: (sprite as any).isSolid || false,
+            depthLayer: (sprite as any).depthLayer || "below",
+            triggerType: (sprite as any).triggerType || "none"
+          };
+        }
+      }
+    }
+
     if (obj) {
       window.dispatchEvent(new CustomEvent("editor_object_selected", {
         detail: {
@@ -5937,27 +5962,27 @@ private tryPlaceObjectAt(x: number, y: number): void {
           assetId: obj.assetId,
           x: obj.x,
           y: obj.y,
-          scaleX: obj.scaleX,
-          scaleY: obj.scaleY,
-          rotation: obj.rotation,
-          flipX: obj.flipX,
-          flipY: obj.flipY,
-          isSolid: obj.isSolid,
-          isWater: obj.isWater,
-          isClimbable: obj.isClimbable,
-          depthLayer: obj.depthLayer,
-          triggerType: obj.triggerType,
-          triggerTargetX: obj.triggerTargetX,
-          triggerTargetY: obj.triggerTargetY,
-          tileX: obj.tileX,
-          tileY: obj.tileY,
-          tileW: obj.tileW,
-          tileH: obj.tileH,
-          frameRate: obj.frameRate,
-          solidWidth: obj.solidWidth,
-          solidHeight: obj.solidHeight,
-          solidOffsetX: obj.solidOffsetX,
-          solidOffsetY: obj.solidOffsetY
+          scaleX: obj.scaleX !== undefined ? obj.scaleX : 1,
+          scaleY: obj.scaleY !== undefined ? obj.scaleY : 1,
+          rotation: obj.rotation || 0,
+          flipX: Boolean(obj.flipX),
+          flipY: Boolean(obj.flipY),
+          isSolid: Boolean(obj.isSolid),
+          isWater: Boolean(obj.isWater),
+          isClimbable: Boolean(obj.isClimbable),
+          depthLayer: obj.depthLayer || "below",
+          triggerType: obj.triggerType || "none",
+          triggerTargetX: obj.triggerTargetX || 0,
+          triggerTargetY: obj.triggerTargetY || 0,
+          tileX: obj.tileX !== undefined ? obj.tileX : -1,
+          tileY: obj.tileY !== undefined ? obj.tileY : -1,
+          tileW: obj.tileW !== undefined ? obj.tileW : 0,
+          tileH: obj.tileH !== undefined ? obj.tileH : 0,
+          frameRate: obj.frameRate || 6,
+          solidWidth: obj.solidWidth || 0,
+          solidHeight: obj.solidHeight || 0,
+          solidOffsetX: obj.solidOffsetX || 0,
+          solidOffsetY: obj.solidOffsetY || 0
         }
       }));
     }

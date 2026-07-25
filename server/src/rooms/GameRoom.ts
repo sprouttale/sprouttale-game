@@ -1179,7 +1179,14 @@ export class GameRoom extends Room<GameState> {
         const player = this.state.players.get(client.sessionId);
         if (!player || !message) return;
 
-        const obj = this.state.mapObjects.get(message.id);
+        let obj = this.state.mapObjects.get(message.id);
+        if (!obj) {
+          // Check staticMapTiles
+          const staticTile = this.staticMapTiles.find((t: any) => t.id === message.id);
+          if (staticTile) {
+            obj = staticTile as any;
+          }
+        }
         if (!obj) return;
 
         if (message.x !== undefined) obj.x = Number(message.x);
@@ -1215,7 +1222,7 @@ export class GameRoom extends Room<GameState> {
         if (message.patrolSpeed !== undefined) obj.patrolSpeed = Number(message.patrolSpeed);
 
         this.saveMapToDisk();
-        console.log(`[GameRoom] Player ${player.name} updated object: ${obj.id}, patrolPath=${obj.patrolPath}, patrolSpeed=${obj.patrolSpeed}`);
+        console.log(`[GameRoom] Player ${player.name} updated object: ${obj.id}`);
       } catch (err) {
         console.error("[GameRoom] Error in update_object:", err);
       }
@@ -2694,9 +2701,8 @@ export class GameRoom extends Room<GameState> {
       console.error("[GameRoom] Error saving map to disk:", err);
     }
 
-    // Push map data to GitHub repo 1 second after last edit (survives Render redeploys)
-    if (this.githubSaveTimer) clearTimeout(this.githubSaveTimer);
-    this.githubSaveTimer = setTimeout(() => this.pushMapToGitHub(), 1000);
+    // Note: GitHub sync is scheduled periodically (every 10 minutes) or on explicit save_map command,
+    // to prevent single tile edits from triggering GitHub commits & Render auto-redeployments.
   }
 
   private githubPushInProgress = false;

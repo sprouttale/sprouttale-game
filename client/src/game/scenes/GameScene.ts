@@ -5838,9 +5838,10 @@ private tryPlaceObjectAt(x: number, y: number): void {
       "house_bank", "house_blacksmith", "house_games", "house_marketplace",
       "house_nft", "house_shop", "house_farm_market", "house_gem_trader"
     ].includes(config.selectedAsset);
-    const defaultScale = isCustomBigHouse ? 0.15 : 1;
-    const scaleX = isTree ? 2.5 : (isTerrain ? (config.tileScaleX ?? 1) : defaultScale);
-    const scaleY = isTree ? 2.5 : (isTerrain ? (config.tileScaleY ?? 1) : defaultScale);
+    const defaultTerrainScale = (isTerrain && config.selectedAsset.endsWith("_16_16")) ? 2 : 1;
+    const defaultScale = isCustomBigHouse ? 0.15 : defaultTerrainScale;
+    const scaleX = isTree ? 2.5 : (isTerrain ? (config.tileScaleX ?? defaultTerrainScale) : defaultScale);
+    const scaleY = isTree ? 2.5 : (isTerrain ? (config.tileScaleY ?? defaultTerrainScale) : defaultScale);
 
     const objId = `obj_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
     const objData = {

@@ -150,8 +150,11 @@ export function TerrainEditorPanel({ isOpen, onClose, activeEditorTool, setActiv
     const nativeTileW = activeTileset.tileW;
     const nativeTileH = activeTileset.tileH;
 
-    const tileScaleX = tw / nativeTileW;
-    const tileScaleY = th / nativeTileH;
+    // Scale to map grid (32px base tile size on map)
+    const baseScaleX = 32 / nativeTileW;
+    const baseScaleY = 32 / nativeTileH;
+    const tileScaleX = baseScaleX * (tw / nativeTileW);
+    const tileScaleY = baseScaleY * (th / nativeTileH);
     const isAnim = animated && activeTileset.animatedRows !== undefined && startRow < (activeTileset.animatedRows ?? 0);
     let assetId: string;
     if (activeTilesetKey.startsWith("wf_")) {
@@ -162,16 +165,20 @@ export function TerrainEditorPanel({ isOpen, onClose, activeEditorTool, setActiv
     // Sync React state in parent App Component
     setSelectedPaletteAsset(assetId);
 
+    // Auto-set layer to "same" and solid to true for fences/construction items if currently "below"
+    const targetLayer = (activeTileset.category === "insaat" && layer === "below") ? "same" : layer;
+    const targetSolid = (activeTileset.category === "insaat") ? true : tileIsSolid;
+
     const existing = (window as any).editorConfig ?? {};
     const isMultiTile = sel.endCol > sel.startCol || sel.endRow > sel.startRow;
     (window as any).editorConfig = { ...existing, active:true,
       tool: tool === "erase" ? "eraser" : (tool === "fill_erase" ? "fill_erase" : (tool === "fill" ? "fill_region" : (tool === "picker" ? "pipette" : (tool === "move" ? "select" : "brush")))),
       selectedAsset: assetId, selectedTile: { x:startCol*nativeTileW, y:startRow*nativeTileH, w:nativeTileW, h:nativeTileH },
-      depthLayer: layer, snapSize: snapToGrid ? tw : 1, gridSnap: snapToGrid,
+      depthLayer: targetLayer, snapSize: snapToGrid ? 32 : 1, gridSnap: snapToGrid,
       tileScaleX, tileScaleY,
       // Tile behavior flags — controlled by checkboxes in terrain panel
       brushIsWater: tileIsWater,
-      brushIsSolid: tileIsSolid,
+      brushIsSolid: targetSolid,
       brushIsClimbable: tileIsClimbable,
       // Multi-tile brush data — GameScene loops through this grid on placement
       terrainBrush: isMultiTile ? {

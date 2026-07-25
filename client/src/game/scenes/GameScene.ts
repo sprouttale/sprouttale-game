@@ -5041,6 +5041,22 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private isGroundBaseTileAsset(assetId?: string): boolean {
+    if (!assetId) return false;
+    return (
+      assetId.startsWith("terrain_grass") ||
+      assetId.startsWith("terrain_water") ||
+      assetId.startsWith("terrain_path") ||
+      assetId.startsWith("terrain_cave") ||
+      assetId.startsWith("terrain_frozen") ||
+      assetId.startsWith("terrain_beach") ||
+      assetId.startsWith("terrain_carpet") ||
+      assetId.startsWith("wf_") ||
+      assetId === "zemin_tileset" ||
+      assetId.startsWith("tilled_soil")
+    );
+  }
+
   // ---- Map Editor helper methods ----
   private createPlacedObject(obj: any, key: string): void {
     if (this.placedObjectSprites.has(key)) {
@@ -5679,16 +5695,10 @@ export class GameScene extends Phaser.Scene {
     this.samePlayerGroup.remove(sprite);
     this.abovePlayerGroup.remove(sprite);
 
-    const isGroundTile = Boolean(
-      obj.assetId && (
-        obj.assetId.startsWith("terrain_") ||
-        obj.assetId.startsWith("wf_") ||
-        obj.assetId === "zemin_tileset" ||
-        obj.assetId.startsWith("tilled_soil")
-      )
-    );
-
-    if (isGroundTile || obj.depthLayer === "below") {
+    if (obj.assetId === "tilled_soil_dry" || obj.assetId === "tilled_soil_wet") {
+      sprite.setDepth(1.2 + obj.y / 100000);
+      this.belowPlayerGroup.add(sprite);
+    } else if (this.isGroundBaseTileAsset(obj.assetId) || obj.depthLayer === "below") {
       sprite.setDepth(0.5 + obj.y / 1000000);
       this.belowPlayerGroup.add(sprite);
     } else if (obj.depthLayer === "above") {

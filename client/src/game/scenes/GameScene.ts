@@ -5340,7 +5340,10 @@ export class GameScene extends Phaser.Scene {
       )
     );
 
-    if (isGroundTile || obj.depthLayer === "below") {
+    if (obj.assetId === "tilled_soil_dry" || obj.assetId === "tilled_soil_wet") {
+      sprite.setDepth(1.2 + obj.y / 100000 + _subDepth);
+      this.belowPlayerGroup.add(sprite);
+    } else if (isGroundTile || obj.depthLayer === "below") {
       sprite.setDepth(0.5 + obj.y / 1000000 + _subDepth);
       this.belowPlayerGroup.add(sprite);
     } else if (obj.depthLayer === "above") {

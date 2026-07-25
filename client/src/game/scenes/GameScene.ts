@@ -1633,6 +1633,9 @@ export class GameScene extends Phaser.Scene {
       const iconFile = cs.file.replace('.png', '_icon.png');
       this.load.image(cs.key + "_icon", `/assets/mahsul/${iconFile}`);
     });
+    // Alias for apple -> tomato spritesheet
+    this.load.spritesheet("crop_apple", "/assets/mahsul/tomato.png", { frameWidth: 16, frameHeight: 16 });
+    this.load.image("crop_apple_icon", "/assets/mahsul/tomato_icon.png");
 
     // --- Load 11 New Tilesets ---
     this.load.image("terrain_cave_water_ground_anims", "/assets/tileset/Cave_Water_Ground_animations_tiles.png");
@@ -4755,6 +4758,45 @@ export class GameScene extends Phaser.Scene {
       }
     });
 
+    // --- Farming Message Handlers ---
+    this.room.onMessage("crop_watered", (data: { soilId: string }) => {
+      if (data && data.soilId) {
+        const soil = this.room.state.mapObjects.get(data.soilId);
+        if (soil) {
+          this.createPlacedObject(soil, data.soilId);
+          this.showFloatingText(soil.x, soil.y - 20, "💧 Sullandı!", "#74b9ff");
+        }
+      }
+    });
+
+    this.room.onMessage("seed_planted", (data: { seedType: string }) => {
+      const px = this.localSprite?.container?.x || 0;
+      const py = this.localSprite?.container?.y || 0;
+      this.showFloatingText(px, py - 30, `🌱 ${data.seedType || 'Tohum'} Ekildi!`, "#2ed573");
+    });
+
+    this.room.onMessage("crop_harvested", (data: { cropType: string, count: number }) => {
+      const px = this.localSprite?.container?.x || 0;
+      const py = this.localSprite?.container?.y || 0;
+      this.showFloatingText(px, py - 30, `🌾 ${data.cropType || 'Mahsul'} Hasat Edildi!`, "#ffd32a");
+    });
+  }
+
+  private showFloatingText(x: number, y: number, text: string, color: string = "#ffffff"): void {
+    const txt = this.add.text(x, y, text, {
+      fontSize: "12px",
+      color,
+      stroke: "#000000",
+      strokeThickness: 3
+    }).setOrigin(0.5).setDepth(9999);
+
+    this.tweens.add({
+      targets: txt,
+      y: y - 25,
+      alpha: 0,
+      duration: 1200,
+      onComplete: () => txt.destroy()
+    });
   }
 
   // -------------------------------------------------------------------------
@@ -5012,38 +5054,25 @@ export class GameScene extends Phaser.Scene {
       container.add(soilSprite);
 
       if (obj.cropType && obj.cropType !== "none") {
-        const cropTextureKey = `crop_${obj.cropType}`;
-        if (this.textures.exists(cropTextureKey)) {
-          // Get total frames from spritesheet and pick the right stage frame
-          const frameTotal = this.textures.get(cropTextureKey).frameTotal - 1; // -1 for base frame
-          const stage = Math.min(obj.cropStage, 3);
-          // Map 0-3 stages to frames: spread evenly across total frames
-          const frameIndex = Math.min(Math.floor((stage / 3) * (frameTotal - 1)), frameTotal - 1);
-          const cropSprite = this.add.sprite(0, 0, cropTextureKey, frameIndex);
-          cropSprite.setScale(2.5);
-          container.add(cropSprite);
+        let cropTextureKey = `crop_${obj.cropType}`;
+        if (!this.textures.exists(cropTextureKey)) {
+          cropTextureKey = "crop_carrot";
+        }
 
-          // If stage 3 (fully grown) also show harvest icon above
-          if (stage >= 3) {
-            const iconKey = cropTextureKey + "_icon";
-            if (this.textures.exists(iconKey)) {
-              const harvestIcon = this.add.image(0, -24, iconKey).setScale(2);
-              container.add(harvestIcon);
-            }
-          }
-        } else {
-          // Fallback: simple seed/sprout graphics
-          const stage = obj.cropStage;
-          if (stage === 0) {
-            const seed = this.add.circle(0, 4, 3, 0xf1c40f);
-            container.add(seed);
-          } else {
-            const sprout = this.add.graphics();
-            sprout.lineStyle(2.5, 0x2ed573);
-            sprout.beginPath();
-            sprout.moveTo(0, 8); sprout.lineTo(0, -4 - stage * 3);
-            sprout.strokePath();
-            container.add(sprout);
+        const texture = this.textures.get(cropTextureKey);
+        const frameTotal = texture.frameTotal - 1;
+        const stage = Math.min(obj.cropStage, 3);
+        const frameIndex = Math.min(Math.floor((stage / 3) * (frameTotal - 1)), frameTotal - 1);
+        const cropSprite = this.add.sprite(0, 0, cropTextureKey, Math.max(0, frameIndex));
+        cropSprite.setScale(2.5);
+        container.add(cropSprite);
+
+        // If stage 3 (fully grown) also show harvest icon above
+        if (stage >= 3) {
+          const iconKey = cropTextureKey + "_icon";
+          if (this.textures.exists(iconKey)) {
+            const harvestIcon = this.add.image(0, -24, iconKey).setScale(2);
+            container.add(harvestIcon);
           }
         }
 
@@ -5058,6 +5087,7 @@ export class GameScene extends Phaser.Scene {
           container.add(waterLabel);
         }
       }
+
 
       sprite = container;
     } else if (obj.assetId === "wood") {

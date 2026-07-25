@@ -688,7 +688,7 @@ export class GameRoom extends Room<GameState> {
             }
           }
 
-          const isWatering = player.equippedTool.startsWith("watering_") || player.equippedTool === "watering";
+          const isWatering = player.equippedTool.includes("watering");
           if (isWatering) {
             let closestSoil: any = null;
             let closestDist = Infinity;
@@ -703,9 +703,9 @@ export class GameRoom extends Room<GameState> {
                 }
               }
             });
-            if (closestSoil && closestDist < 60) {
+            if (closestSoil && closestDist < 80) {
               closestSoil.cropWatered = true;
-              if (closestSoil.assetId === "tilled_soil_dry") closestSoil.assetId = "tilled_soil_wet";
+              closestSoil.assetId = "tilled_soil_wet";
               client.send("crop_watered", { soilId: closestSoil.id });
               this.saveMapToDisk();
               console.log(`[GameRoom] Player ${player.name} watered soil ${closestSoil.id}`);

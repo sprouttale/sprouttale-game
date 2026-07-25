@@ -549,7 +549,7 @@ export default function App() {
   const [isAnimalEditorOpen, setIsAnimalEditorOpen] = useState(false);
   const [activeEditorTool, setActiveEditorTool] = useState<"brush" | "eraser" | "select" | "solid" | "pipette" | "fill_region" | "fill_erase">("brush");
   const [selectedPaletteAsset, setSelectedPaletteAsset] = useState<string>("test_block");
-  const [editorCategory, setEditorCategory] = useState<"gif" | "dekorasyon" | "ev" | "zemin" | "indoor" | "tree" | "plant" | "mine" | "enemy" | "merchant" | "waterfall" | "box" | "trunks" | "big_old_tree" | "bushes" | "animal" | "decor2" | "yon">("gif");
+  const [editorCategory, setEditorCategory] = useState<"gif" | "dekorasyon" | "ev" | "zemin" | "indoor" | "tree" | "plant" | "mine" | "enemy" | "merchant" | "waterfall" | "box" | "trunks" | "big_old_tree" | "bushes" | "animal" | "decor2" | "yon" | "tarla">("gif");
   const [wfTheme, setWfTheme] = useState<"summer" | "deepforest" | "fall" | "spring">("summer");
   const [wfGridSize, setWfGridSize] = useState<16 | 32>(16);
   const [wfAnimated, setWfAnimated] = useState(true);
@@ -3078,11 +3078,69 @@ export default function App() {
               >
                 🧭 Yön Okları
               </button>
+              <button 
+                onClick={() => setEditorCategory("tarla")}
+                className={`editor-btn-small ${editorCategory === "tarla" ? "active" : ""}`}
+                style={{ fontSize: "8px", padding: "4px 8px", background: editorCategory === "tarla" ? "rgba(46,213,115,0.2)" : "#2f3542", borderColor: editorCategory === "tarla" ? "#2ed573" : "#747d8c", color: editorCategory === "tarla" ? "#2ed573" : "white" }}
+              >
+                🌱 Tarla / Çiftlik
+              </button>
 
             </div>
 
             {/* Category Items List */}
             <div style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "4px", minHeight: "80px" }}>
+
+              {/* 🌱 TARLA / ÇİFTLİK KATEGORİSİ */}
+              {editorCategory === "tarla" && (
+                <>
+                  {[
+                    { id: "tilled_soil_dry",  name: "🟫 Sürülmüş Tarla",  soilKey: "soil_tilled",  desc: "Ekime hazır toprak — tohumunu ek!" },
+                    { id: "tilled_soil_wet",  name: "💧 Sulanmış Tarla",   soilKey: "soil_watered", desc: "Sulanmış toprak — büyüme hızlanır!" },
+                  ].map((item) => (
+                    <div
+                      key={item.id}
+                      onClick={() => { setSelectedPaletteAsset(item.id); setActiveEditorTool("brush"); }}
+                      title={item.desc}
+                      style={{
+                        minWidth: "100px",
+                        height: "100px",
+                        background: selectedPaletteAsset === item.id ? "rgba(46,213,115,0.25)" : "rgba(255,255,255,0.05)",
+                        border: selectedPaletteAsset === item.id ? "2px solid #2ed573" : "1px solid rgba(255,255,255,0.12)",
+                        borderRadius: "8px",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        cursor: "pointer",
+                        padding: "6px",
+                        boxSizing: "border-box",
+                      }}
+                    >
+                      <div style={{ width: "56px", height: "56px", overflow: "hidden", display: "flex", justifyContent: "center", alignItems: "center", background: "rgba(0,0,0,0.3)", borderRadius: "50%" }}>
+                        <img
+                          src={`/assets/mahsul/${item.soilKey}.png`}
+                          style={{ width: "100%", height: "100%", objectFit: "cover", imageRendering: "pixelated" }}
+                          alt={item.name}
+                        />
+                      </div>
+                      <span style={{ fontSize: "9px", marginTop: "5px", fontWeight: "bold", color: selectedPaletteAsset === item.id ? "#2ed573" : "#dfe6e9", textAlign: "center", lineHeight: 1.2 }}>
+                        {item.name}
+                      </span>
+                    </div>
+                  ))}
+                  {/* Bilgi kutusu */}
+                  <div style={{ minWidth: "160px", padding: "10px", background: "rgba(46,213,115,0.08)", border: "1px solid rgba(46,213,115,0.25)", borderRadius: "8px", fontSize: "9px", color: "#a4b0be", lineHeight: 1.6 }}>
+                    <div style={{ color: "#2ed573", fontWeight: "bold", marginBottom: "4px" }}>🌾 Tarım Döngüsü</div>
+                    <div>1️⃣ Tarlayı yerleştir</div>
+                    <div>2️⃣ Tohumunu ekle (tıkla)</div>
+                    <div>3️⃣ Sulama kovası ile sula</div>
+                    <div>4️⃣ Büyüme animasyonu!</div>
+                    <div>5️⃣ Tırpanla hasatla 🌾</div>
+                  </div>
+                </>
+              )}
+
               {editorCategory === "decor2" && (
                 <>
                   {[

@@ -2696,7 +2696,7 @@ export class GameScene extends Phaser.Scene {
 
       // Erasing continuously when dragging/holding mouse down
       if (pointer.isDown && config.tool === "eraser") {
-        // Erase dynamic mapObjects (no depthLayer filter so all layers get erased)
+        // Erase dynamic mapObjects — send each object's OWN depthLayer so ground tiles on other layers are safe
         this.room.state.mapObjects.forEach((obj: any) => {
           const objMap = obj.mapId || "world_1";
           if (objMap !== this.currentMapId) return;
@@ -2705,19 +2705,21 @@ export class GameScene extends Phaser.Scene {
             window.dispatchEvent(new CustomEvent("editor_action_performed", {
               detail: { type: "delete", id: obj.id, data: { ...obj } }
             }));
-            this.room.send("delete_object", { id: obj.id, x: targetX, y: targetY, mapId: this.currentMapId });
+            this.room.send("delete_object", { id: obj.id, x: targetX, y: targetY, mapId: this.currentMapId, depthLayer: obj.depthLayer || "same" });
           }
         });
 
-        // ALSO erase static tiles at (targetX, targetY) on current map
+        // ALSO erase static tiles at (targetX, targetY) — send tile's own depthLayer from cache
         this.staticTileMapIds.forEach((tileMapId, tileId) => {
           if (tileMapId !== this.currentMapId) return;
           const sprite = this.placedObjectSprites.get(tileId);
           if (sprite && Math.round(sprite.x) === Math.round(targetX) && Math.round(sprite.y) === Math.round(targetY)) {
+            const cachedTile = this.staticTilesCache.find((t: any) => t.id === tileId);
+            const tileLayer = cachedTile?.depthLayer || (sprite as any).depthLayer || "below";
             window.dispatchEvent(new CustomEvent("editor_action_performed", {
-              detail: { type: "delete", id: tileId, data: { id: tileId, x: targetX, y: targetY } }
+              detail: { type: "delete", id: tileId, data: { id: tileId, x: targetX, y: targetY, depthLayer: tileLayer } }
             }));
-            this.room.send("delete_object", { id: tileId, x: targetX, y: targetY, mapId: this.currentMapId });
+            this.room.send("delete_object", { id: tileId, x: targetX, y: targetY, mapId: this.currentMapId, depthLayer: tileLayer });
           }
         });
       }
@@ -2831,11 +2833,14 @@ export class GameScene extends Phaser.Scene {
           window.dispatchEvent(new CustomEvent("editor_action_performed", {
             detail: { type: "delete", id: objId, data: oldData }
           }));
-          // Send delete_object without depthLayer so server checks both id AND x/y
-          this.room.send("delete_object", { id: objId, x: targetX, y: targetY, mapId: this.currentMapId });
+          // Send delete_object with the clicked sprite's own depthLayer so server only removes that layer
+          const clickedLayer = (clickedSprite as any)?.depthLayer ||
+            this.staticTilesCache.find((t: any) => t.id === objId)?.depthLayer ||
+            oldData?.depthLayer || null;
+          this.room.send("delete_object", { id: objId, x: targetX, y: targetY, mapId: this.currentMapId, ...(clickedLayer ? { depthLayer: clickedLayer } : {}) });
         } else {
-          // No sprite found: just send x/y delete so server removes any static tile there
-          this.room.send("delete_object", { id: `static_${targetX}_${targetY}`, x: targetX, y: targetY, mapId: this.currentMapId });
+          // No sprite found: send x/y delete for the CURRENT editor depth layer only
+          this.room.send("delete_object", { id: `static_${targetX}_${targetY}`, x: targetX, y: targetY, mapId: this.currentMapId, depthLayer: config.depthLayer || "below" });
         }
         window.dispatchEvent(new CustomEvent("editor_object_selected", { detail: null }));
       }

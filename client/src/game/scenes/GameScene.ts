@@ -1597,6 +1597,42 @@ export class GameScene extends Phaser.Scene {
     this.load.image("terrain_house",                  "/assets/tileset/tileset_house.png");
     this.load.image("terrain_temple",                 "/assets/tileset/tileset_temple.png");
     this.load.image("terrain_tilled_soil",            "/assets/tileset/tileset_tilled_soil.png");
+    // Tilled soil state sprites (from mahsul hasat.png split)
+    this.load.image("soil_dry",     "/assets/mahsul/soil_dry.png");
+    this.load.image("soil_tilled",  "/assets/mahsul/soil_tilled.png");
+    this.load.image("soil_watered", "/assets/mahsul/soil_watered.png");
+    // Mahsul büyüme spritesheetleri (16px yükseklik, değişken kare sayısı)
+    const CROP_SHEETS: { key: string; file: string; w: number; h: number }[] = [
+      { key: "crop_carrot",      file: "carrot.png",      w: 16, h: 16 },
+      { key: "crop_wheat",       file: "wheat.png",       w: 16, h: 16 },
+      { key: "crop_tomato",      file: "tomato.png",      w: 16, h: 16 },
+      { key: "crop_strawberry",  file: "strawberry.png",  w: 16, h: 16 },
+      { key: "crop_potato",      file: "potato.png",      w: 16, h: 16 },
+      { key: "crop_onion",       file: "onion.png",       w: 16, h: 16 },
+      { key: "crop_watermelon",  file: "watermelon.png",  w: 16, h: 16 },
+      { key: "crop_sunflower",   file: "sunflower.png",   w: 32, h: 32 },
+      { key: "crop_cabbage",     file: "cabbage.png",     w: 16, h: 16 },
+      { key: "crop_blueberry",   file: "blueberry.png",   w: 32, h: 32 },
+      { key: "crop_pineapple",   file: "pineapple.png",   w: 32, h: 32 },
+      { key: "crop_melon",       file: "melon.png",       w: 16, h: 16 },
+      { key: "crop_cucumber",    file: "cucumber.png",    w: 32, h: 32 },
+      { key: "crop_parsnip",     file: "parsnip.png",     w: 16, h: 16 },
+      { key: "crop_rice",        file: "rice.png",        w: 16, h: 16 },
+      { key: "crop_asparagus",   file: "asparagus.png",   w: 16, h: 16 },
+      { key: "crop_hot_pepper",  file: "hot_pepper.png",  w: 16, h: 16 },
+      { key: "crop_bell_pepper", file: "bell_pepper.png", w: 16, h: 16 },
+      { key: "crop_green_beans", file: "green_beans.png", w: 32, h: 32 },
+      { key: "crop_blackberry",  file: "blackberry.png",  w: 16, h: 16 },
+      { key: "crop_spring_onion",file: "spring_onion.png",w: 16, h: 16 },
+      { key: "crop_cauliflower", file: "cauliflower.png", w: 16, h: 16 },
+      { key: "crop_adzuki_bean", file: "adzuki_bean.png", w: 32, h: 32 },
+    ];
+    CROP_SHEETS.forEach(cs => {
+      this.load.spritesheet(cs.key, `/assets/mahsul/${cs.file}`, { frameWidth: cs.w, frameHeight: cs.h });
+      // Hasat ikonu (harvest görüntüsü)
+      const iconFile = cs.file.replace('.png', '_icon.png');
+      this.load.image(cs.key + "_icon", `/assets/mahsul/${iconFile}`);
+    });
 
     // --- Load 11 New Tilesets ---
     this.load.image("terrain_cave_water_ground_anims", "/assets/tileset/Cave_Water_Ground_animations_tiles.png");
@@ -4965,71 +5001,64 @@ export class GameScene extends Phaser.Scene {
 
     if (obj.assetId === "tilled_soil_dry" || obj.assetId === "tilled_soil_wet") {
       const isWet = obj.assetId === "tilled_soil_wet";
+      const hasCrop = obj.cropType && obj.cropType !== "none";
       const container = this.add.container(obj.x, obj.y);
       container.setSize(32, 32);
-      const soilBg = this.add.rectangle(0, 0, 32, 32, isWet ? 0x50371a : 0x825a2c);
-      soilBg.setStrokeStyle(1.5, isWet ? 0x2d1f0e : 0x5a3e1e);
-      container.add(soilBg);
+      // Choose the right soil texture based on state
+      const soilKey = isWet ? "soil_watered" : (hasCrop ? "soil_tilled" : "soil_tilled");
+      const soilSprite = this.textures.exists(soilKey)
+        ? this.add.image(0, 0, soilKey).setDisplaySize(40, 40)
+        : this.add.rectangle(0, 0, 32, 32, isWet ? 0x50371a : 0x825a2c) as any;
+      container.add(soilSprite);
 
       if (obj.cropType && obj.cropType !== "none") {
         const cropTextureKey = `crop_${obj.cropType}`;
         if (this.textures.exists(cropTextureKey)) {
-          const frameIndex = obj.cropStage * 2;
+          // Get total frames from spritesheet and pick the right stage frame
+          const frameTotal = this.textures.get(cropTextureKey).frameTotal - 1; // -1 for base frame
+          const stage = Math.min(obj.cropStage, 3);
+          // Map 0-3 stages to frames: spread evenly across total frames
+          const frameIndex = Math.min(Math.floor((stage / 3) * (frameTotal - 1)), frameTotal - 1);
           const cropSprite = this.add.sprite(0, 0, cropTextureKey, frameIndex);
-          cropSprite.setScale(2);
+          cropSprite.setScale(2.5);
           container.add(cropSprite);
+
+          // If stage 3 (fully grown) also show harvest icon above
+          if (stage >= 3) {
+            const iconKey = cropTextureKey + "_icon";
+            if (this.textures.exists(iconKey)) {
+              const harvestIcon = this.add.image(0, -24, iconKey).setScale(2);
+              container.add(harvestIcon);
+            }
+          }
         } else {
+          // Fallback: simple seed/sprout graphics
           const stage = obj.cropStage;
           if (stage === 0) {
             const seed = this.add.circle(0, 4, 3, 0xf1c40f);
             container.add(seed);
-          } else if (stage === 1) {
+          } else {
             const sprout = this.add.graphics();
             sprout.lineStyle(2.5, 0x2ed573);
             sprout.beginPath();
-            sprout.moveTo(0, 8);
-            sprout.lineTo(0, -2);
-            sprout.lineTo(-3, -5);
-            sprout.moveTo(0, -2);
-            sprout.lineTo(3, -5);
+            sprout.moveTo(0, 8); sprout.lineTo(0, -4 - stage * 3);
             sprout.strokePath();
             container.add(sprout);
-          } else if (stage === 2) {
-            const plant = this.add.graphics();
-            plant.lineStyle(3, 0x2ed573);
-            plant.beginPath();
-            plant.moveTo(0, 10);
-            plant.lineTo(0, -6);
-            plant.lineTo(-5, -10);
-            plant.moveTo(0, -2);
-            plant.lineTo(5, -6);
-            plant.moveTo(0, -6);
-            plant.lineTo(4, -12);
-            plant.strokePath();
-            container.add(plant);
-          } else if (stage === 3) {
-            const plant = this.add.graphics();
-            plant.lineStyle(3.5, 0x2ed573);
-            plant.beginPath();
-            plant.moveTo(0, 12);
-            plant.lineTo(0, -6);
-            plant.strokePath();
-            container.add(plant);
-
-            let cropColor = 0xffffff;
-            let cropIcon = "?";
-            if (obj.cropType === "apple") { cropColor = 0xff4757; cropIcon = "🍎"; }
-            else if (obj.cropType === "carrot") { cropColor = 0xffa502; cropIcon = "🥕"; }
-            else if (obj.cropType === "wheat") { cropColor = 0xffd32a; cropIcon = "🌾"; }
-
-            const fruit = this.add.circle(0, -8, 7, cropColor);
-            container.add(fruit);
-
-            const label = this.add.text(0, -18, cropIcon, { fontSize: "11px" }).setOrigin(0.5);
-            container.add(label);
           }
         }
+
+        // 💧 Su istiyorum göstergesi: Sulanmamış + ekin var + henüz büyümemiş
+        if (!obj.cropWatered && obj.cropStage < 3) {
+          const waterLabel = this.add.text(0, -20, "💧 SU!", {
+            fontSize: "8px",
+            color: "#74b9ff",
+            stroke: "#000",
+            strokeThickness: 2
+          }).setOrigin(0.5);
+          container.add(waterLabel);
+        }
       }
+
       sprite = container;
     } else if (obj.assetId === "wood") {
       sprite = this.add.sprite(obj.x, obj.y, "wood");

@@ -268,6 +268,7 @@ export class GameScene extends Phaser.Scene {
   private fillRegionGfx!: Phaser.GameObjects.Graphics;
   private fillRegionStart: { x: number; y: number } | null = null;
   private staticTilesCache: any[] = []; // Cache of all static tile data for fill_erase lookups
+  private staticTilesCacheSet = new Set<string>(); // Fast O(1) set for zero-lag scene loading
   private placedObjectSprites = new Map<string, Phaser.GameObjects.Rectangle | Phaser.GameObjects.Sprite>();
   private staticTileMapIds = new Map<string, string>(); // key -> mapId for static terrain tiles
   private waterfallSprites = new Set<Phaser.GameObjects.Sprite>();
@@ -3441,28 +3442,22 @@ export class GameScene extends Phaser.Scene {
       });
     }
 
-    // Fade out roofs when the local player is underneath them
-    if (this.localSprite && this.localSprite.container) {
+    // Fade out roofs when the local player is underneath them (only loop over abovePlayerGroup roofs for 60 FPS performance)
+    if (this.localSprite && this.localSprite.container && this.abovePlayerGroup) {
       const playerX = this.localSprite.container.x;
       const playerY = this.localSprite.container.y;
-      const isEditorActive = Boolean(editorConfig && editorConfig.active);
-
-      this.placedObjectSprites.forEach((sprite: any) => {
-        if (sprite) {
-          if (sprite.assetId === "collision_block") {
-            sprite.setVisible(isEditorActive);
-          }
-          if (sprite.depthLayer === "above") {
-            const bounds = sprite.getBounds();
-            const isUnder = bounds.contains(playerX, playerY);
-            if (isUnder) {
-              sprite.setAlpha(0.2);
-            } else {
-              sprite.setAlpha(1.0);
-            }
+      const aboveSprites = this.abovePlayerGroup.getChildren();
+      for (let i = 0; i < aboveSprites.length; i++) {
+        const sprite = aboveSprites[i] as Phaser.GameObjects.Sprite;
+        if (sprite && sprite.getBounds) {
+          const bounds = sprite.getBounds();
+          if (bounds.contains(playerX, playerY)) {
+            sprite.setAlpha(0.2);
+          } else {
+            sprite.setAlpha(1.0);
           }
         }
-      });
+      }
     }
 
     // 1. Read input and send to server
@@ -3505,11 +3500,20 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.playerSprites.forEach((sprite, sessionId) => {
-      // For local player, position is applied directly from room state in updatePlayerPosition()
-      // For remote players, we smoothly lerp towards targetX/targetY
+      // Smoothly lerp position for both remote and local players when settling
       if (sessionId !== this.localSessionId) {
         sprite.container.x = Phaser.Math.Linear(sprite.container.x, sprite.targetX, lerpFactor);
         sprite.container.y = Phaser.Math.Linear(sprite.container.y, sprite.targetY, lerpFactor);
+      } else {
+        const isKeysDown = this.cursors.left.isDown || this.cursors.right.isDown || this.cursors.up.isDown || this.cursors.down.isDown ||
+                           this.wasd.A.isDown || this.wasd.D.isDown || this.wasd.W.isDown || this.wasd.S.isDown;
+        if (!isKeysDown && sprite.targetX !== undefined && sprite.targetY !== undefined) {
+          const d = Phaser.Math.Distance.Between(sprite.container.x, sprite.container.y, sprite.targetX, sprite.targetY);
+          if (d > 0.5) {
+            sprite.container.x = Phaser.Math.Linear(sprite.container.x, sprite.targetX, lerpFactor);
+            sprite.container.y = Phaser.Math.Linear(sprite.container.y, sprite.targetY, lerpFactor);
+          }
+        }
       }
 
       // Update player depth dynamically by Y so they sort correctly against same-layer tiles.
@@ -4748,8 +4752,11 @@ export class GameScene extends Phaser.Scene {
         data.objects.forEach((tile: any) => {
           this.createPlacedObject(tile, tile.id);
           this.staticTileMapIds.set(tile.id, tile.mapId || "world_1");
-          // Cache tile data for fill_erase lookups
-          if (!this.staticTilesCache.find((t: any) => t.id === tile.id)) this.staticTilesCache.push({ ...tile });
+          // Fast O(1) Cache tile data
+          if (!this.staticTilesCacheSet.has(tile.id)) {
+            this.staticTilesCacheSet.add(tile.id);
+            this.staticTilesCache.push({ ...tile });
+          }
         });
       }
     });
@@ -4760,6 +4767,7 @@ export class GameScene extends Phaser.Scene {
         data.objectIds.forEach((id: string) => {
           this.destroyPlacedObject(id);
           this.staticTileMapIds.delete(id);
+          this.staticTilesCacheSet.delete(id);
         });
         // Remove from cache
         this.staticTilesCache = this.staticTilesCache.filter(t => !idSet.has(t.id));
@@ -4975,7 +4983,12 @@ export class GameScene extends Phaser.Scene {
       if (data.currentMap && data.currentMap !== this.currentMapId) {
         this.switchMap(data.currentMap);
       }
-      sprite.container.setPosition(data.x, data.y);
+      const dist = Phaser.Math.Distance.Between(sprite.container.x, sprite.container.y, data.x, data.y);
+      if (dist > 48) {
+        sprite.container.setPosition(data.x, data.y);
+      }
+      sprite.targetX = data.x;
+      sprite.targetY = data.y;
       this.registry.set("localX", Math.round(data.x));
       this.registry.set("localY", Math.round(data.y));
     } else {

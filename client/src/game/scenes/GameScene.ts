@@ -2697,32 +2697,19 @@ export class GameScene extends Phaser.Scene {
 
       // Erasing continuously when dragging/holding mouse down
       if (pointer.isDown && config.tool === "eraser") {
-        // Erase dynamic mapObjects — send each object's OWN depthLayer so ground tiles on other layers are safe
-        this.room.state.mapObjects.forEach((obj: any) => {
-          const objMap = obj.mapId || "world_1";
-          if (objMap !== this.currentMapId) return;
-
-          if (Math.round(obj.x) === Math.round(targetX) && Math.round(obj.y) === Math.round(targetY)) {
-            window.dispatchEvent(new CustomEvent("editor_action_performed", {
-              detail: { type: "delete", id: obj.id, data: { ...obj } }
-            }));
-            this.room.send("delete_object", { id: obj.id, x: targetX, y: targetY, mapId: this.currentMapId, depthLayer: obj.depthLayer || "same" });
-          }
-        });
-
-        // ALSO erase static tiles at (targetX, targetY) — send tile's own depthLayer from cache
-        this.staticTileMapIds.forEach((tileMapId, tileId) => {
-          if (tileMapId !== this.currentMapId) return;
-          const sprite = this.placedObjectSprites.get(tileId);
-          if (sprite && Math.round(sprite.x) === Math.round(targetX) && Math.round(sprite.y) === Math.round(targetY)) {
-            const cachedTile = this.staticTilesCache.find((t: any) => t.id === tileId);
-            const tileLayer = cachedTile?.depthLayer || (sprite as any).depthLayer || "below";
-            window.dispatchEvent(new CustomEvent("editor_action_performed", {
-              detail: { type: "delete", id: tileId, data: { id: tileId, x: targetX, y: targetY, depthLayer: tileLayer } }
-            }));
-            this.room.send("delete_object", { id: tileId, x: targetX, y: targetY, mapId: this.currentMapId, depthLayer: tileLayer });
-          }
-        });
+        const target = this.findEraserTargetAt(targetX, targetY);
+        if (target) {
+          window.dispatchEvent(new CustomEvent("editor_action_performed", {
+            detail: { type: "delete", id: target.id, data: target.data }
+          }));
+          this.room.send("delete_object", {
+            id: target.id,
+            x: target.data.x,
+            y: target.data.y,
+            mapId: this.currentMapId,
+            depthLayer: target.depthLayer
+          });
+        }
       }
 
       // Draw fill_region or fill_erase selection rectangle while dragging
@@ -2781,69 +2768,40 @@ export class GameScene extends Phaser.Scene {
         this.tryPlaceObjectAt(targetX, targetY);
       }
       else if (config.tool === "eraser") {
-        let objId = clickedSprite?.objId;
-        let oldData = null;
-        if (objId) {
-          oldData = {
-            id: objId,
-            assetId: clickedSprite.assetId,
-            x: clickedSprite.x,
-            y: clickedSprite.y,
-            scaleX: clickedSprite.scaleX,
-            scaleY: clickedSprite.scaleY,
-            rotation: clickedSprite.angle,
-            isSolid: clickedSprite.isSolid,
-            depthLayer: clickedSprite.depthLayer,
-            triggerType: clickedSprite.triggerType,
-            triggerTargetX: clickedSprite.triggerTargetX,
-            triggerTargetY: clickedSprite.triggerTargetY
-          };
+        let target = null;
+        const objIdFromClick = clickedSprite?.objId;
+        if (objIdFromClick) {
+          const mapObj = this.room.state.mapObjects.get ? this.room.state.mapObjects.get(objIdFromClick) : null;
+          const staticTile = this.staticTilesCache.find((t: any) => t.id === objIdFromClick);
+          const data = mapObj ? { ...mapObj } : (staticTile ? { ...staticTile } : { id: objIdFromClick, x: clickedSprite.x, y: clickedSprite.y });
+          const layer = mapObj?.depthLayer || staticTile?.depthLayer || (clickedSprite as any).depthLayer || "below";
+          target = { id: objIdFromClick, data, depthLayer: layer };
         } else {
-          // Check static tiles under click position
-          this.staticTileMapIds.forEach((tileMapId, tileId) => {
-            if (tileMapId !== this.currentMapId) return;
-            const sprite = this.placedObjectSprites.get(tileId);
-            if (sprite && Math.round(sprite.x) === Math.round(targetX) && Math.round(sprite.y) === Math.round(targetY)) {
-              objId = tileId;
-            }
-          });
-
-          if (!objId) {
-            let closestObj: any = null;
-            let closestDist = 32;
-            this.room.state.mapObjects.forEach((obj: any) => {
-              const objMap = obj.mapId || "world_1";
-              if (objMap !== this.currentMapId) return;
-
-              if (obj.assetId && obj.assetId.startsWith("spawn_")) {
-                const dist = Phaser.Math.Distance.Between(targetX, targetY, obj.x, obj.y);
-                if (dist < closestDist) {
-                  closestDist = dist;
-                  closestObj = obj;
-                }
-              }
-            });
-            if (closestObj) {
-              objId = closestObj.id;
-              oldData = { ...closestObj };
-            }
-          }
+          target = this.findEraserTargetAt(targetX, targetY);
         }
 
-        if (objId) {
+        if (target) {
           window.dispatchEvent(new CustomEvent("editor_action_performed", {
-            detail: { type: "delete", id: objId, data: oldData }
+            detail: { type: "delete", id: target.id, data: target.data }
           }));
-          // Send delete_object with the clicked sprite's own depthLayer so server only removes that layer
-          const clickedLayer = (clickedSprite as any)?.depthLayer ||
-            this.staticTilesCache.find((t: any) => t.id === objId)?.depthLayer ||
-            oldData?.depthLayer || null;
-          this.room.send("delete_object", { id: objId, x: targetX, y: targetY, mapId: this.currentMapId, ...(clickedLayer ? { depthLayer: clickedLayer } : {}) });
+          this.room.send("delete_object", {
+            id: target.id,
+            x: target.data.x,
+            y: target.data.y,
+            mapId: this.currentMapId,
+            depthLayer: target.depthLayer
+          });
         } else {
-          // No sprite found: send x/y delete for the CURRENT editor depth layer only
+          // Fallback: send x/y delete for current depth layer
           this.room.send("delete_object", { id: `static_${targetX}_${targetY}`, x: targetX, y: targetY, mapId: this.currentMapId, depthLayer: config.depthLayer || "below" });
         }
-        window.dispatchEvent(new CustomEvent("editor_object_selected", { detail: null }));
+      }
+      else if (config.tool === "select") {
+        if (clickedSprite && clickedSprite.objId) {
+          this.selectObjectById(clickedSprite.objId);
+        } else {
+          window.dispatchEvent(new CustomEvent("editor_object_selected", { detail: null }));
+        }
       }
       else if (config.tool === "solid" && clickedSprite && clickedSprite.objId) {
         const newSolid = !clickedSprite.isSolid;
@@ -5050,13 +5008,71 @@ export class GameScene extends Phaser.Scene {
 
   private isPathOrOverlayTileAsset(assetId?: string): boolean {
     if (!assetId) return false;
+    const low = assetId.toLowerCase();
+
+    // Check tiles from wf_ tilesets: row >= 5 is path/dirt/stone/wood/wall
+    if (low.startsWith("wf_")) {
+      const parts = low.split("_");
+      if (parts.length >= 4) {
+        const row = parseInt(parts[3], 10);
+        if (!isNaN(row) && row >= 5) return true;
+      }
+    }
+
     return (
-      assetId.startsWith("terrain_path") ||
-      assetId.startsWith("terrain_carpet") ||
-      assetId.startsWith("path_tiles") ||
-      assetId.startsWith("carpet") ||
-      assetId.startsWith("tilled_soil")
+      low.includes("path") ||
+      low.includes("dirt") ||
+      low.includes("road") ||
+      low.includes("carpet") ||
+      low.includes("tilled_soil") ||
+      low.includes("stone") ||
+      low.includes("wood_floor") ||
+      low.includes("bridge") ||
+      low.startsWith("zemin_")
     );
+  }
+
+  private findEraserTargetAt(targetX: number, targetY: number): { id: string; data: any; depthLayer: string } | null {
+    let bestMatch: any = null;
+    let highestDepth = -999999;
+
+    // 1. Check dynamic mapObjects
+    this.room.state.mapObjects.forEach((obj: any) => {
+      const objMap = obj.mapId || "world_1";
+      if (objMap !== this.currentMapId) return;
+
+      const dx = Math.abs(obj.x - targetX);
+      const dy = Math.abs(obj.y - targetY);
+      if (dx <= 16 && dy <= 16) {
+        const sprite = this.placedObjectSprites.get(obj.id);
+        const depth = sprite ? sprite.depth : 0;
+        if (depth > highestDepth) {
+          highestDepth = depth;
+          bestMatch = { id: obj.id, data: { ...obj }, depthLayer: obj.depthLayer || "below" };
+        }
+      }
+    });
+
+    if (bestMatch) return bestMatch;
+
+    // 2. Check static tiles cache
+    this.staticTilesCache.forEach((t: any) => {
+      const tileMapId = t.mapId || "world_1";
+      if (tileMapId !== this.currentMapId) return;
+
+      const dx = Math.abs(t.x - targetX);
+      const dy = Math.abs(t.y - targetY);
+      if (dx <= 16 && dy <= 16) {
+        const sprite = this.placedObjectSprites.get(t.id);
+        const depth = sprite ? sprite.depth : 0;
+        if (depth > highestDepth) {
+          highestDepth = depth;
+          bestMatch = { id: t.id, data: { ...t }, depthLayer: t.depthLayer || "below" };
+        }
+      }
+    });
+
+    return bestMatch;
   }
 
   private isGroundBaseTileAsset(assetId?: string): boolean {
@@ -5399,17 +5415,17 @@ export class GameScene extends Phaser.Scene {
     sprite.setAngle(obj.rotation || 0);
 
     // Apply Z-index depth layer — calculate subDepth for stacking
-    const _tsMatch = (obj.id || "").match(/^obj_(\d+)_/);
-    const _ts = _tsMatch ? Number(_tsMatch[1]) % 1000000 : 0;
+    const _tsMatch = (obj.id || "").match(/\d+/);
+    const _ts = _tsMatch ? Number(_tsMatch[0]) % 1000000 : 0;
     const _subDepth = _ts / 1000000000; // tiny fraction: 0 to 0.001
 
     if (this.isPathOrOverlayTileAsset(obj.assetId)) {
-      // Path, carpet & tilled soil overlay tiles render ABOVE base grass (depth 1.0 - 1.5)
-      sprite.setDepth(1.0 + obj.y / 1000000 + _subDepth);
+      // Path, carpet & tilled soil overlay tiles render ABOVE base grass (depth 0.8)
+      sprite.setDepth(0.8 + obj.y / 1000000 + _subDepth);
       this.belowPlayerGroup.add(sprite);
     } else if (this.isGroundBaseTileAsset(obj.assetId) || obj.depthLayer === "below") {
-      // Base grass/beach/water ground tiles render at depth 0.3
-      sprite.setDepth(0.3 + obj.y / 1000000 + _subDepth);
+      // Base grass/beach/water ground tiles render at depth 0.2
+      sprite.setDepth(0.2 + obj.y / 1000000 + _subDepth);
       this.belowPlayerGroup.add(sprite);
     } else if (obj.depthLayer === "above") {
       sprite.setDepth(4.0 + _subDepth);
@@ -5707,20 +5723,24 @@ export class GameScene extends Phaser.Scene {
     this.samePlayerGroup.remove(sprite);
     this.abovePlayerGroup.remove(sprite);
 
+    const _tsMatchU = (obj.id || "").match(/\d+/);
+    const _tsU = _tsMatchU ? Number(_tsMatchU[0]) % 1000000 : 0;
+    const _subDepthU = _tsU / 1000000000;
+
     if (this.isPathOrOverlayTileAsset(obj.assetId)) {
-      sprite.setDepth(1.0 + obj.y / 1000000);
+      sprite.setDepth(0.8 + obj.y / 1000000 + _subDepthU);
       this.belowPlayerGroup.add(sprite);
     } else if (this.isGroundBaseTileAsset(obj.assetId) || obj.depthLayer === "below") {
-      sprite.setDepth(0.3 + obj.y / 1000000);
+      sprite.setDepth(0.2 + obj.y / 1000000 + _subDepthU);
       this.belowPlayerGroup.add(sprite);
     } else if (obj.depthLayer === "above") {
-      sprite.setDepth(4.0);
+      sprite.setDepth(4.0 + _subDepthU);
       this.abovePlayerGroup.add(sprite);
     } else {
       const displayH = sprite.displayHeight || 32;
       const originY = sprite.originY !== undefined ? sprite.originY : 0.5;
       const bottomY = obj.y + (1 - originY) * displayH;
-      sprite.setDepth(2.5 + bottomY / 10000);
+      sprite.setDepth(2.5 + bottomY / 10000 + _subDepthU);
       this.samePlayerGroup.add(sprite);
     }
 

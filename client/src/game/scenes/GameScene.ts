@@ -2829,23 +2829,55 @@ export class GameScene extends Phaser.Scene {
           }
         }
       }
-      else if (config.tool === "pipette" && clickedSprite && clickedSprite.objId) {
-        this.selectObjectById(clickedSprite.objId);
-        window.dispatchEvent(new CustomEvent("editor_pipette_cloned", {
-          detail: {
-            assetId: clickedSprite.assetId,
-            isSolid: clickedSprite.isSolid,
-            depthLayer: clickedSprite.depthLayer,
-            tileX: clickedSprite.tileX !== undefined ? clickedSprite.tileX : -1,
-            tileY: clickedSprite.tileY !== undefined ? clickedSprite.tileY : -1,
-            tileW: clickedSprite.tileW !== undefined ? clickedSprite.tileW : 0,
-            tileH: clickedSprite.tileH !== undefined ? clickedSprite.tileH : 0,
-            solidWidth: clickedSprite.solidWidth !== undefined ? clickedSprite.solidWidth : 0,
-            solidHeight: clickedSprite.solidHeight !== undefined ? clickedSprite.solidHeight : 0,
-            solidOffsetX: clickedSprite.solidOffsetX !== undefined ? clickedSprite.solidOffsetX : 0,
-            solidOffsetY: clickedSprite.solidOffsetY !== undefined ? clickedSprite.solidOffsetY : 0
+      else if (config.tool === "solid") {
+        // Toggle solid flag on clicked or nearest object
+        let solidTarget: any = null;
+        if (clickedSprite && clickedSprite.objId) {
+          solidTarget = { id: clickedSprite.objId, isSolid: clickedSprite.isSolid };
+        } else {
+          const found = this.findEraserTargetAt(targetX, targetY);
+          if (found) {
+            const sprite = this.placedObjectSprites.get(found.id);
+            solidTarget = { id: found.id, isSolid: (sprite as any)?.isSolid || false };
           }
-        }));
+        }
+        if (solidTarget) {
+          const newSolid = !solidTarget.isSolid;
+          window.dispatchEvent(new CustomEvent("editor_action_performed", {
+            detail: { type: "update", id: solidTarget.id, oldData: { isSolid: solidTarget.isSolid }, newData: { isSolid: newSolid } }
+          }));
+          this.room.send("update_object", { id: solidTarget.id, isSolid: newSolid });
+          this.selectObjectById(solidTarget.id);
+        }
+      }
+      else if (config.tool === "pipette") {
+        // Pipette: use clicked sprite or find nearest object
+        let pipetteSprite: any = clickedSprite;
+        if (!pipetteSprite || !pipetteSprite.objId) {
+          const found = this.findEraserTargetAt(targetX, targetY);
+          if (found) {
+            pipetteSprite = this.placedObjectSprites.get(found.id) as any;
+            if (pipetteSprite) pipetteSprite.objId = found.id;
+          }
+        }
+        if (pipetteSprite && pipetteSprite.objId) {
+          this.selectObjectById(pipetteSprite.objId);
+          window.dispatchEvent(new CustomEvent("editor_pipette_cloned", {
+            detail: {
+              assetId: pipetteSprite.assetId,
+              isSolid: pipetteSprite.isSolid,
+              depthLayer: pipetteSprite.depthLayer,
+              tileX: pipetteSprite.tileX !== undefined ? pipetteSprite.tileX : -1,
+              tileY: pipetteSprite.tileY !== undefined ? pipetteSprite.tileY : -1,
+              tileW: pipetteSprite.tileW !== undefined ? pipetteSprite.tileW : 0,
+              tileH: pipetteSprite.tileH !== undefined ? pipetteSprite.tileH : 0,
+              solidWidth: pipetteSprite.solidWidth !== undefined ? pipetteSprite.solidWidth : 0,
+              solidHeight: pipetteSprite.solidHeight !== undefined ? pipetteSprite.solidHeight : 0,
+              solidOffsetX: pipetteSprite.solidOffsetX !== undefined ? pipetteSprite.solidOffsetX : 0,
+              solidOffsetY: pipetteSprite.solidOffsetY !== undefined ? pipetteSprite.solidOffsetY : 0
+            }
+          }));
+        }
       }
     });
 
@@ -4699,11 +4731,13 @@ export class GameScene extends Phaser.Scene {
         data.objects.forEach((tile: any) => {
           this.createPlacedObject(tile, tile.id);
           this.staticTileMapIds.set(tile.id, tile.mapId || "world_1");
-          // Fast O(1) Cache tile data
-          if (!this.staticTilesCacheSet.has(tile.id)) {
+          // Update cache: remove stale entry first if same id already exists, then push fresh data
+          if (this.staticTilesCacheSet.has(tile.id)) {
+            this.staticTilesCache = this.staticTilesCache.filter((t: any) => t.id !== tile.id);
+          } else {
             this.staticTilesCacheSet.add(tile.id);
-            this.staticTilesCache.push({ ...tile });
           }
+          this.staticTilesCache.push({ ...tile });
         });
       }
     });

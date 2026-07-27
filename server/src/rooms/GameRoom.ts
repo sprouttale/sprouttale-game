@@ -197,10 +197,31 @@ export class GameRoom extends Room<GameState> {
         // Wandering AI strictly inside upper fenced enclosure (world_8, X: 240..580, Y: 195..320)
         let tData = this.chickenTargets.get(id);
         if (!tData || now >= tData.nextMoveTime) {
+          let bestX = 240 + Math.random() * 340;
+          let bestY = 195 + Math.random() * 125;
+          // Try to pick a target destination at least 40px away from other chickens
+          for (let attempt = 0; attempt < 10; attempt++) {
+            const candX = 240 + Math.random() * 340;
+            const candY = 195 + Math.random() * 125;
+            let tooClose = false;
+            this.state.chickens.forEach((otherC, otherId) => {
+              if (otherId !== id) {
+                if (Math.hypot(candX - otherC.x, candY - otherC.y) < 40) {
+                  tooClose = true;
+                }
+              }
+            });
+            if (!tooClose) {
+              bestX = candX;
+              bestY = candY;
+              break;
+            }
+          }
+
           tData = {
-            targetX: 240 + Math.random() * 340,
-            targetY: 195 + Math.random() * 125,
-            nextMoveTime: now + 3000 + Math.random() * 5000 // New destination every 3-8 seconds
+            targetX: bestX,
+            targetY: bestY,
+            nextMoveTime: now + 4000 + Math.random() * 6000 // New destination every 4-10 seconds
           };
           this.chickenTargets.set(id, tData);
         }
@@ -210,14 +231,31 @@ export class GameRoom extends Room<GameState> {
         const dy = tData.targetY - chicken.y;
         const dist = Math.hypot(dx, dy);
         if (dist > 3) {
-          const speed = 1.2; // Slow gentle walking speed
+          const speed = 1.0; // Gentle walking speed
           chicken.x += (dx / dist) * Math.min(dist, speed);
           chicken.y += (dy / dist) * Math.min(dist, speed);
         }
+      });
 
-        // Strict fence boundary collision enforcement (never pass through fences)
-        chicken.x = Math.max(240, Math.min(580, chicken.x));
-        chicken.y = Math.max(195, Math.min(320, chicken.y));
+      // Chicken-to-Chicken Separation Force (prevents overlapping/bunching up)
+      const MIN_DIST = 30; // Minimum 30px gap between chickens
+      this.state.chickens.forEach((cA, idA) => {
+        this.state.chickens.forEach((cB, idB) => {
+          if (idA !== idB && cA.mapId === cB.mapId) {
+            const dx = cA.x - cB.x;
+            const dy = cA.y - cB.y;
+            const dist = Math.hypot(dx, dy);
+            if (dist > 0 && dist < MIN_DIST) {
+              const overlap = MIN_DIST - dist;
+              cA.x += (dx / dist) * (overlap * 0.35);
+              cA.y += (dy / dist) * (overlap * 0.35);
+            }
+          }
+        });
+
+        // Strict fence boundary collision enforcement (never pass through outer fences)
+        cA.x = Math.max(240, Math.min(580, cA.x));
+        cA.y = Math.max(195, Math.min(320, cA.y));
       });
     }, 300);
 

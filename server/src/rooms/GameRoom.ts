@@ -279,6 +279,7 @@ export class GameRoom extends Room<GameState> {
 
       this.state.chickens.set(chicken.id, chicken);
       this.performChickensSave();
+      this.performPlayersSave();
 
       client.send("chicken_box_opened", {
         colorType: randomVariant,
@@ -316,7 +317,7 @@ export class GameRoom extends Room<GameState> {
         chickenId: chicken.id,
         totalEggs: totalProduced,
         inventoryEggs: current + 1,
-        message: `+1 🥚 Yumurta toplandı! (${totalProduced}/48)`
+        message: "+1 🥚 Yumurta toplandı!"
       });
 
       console.log(`[GameRoom] Player ${player.name} collected egg from chicken ${chicken.id} (${totalProduced}/48)`);
@@ -331,6 +332,7 @@ export class GameRoom extends Room<GameState> {
       }
 
       this.performChickensSave();
+      this.performPlayersSave();
     });
 
     // Static tile request — stream chunks smoothly with 10ms intervals to prevent WebSocket buffer saturation
@@ -1725,6 +1727,7 @@ export class GameRoom extends Room<GameState> {
     player.hp = 100;
     player.maxHp = 100;
     player.tokens = 100000;
+    this.loadPlayerFromDisk(player);
 
     // Add to the synchronized state — all other clients will receive onAdd
     this.state.players.set(client.sessionId, player);
@@ -1749,6 +1752,7 @@ export class GameRoom extends Room<GameState> {
   }
 
   onLeave(client: Client, _consented: boolean): void {
+    this.performPlayersSave();
     this.cancelFishing(client.sessionId);
 
     // Remove from state — all other clients will receive onRemove
@@ -3234,6 +3238,63 @@ export class GameRoom extends Room<GameState> {
       }
     } catch (err) {
       console.error("[GameRoom] Error loading chickens:", err);
+    }
+  }
+
+  private performPlayersSave(): void {
+    try {
+      const mapDataDir = path.join(process.cwd(), "_mapdata");
+      if (!fs.existsSync(mapDataDir)) {
+        try { fs.mkdirSync(mapDataDir, { recursive: true }); } catch (e) {}
+      }
+      const savePath = path.join(mapDataDir, "players_save.json");
+      let allPlayerData: Record<string, any> = {};
+      if (fs.existsSync(savePath)) {
+        try {
+          allPlayerData = JSON.parse(fs.readFileSync(savePath, "utf8")) || {};
+        } catch (e) {}
+      }
+
+      this.state.players.forEach((p) => {
+        if (!p.name) return;
+        const hObj: Record<string, number> = {};
+        p.harvests.forEach((v, k) => {
+          hObj[k] = v;
+        });
+
+        allPlayerData[p.name] = {
+          tokens: p.tokens,
+          harvests: hObj,
+          equippedTool: p.equippedTool
+        };
+      });
+
+      fs.writeFileSync(savePath, JSON.stringify(allPlayerData, null, 2), "utf8");
+    } catch (err) {
+      console.error("[GameRoom] Error saving players data:", err);
+    }
+  }
+
+  private loadPlayerFromDisk(player: PlayerState): void {
+    try {
+      if (!player.name) return;
+      const savePath = path.join(process.cwd(), "_mapdata", "players_save.json");
+      if (fs.existsSync(savePath)) {
+        const allPlayerData = JSON.parse(fs.readFileSync(savePath, "utf8"));
+        const pData = allPlayerData[player.name];
+        if (pData) {
+          if (pData.tokens !== undefined) player.tokens = Number(pData.tokens);
+          if (pData.equippedTool) player.equippedTool = String(pData.equippedTool);
+          if (pData.harvests && typeof pData.harvests === "object") {
+            Object.entries(pData.harvests).forEach(([k, v]) => {
+              player.harvests.set(k, Number(v));
+            });
+          }
+          console.log(`[GameRoom] 💾 Restored saved data for player ${player.name}: Tokens=${player.tokens}, Harvests=`, pData.harvests);
+        }
+      }
+    } catch (err) {
+      console.error("[GameRoom] Error loading player state from disk:", err);
     }
   }
 }

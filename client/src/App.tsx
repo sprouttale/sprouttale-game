@@ -2125,10 +2125,18 @@ export default function App() {
                         <div key={chk.id} className="shop-item glass" style={{ padding: "12px", display: "flex", flexDirection: "column", gap: "6px", borderColor: chk.eggReady ? "#1dd1a1" : "rgba(255,255,255,0.1)" }}>
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                             <span style={{ fontWeight: "bold", fontSize: "11px", color: "#f1c40f" }}>🐔 {chk.colorType}</span>
-                            <span style={{ fontSize: "9px", color: "#c8d6e5" }}>📊 {chk.eggsProduced || 0} / 48 Yumurta</span>
                           </div>
                           <div style={{ fontSize: "10px", color: chk.eggReady ? "#1dd1a1" : "#ff9f43", fontWeight: "bold" }}>
-                            {chk.eggReady ? "🥚 Yumurta Hazır! (Toplayabilirsiniz)" : "⏳ 1 Saatlik Yumurta Üretimi Sürüyor..."}
+                            {chk.eggReady ? "🥚 Yumurta Hazır! (Toplayabilirsiniz)" : (() => {
+                              const remainingMs = Math.max(0, 3600000 - (Date.now() - (chk.lastEggTime || Date.now())));
+                              const remainingSec = Math.ceil(remainingMs / 1000);
+                              if (remainingSec >= 60) {
+                                const mins = Math.floor(remainingSec / 60);
+                                const secs = remainingSec % 60;
+                                return `⏳ Yumurtlamaya Kalan: ${mins}dk ${secs}sn`;
+                              }
+                              return `⏳ Yumurtlamaya Kalan: ${remainingSec}sn`;
+                            })()}
                           </div>
                           {chk.eggReady && (
                             <button

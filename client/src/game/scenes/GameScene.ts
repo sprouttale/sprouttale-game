@@ -5120,7 +5120,20 @@ export class GameScene extends Phaser.Scene {
       if (chicken.eggReady) {
         this.room.send("collect_chicken_egg", { chickenId: id });
       } else {
-        this.showFloatingText(container.x, container.y - 20, `🥚 Henüz hazır değil (${chicken.eggsProduced || 0}/48)`, "#f1c40f");
+        const lastTime = Number(chicken.lastEggTime || Date.now());
+        const EGG_INTERVAL_MS = 3600000; // 1 hour
+        const remainingMs = Math.max(0, EGG_INTERVAL_MS - (Date.now() - lastTime));
+        const remainingSec = Math.ceil(remainingMs / 1000);
+
+        let timeStr = "";
+        if (remainingSec >= 60) {
+          const mins = Math.floor(remainingSec / 60);
+          const secs = remainingSec % 60;
+          timeStr = `⏳ ${mins}dk ${secs}sn`;
+        } else {
+          timeStr = `⏳ ${remainingSec}sn`;
+        }
+        this.showFloatingText(container.x, container.y - 20, timeStr, "#f1c40f");
       }
     });
 

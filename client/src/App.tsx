@@ -42,10 +42,18 @@ export const INVENTORY_TOOLS: ToolItem[] = [
   { id: "bug_net", name: "Catching Net", icon: "🕸️", desc: "Basic Bug Net" }
 ];
 
-const TIER_MATERIALS = [
-  "Wood", "Copper", "Iron", "Gold", "Platinum",
-  "Crimson", "Frost", "Shadow", "Fairy", "Obsidian"
-];
+const TIER_MATERIALS_TR: { [key: number]: string } = {
+  1: "Ahşap",
+  2: "Bakır",
+  3: "Gümüş",
+  4: "Altın",
+  // 5: Platin (Kaldırıldı)
+  6: "Ametist",
+  7: "Yakut",
+  8: "Zümrüt",
+  9: "Safir",
+  10: "Obsidyen"
+};
 
 const TIER_PREFIXES = [
   "wood", "copper", "iron", "gold", "platinum",
@@ -53,167 +61,189 @@ const TIER_PREFIXES = [
 ];
 
 for (let i = 1; i <= 10; i++) {
-  const mat = TIER_MATERIALS[i - 1];
+  if (i === 5) continue; // Platin kaldırıldı!
 
+  const mat = TIER_MATERIALS_TR[i];
   const prefix = TIER_PREFIXES[i - 1];
   const toolIcon = (type: string) => `/assets/tools/${prefix}_${type}.png`;
 
   INVENTORY_TOOLS.push({
     id: `pickaxe_${i}`,
-    name: `${mat} Pickaxe`,
+    name: `${mat} Kazması`,
     icon: toolIcon("pickaxe") ?? "⛏️",
-    desc: `Tier ${i} Mining Tool`
+    desc: `Seviye ${i} Madencilik Kazması`
   });
   INVENTORY_TOOLS.push({
     id: `hoe_${i}`,
-    name: `${mat} Hoe`,
+    name: `${mat} Çapası`,
     icon: toolIcon("hoe") ?? "🧑‍🌾",
-    desc: `Tier ${i} Farming Tool`
+    desc: `Seviye ${i} Tarım Çapası`
   });
   INVENTORY_TOOLS.push({
     id: `axe_${i}`,
-    name: `${mat} Axe`,
+    name: `${mat} Baltası`,
     icon: toolIcon("axe") ?? "🪓",
-    desc: `Tier ${i} Chopping Tool`
+    desc: `Seviye ${i} Odunculuk Baltası`
   });
   INVENTORY_TOOLS.push({
     id: `sickle_${i}`,
-    name: `${mat} Sickle`,
+    name: `${mat} Orağı`,
     icon: toolIcon("sickle") ?? "🌾",
-    desc: `Tier ${i} Harvesting Tool`
+    desc: `Seviye ${i} Hasat Orağı`
   });
   INVENTORY_TOOLS.push({
     id: `shovel_${i}`,
-    name: `${mat} Shovel`,
+    name: `${mat} Küreği`,
     icon: toolIcon("shovel") ?? "🥄",
-    desc: `Tier ${i} Digging Tool`
+    desc: `Seviye ${i} Kazı Küreği`
   });
   INVENTORY_TOOLS.push({
     id: `watering_${i}`,
-    name: `${mat} Watering Can`,
+    name: `${mat} Sulama Kabı`,
     icon: toolIcon("watering_can") ?? "🪣",
-    desc: `Tier ${i} Watering Tool`
+    desc: `Seviye ${i} Sulama Ekipmanı`
   });
   INVENTORY_TOOLS.push({
     id: `sword_${i}`,
-    name: `${mat} Sword`,
+    name: `${mat} Kılıcı`,
     icon: toolIcon("sword") ?? "⚔️",
-    desc: `Tier ${i} Combat Weapon`
+    desc: `Seviye ${i} Savaş Kılıcı`
   });
   INVENTORY_TOOLS.push({
     id: `archer_${i}`,
-    name: `${mat} Bow`,
+    name: `${mat} Yayı`,
     icon: toolIcon("bow") ?? "🏹",
-    desc: `Tier ${i} Ranged Weapon`
+    desc: `Seviye ${i} Menzilli Yay`
   });
   INVENTORY_TOOLS.push({
     id: `fishing_${i}`,
-    name: `${mat} Fishing Rod`,
+    name: `${mat} Oltası`,
     icon: toolIcon("fishing_rod") ?? "🎣",
-    desc: `Tier ${i} Fishing Rod`
+    desc: `Seviye ${i} Balık Oltası`
   });
   INVENTORY_TOOLS.push({
     id: `staff_${i}`,
-    name: `${mat} Staff`,
+    name: `${mat} Asası`,
     icon: toolIcon("staff") ?? "🪄",
-    desc: `Tier ${i} Mage Weapon`
+    desc: `Seviye ${i} Büyücü Asası`
   });
   INVENTORY_TOOLS.push({
     id: `arrow_${i}`,
-    name: `${mat} Arrow`,
+    name: `${mat} Oku`,
     icon: toolIcon("arrow") ?? "🏹",
-    desc: `Tier ${i} Ranged Ammo`
+    desc: `Seviye ${i} Ok Cephanesi`
   });
   INVENTORY_TOOLS.push({
     id: `helmet_${i}`,
-    name: `${mat} Helmet`,
+    name: `${mat} Kaskı`,
     icon: toolIcon("helmet") ?? "🪖",
-    desc: `Tier ${i} Armor (+${10 * i} Max HP)`
+    desc: `Seviye ${i} Kask (+${10 * i} Max Can)`
   });
   INVENTORY_TOOLS.push({
     id: `chestplate_${i}`,
-    name: `${mat} Chestplate`,
+    name: `${mat} Zırhı`,
     icon: toolIcon("chestplate") ?? "🛡️",
-    desc: `Tier ${i} Armor (+${15 * i} Max HP)`
+    desc: `Seviye ${i} Göğüs Zırhı (+${15 * i} Max Can)`
   });
   INVENTORY_TOOLS.push({
     id: `leggings_${i}`,
-    name: `${mat} Leggings`,
+    name: `${mat} Pantolonu`,
     icon: toolIcon("leggings") ?? "👖",
-    desc: `Tier ${i} Armor (+${10 * i} Max HP)`
+    desc: `Seviye ${i} Pantolon (+${10 * i} Max Can)`
   });
   INVENTORY_TOOLS.push({
     id: `boots_${i}`,
-    name: `${mat} Boots`,
+    name: `${mat} Botları`,
     icon: toolIcon("boots") ?? "🥾",
-    desc: `Tier ${i} Armor (+${5 * i} Max HP)`
+    desc: `Seviye ${i} Botlar (+${5 * i} Max Can)`
   });
 }
 
 export function getToolDisplayName(toolId: string): string {
-  if (toolId === "bug_net") return "🕸️ Catching Net";
+  if (toolId === "bug_net") return "🕸️ Böcek Ağı";
+
+  const foundItem = INVENTORY_TOOLS.find(t => t.id === toolId);
+  if (foundItem) {
+    return `${foundItem.icon} ${foundItem.name}`;
+  }
+
   if (toolId.startsWith("pickaxe_")) {
     const tier = parseInt(toolId.replace("pickaxe_", ""), 10);
-    return `⛏️ ${TIER_MATERIALS[tier - 1] || ""} Pickaxe`;
+    const mat = TIER_MATERIALS_TR[tier] || "";
+    return `⛏️ ${mat} Kazması`;
   }
   if (toolId.startsWith("hoe_")) {
     const tier = parseInt(toolId.replace("hoe_", ""), 10);
-    return `🧑‍🌾 ${TIER_MATERIALS[tier - 1] || ""} Hoe`;
+    const mat = TIER_MATERIALS_TR[tier] || "";
+    return `🧑‍🌾 ${mat} Çapası`;
   }
   if (toolId.startsWith("axe_")) {
     const tier = parseInt(toolId.replace("axe_", ""), 10);
-    return `🪓 ${TIER_MATERIALS[tier - 1] || ""} Axe`;
+    const mat = TIER_MATERIALS_TR[tier] || "";
+    return `🪓 ${mat} Baltası`;
   }
   if (toolId.startsWith("sickle_")) {
     const tier = parseInt(toolId.replace("sickle_", ""), 10);
-    return `🌾 ${TIER_MATERIALS[tier - 1] || ""} Sickle`;
+    const mat = TIER_MATERIALS_TR[tier] || "";
+    return `🌾 ${mat} Orağı`;
   }
   if (toolId.startsWith("shovel_")) {
     const tier = parseInt(toolId.replace("shovel_", ""), 10);
-    return `🥄 ${TIER_MATERIALS[tier - 1] || ""} Shovel`;
+    const mat = TIER_MATERIALS_TR[tier] || "";
+    return `🥄 ${mat} Küreği`;
   }
   if (toolId.startsWith("watering_")) {
     const tier = parseInt(toolId.replace("watering_", ""), 10);
-    return `🪣 ${TIER_MATERIALS[tier - 1] || ""} Watering Can`;
+    const mat = TIER_MATERIALS_TR[tier] || "";
+    return `🪣 ${mat} Sulama Kabı`;
   }
   if (toolId.startsWith("sword_")) {
     const tier = parseInt(toolId.replace("sword_", ""), 10);
-    return `⚔️ ${TIER_MATERIALS[tier - 1] || ""} Sword`;
+    const mat = TIER_MATERIALS_TR[tier] || "";
+    return `⚔️ ${mat} Kılıcı`;
   }
   if (toolId.startsWith("archer_")) {
     const tier = parseInt(toolId.replace("archer_", ""), 10);
-    return `🏹 ${TIER_MATERIALS[tier - 1] || ""} Bow`;
+    const mat = TIER_MATERIALS_TR[tier] || "";
+    return `🏹 ${mat} Yayı`;
   }
   if (toolId.startsWith("fishing_")) {
     const tier = parseInt(toolId.replace("fishing_", ""), 10);
-    return `🎣 ${TIER_MATERIALS[tier - 1] || ""} Fishing Rod`;
+    const mat = TIER_MATERIALS_TR[tier] || "";
+    return `🎣 ${mat} Oltası`;
   }
   if (toolId.startsWith("staff_")) {
     const tier = parseInt(toolId.replace("staff_", ""), 10);
-    return `🪄 ${TIER_MATERIALS[tier - 1] || ""} Staff`;
+    const mat = TIER_MATERIALS_TR[tier] || "";
+    return `🪄 ${mat} Asası`;
   }
   if (toolId.startsWith("arrow_")) {
     const tier = parseInt(toolId.replace("arrow_", ""), 10);
-    return `🏹 ${TIER_MATERIALS[tier - 1] || ""} Arrow`;
+    const mat = TIER_MATERIALS_TR[tier] || "";
+    return `🏹 ${mat} Oku`;
   }
   if (toolId.startsWith("helmet_")) {
     const tier = parseInt(toolId.replace("helmet_", ""), 10);
-    return `🪖 ${TIER_MATERIALS[tier - 1] || ""} Helmet`;
+    const mat = TIER_MATERIALS_TR[tier] || "";
+    return `🪖 ${mat} Kaskı`;
   }
   if (toolId.startsWith("chestplate_")) {
     const tier = parseInt(toolId.replace("chestplate_", ""), 10);
-    return `🛡️ ${TIER_MATERIALS[tier - 1] || ""} Chestplate`;
+    const mat = TIER_MATERIALS_TR[tier] || "";
+    return `🛡️ ${mat} Zırhı`;
   }
   if (toolId.startsWith("leggings_")) {
     const tier = parseInt(toolId.replace("leggings_", ""), 10);
-    return `👖 ${TIER_MATERIALS[tier - 1] || ""} Leggings`;
+    const mat = TIER_MATERIALS_TR[tier] || "";
+    return `👖 ${mat} Pantolonu`;
   }
   if (toolId.startsWith("boots_")) {
     const tier = parseInt(toolId.replace("boots_", ""), 10);
-    return `🥾 ${TIER_MATERIALS[tier - 1] || ""} Boots`;
+    const mat = TIER_MATERIALS_TR[tier] || "";
+    return `🥾 ${mat} Botları`;
   }
   if (toolId === "carrying") {
-    return "📦 Carried Cargo";
+    return "📦 Taşınan Yük";
   }
   if (toolId.startsWith("horse")) {
     const variantNames = ["White Stallion", "Ebony Charger", "Chestnut Courser", "Dappled Gray", "Golden Palomino"];

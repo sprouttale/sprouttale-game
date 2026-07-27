@@ -401,6 +401,7 @@ export class GameRoom extends Room<GameState> {
         "seed_strawberry"
       ];
       for (let i = 1; i <= 10; i++) {
+        if (i === 5) continue; // Platin kaldırıldı!
         validTools.push(`pickaxe_${i}`);
         validTools.push(`hoe_${i}`);
         validTools.push(`axe_${i}`);
@@ -410,6 +411,12 @@ export class GameRoom extends Room<GameState> {
         validTools.push(`sword_${i}`);
         validTools.push(`archer_${i}`);
         validTools.push(`fishing_${i}`);
+        validTools.push(`staff_${i}`);
+        validTools.push(`arrow_${i}`);
+        validTools.push(`helmet_${i}`);
+        validTools.push(`chestplate_${i}`);
+        validTools.push(`leggings_${i}`);
+        validTools.push(`boots_${i}`);
       }
 
       const chosenTool = String(message?.tool ?? "none");

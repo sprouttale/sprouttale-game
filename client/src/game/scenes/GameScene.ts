@@ -2797,26 +2797,19 @@ export class GameScene extends Phaser.Scene {
         }
       }
       else if (config.tool === "select") {
-        if (clickedSprite && clickedSprite.objId) {
-          this.selectObjectById(clickedSprite.objId);
-        } else {
-          window.dispatchEvent(new CustomEvent("editor_object_selected", { detail: null }));
+        let targetObjId = clickedSprite?.objId;
+        if (!targetObjId) {
+          const foundTarget = this.findEraserTargetAt(targetX, targetY);
+          if (foundTarget) {
+            targetObjId = foundTarget.id;
+          }
         }
-      }
-      else if (config.tool === "solid" && clickedSprite && clickedSprite.objId) {
-        const newSolid = !clickedSprite.isSolid;
-        window.dispatchEvent(new CustomEvent("editor_action_performed", {
-          detail: { type: "update", id: clickedSprite.objId, oldData: { isSolid: clickedSprite.isSolid }, newData: { isSolid: newSolid } }
-        }));
-        this.room.send("update_object", { id: clickedSprite.objId, isSolid: newSolid });
-        this.selectObjectById(clickedSprite.objId);
-      }
-      else if (config.tool === "select") {
-        if (clickedSprite && clickedSprite.objId) {
-          this.selectObjectById(clickedSprite.objId);
+
+        if (targetObjId) {
+          this.selectObjectById(targetObjId);
         } else {
           let closestObj: any = null;
-          let closestDist = 32; // Allow up to 32px click distance to spawner center
+          let closestDist = 32;
           this.room.state.mapObjects.forEach((obj: any) => {
             const objMap = obj.mapId || "world_1";
             if (objMap !== this.currentMapId) return;
@@ -2831,6 +2824,8 @@ export class GameScene extends Phaser.Scene {
           });
           if (closestObj) {
             this.selectObjectById(closestObj.id);
+          } else {
+            window.dispatchEvent(new CustomEvent("editor_object_selected", { detail: null }));
           }
         }
       }
@@ -5439,11 +5434,8 @@ export class GameScene extends Phaser.Scene {
       this.samePlayerGroup.add(sprite);
     }
 
-    const isGroundTile = this.isGroundBaseTileAsset(obj.assetId);
-    if (!isGroundTile) {
-      sprite.setInteractive({ useHandCursor: true });
-      this.input.setDraggable(sprite);
-    }
+    sprite.setInteractive({ useHandCursor: true });
+    this.input.setDraggable(sprite);
     if ((sprite as any).setCullPadding) {
       (sprite as any).setCullPadding(64, 64);
     }

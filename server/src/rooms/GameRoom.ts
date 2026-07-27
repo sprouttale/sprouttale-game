@@ -88,6 +88,7 @@ export class GameRoom extends Room<GameState> {
   /** Map to track fishing timeouts for each player */
   private playerFishingTimeout = new Map<string, any>();
   private playerPetIdleTime = new Map<string, number>();
+  private chickenTargets = new Map<string, { targetX: number; targetY: number; nextMoveTime: number }>();
   private cropAccumulator = 0;
 
   /** Cooldown timestamps for map transitions (sessionId -> last transition time ms)
@@ -179,19 +180,42 @@ export class GameRoom extends Room<GameState> {
     this.loadMapFromDisk();
     this.loadChickensFromDisk();
 
-    // Check chicken egg production every 10 seconds (1 hour interval per egg)
+    // Chicken tick loop: egg production check + wandering AI (300ms)
     this.setSimulationInterval(() => {
       const now = Date.now();
       const EGG_INTERVAL = 3600000; // 1 hour = 3,600,000 ms
-      this.state.chickens.forEach((chicken) => {
+
+      this.state.chickens.forEach((chicken, id) => {
+        // Egg production check
         if (!chicken.eggReady && chicken.eggsProduced < 48) {
           if (now - chicken.lastEggTime >= EGG_INTERVAL) {
             chicken.eggReady = true;
             console.log(`[GameRoom] 🥚 Chicken ${chicken.id} (${chicken.colorType}) produced an egg!`);
           }
         }
+
+        // Wandering AI inside world_8 fenced enclosure (X: 350..550, Y: 220..420)
+        let tData = this.chickenTargets.get(id);
+        if (!tData || now >= tData.nextMoveTime) {
+          tData = {
+            targetX: 350 + Math.random() * 200,
+            targetY: 220 + Math.random() * 200,
+            nextMoveTime: now + 3000 + Math.random() * 5000 // New destination every 3-8 seconds
+          };
+          this.chickenTargets.set(id, tData);
+        }
+
+        // Smooth movement step towards target coordinate
+        const dx = tData.targetX - chicken.x;
+        const dy = tData.targetY - chicken.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist > 3) {
+          const speed = 1.2; // Slow gentle walking speed
+          chicken.x += (dx / dist) * Math.min(dist, speed);
+          chicken.y += (dy / dist) * Math.min(dist, speed);
+        }
       });
-    }, 10000);
+    }, 300);
 
     // Maximum players per room
     this.maxClients = 50;
@@ -242,9 +266,9 @@ export class GameRoom extends Room<GameState> {
       chicken.ownerId = client.sessionId;
       chicken.ownerName = player.name;
       chicken.colorType = randomVariant;
-      chicken.mapId = "world_1";
-      chicken.x = 410 + Math.random() * 100;
-      chicken.y = 310 + Math.random() * 120;
+      chicken.mapId = "world_8"; // Spawns inside fenced animal enclosure on HARİTA 8
+      chicken.x = 350 + Math.random() * 200;
+      chicken.y = 220 + Math.random() * 200;
       chicken.eggReady = false;
       chicken.eggsProduced = 0;
       chicken.lastEggTime = Date.now();
@@ -3192,9 +3216,10 @@ export class GameRoom extends Room<GameState> {
             c.ownerId = data.ownerId || "";
             c.ownerName = data.ownerName || "";
             c.colorType = data.colorType || "black_white";
-            c.mapId = data.mapId || "world_1";
-            c.x = data.x || 450;
-            c.y = data.y || 350;
+            // Migrate any chickens originally placed on world_1 to the fenced enclosure on world_8
+            c.mapId = (data.mapId === "world_1" || !data.mapId) ? "world_8" : data.mapId;
+            c.x = (data.mapId === "world_1" || !data.x || data.x > 800 || data.x < 200) ? (350 + Math.random() * 200) : data.x;
+            c.y = (data.mapId === "world_1" || !data.y || data.y > 600 || data.y < 100) ? (220 + Math.random() * 200) : data.y;
             c.eggReady = Boolean(data.eggReady);
             c.eggsProduced = Number(data.eggsProduced || 0);
             c.lastEggTime = Number(data.lastEggTime || Date.now());

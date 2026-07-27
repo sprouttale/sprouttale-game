@@ -5094,6 +5094,11 @@ export class GameScene extends Phaser.Scene {
     const sprite = this.add.sprite(0, 0, keyToUse, 0);
     sprite.setScale(1.5);
 
+    const idleAnim = `${keyToUse}_idle_down`;
+    if (this.anims.exists(idleAnim)) {
+      sprite.play(idleAnim);
+    }
+
     // Floating egg icon above chicken
     const eggIcon = this.add.text(0, -18, "🥚", { fontSize: "14px" });
     eggIcon.setOrigin(0.5);
@@ -5104,7 +5109,7 @@ export class GameScene extends Phaser.Scene {
     container.setSize(24, 24);
     container.setInteractive({ useHandCursor: true });
 
-    const cMap = chicken.mapId || "world_1";
+    const cMap = chicken.mapId || "world_8";
     container.setVisible(cMap === this.currentMapId);
 
     container.on("pointerdown", (_pointer: Phaser.Input.Pointer, _localX: number, _localY: number, event: Phaser.Types.Input.EventData) => {
@@ -5126,11 +5131,40 @@ export class GameScene extends Phaser.Scene {
     const cData = this.chickenSprites.get(id);
     if (!cData) return;
 
-    cData.container.setPosition(chicken.x, chicken.y);
-    cData.container.setDepth(1.2 + chicken.y / 10000);
+    const oldX = cData.container.x;
+    const oldY = cData.container.y;
+    const newX = chicken.x;
+    const newY = chicken.y;
+    const dx = newX - oldX;
+    const dy = newY - oldY;
+
+    cData.container.setPosition(newX, newY);
+    cData.container.setDepth(1.2 + newY / 10000);
     cData.eggIcon.setVisible(Boolean(chicken.eggReady));
-    const cMap = chicken.mapId || "world_1";
+
+    const cMap = chicken.mapId || "world_8";
     cData.container.setVisible(cMap === this.currentMapId);
+
+    const textureKey = `animal_chicken_${chicken.colorType || "black_white"}`;
+    const keyToUse = this.textures.exists(textureKey) ? textureKey : "animal_chicken_white";
+
+    if (Math.abs(dx) > 0.3 || Math.abs(dy) > 0.3) {
+      let dir = "down";
+      if (Math.abs(dx) > Math.abs(dy)) {
+        dir = dx > 0 ? "right" : "left";
+      } else {
+        dir = dy > 0 ? "down" : "up";
+      }
+      const walkAnim = `${keyToUse}_walk_${dir}`;
+      if (this.anims.exists(walkAnim) && cData.sprite.anims.currentAnim?.key !== walkAnim) {
+        cData.sprite.play(walkAnim);
+      }
+    } else {
+      const idleAnim = `${keyToUse}_idle_down`;
+      if (this.anims.exists(idleAnim) && cData.sprite.anims.currentAnim?.key !== idleAnim) {
+        cData.sprite.play(idleAnim);
+      }
+    }
   }
 
   private despawnChicken(id: string): void {

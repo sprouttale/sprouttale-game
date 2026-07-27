@@ -539,7 +539,8 @@ export default function App() {
   const [playerHp,       setPlayerHp]      = useState<number>(100);
   const [playerMaxHp,    setPlayerMaxHp]   = useState<number>(100);
   const [isShopOpen,     setIsShopOpen]    = useState(false);
-  const [shopTab,        setShopTab]       = useState<"hats" | "pets" | "farming" | "chickens">("hats");
+  const [isBuildingShopOpen, setIsBuildingShopOpen] = useState(false);
+  const [shopTab,        setShopTab]       = useState<"hats" | "pets" | "farming">("hats");
   
   // Farming state synced authoritative data
   const [playerSeeds,    setPlayerSeeds]   = useState<Record<string, number>>({});
@@ -1119,8 +1120,10 @@ export default function App() {
     const handleShopOpen = () => {
       setIsShopOpen(true);
     };
+    const handleBuildingShopOpen = () => setIsBuildingShopOpen(true);
     window.addEventListener("open_merchant_shop", handleMerchantOpen);
     window.addEventListener("open_shop", handleShopOpen);
+    window.addEventListener("open_building_shop", handleBuildingShopOpen);
 
     const originalError = console.error;
     const originalWarn = console.warn;
@@ -1139,6 +1142,7 @@ export default function App() {
     return () => {
       window.removeEventListener("open_merchant_shop", handleMerchantOpen);
       window.removeEventListener("open_shop", handleShopOpen);
+      window.removeEventListener("open_building_shop", handleBuildingShopOpen);
       console.error = originalError;
       console.warn = originalWarn;
     };
@@ -2234,13 +2238,6 @@ export default function App() {
               >
                 🌾 FARMING
               </button>
-              <button 
-                className={`shop-modal__tab ${shopTab === "chickens" ? "shop-modal__tab--active" : ""}`}
-                style={shopTab === "chickens" ? { background: "#00d2d3", color: "black" } : {}}
-                onClick={() => setShopTab("chickens" as any)}
-              >
-                🐣 TAVUK KUTUSU
-              </button>
             </div>
 
             <div className="shop-modal__grid" style={{
@@ -2330,46 +2327,7 @@ export default function App() {
                 </div>
               )}
 
-              {shopTab === "chickens" && (
-                <div key="chicken-box-shop-item" className="shop-item glass" style={{ width: "100%", gridColumn: "span 2", display: "flex", gap: "16px", padding: "16px", border: "1px solid rgba(0, 210, 211, 0.4)", background: "rgba(0, 210, 211, 0.05)" }}>
-                  <div className="shop-item__preview" style={{ fontSize: "42px", background: "rgba(0,0,0,0.3)", borderRadius: "8px", width: "80px", height: "80px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    🐣
-                  </div>
-                  <div className="shop-item__info" style={{ flex: 1, display: "flex", flexDirection: "column", gap: "4px" }}>
-                    <div className="shop-item__name" style={{ fontSize: "14px", fontWeight: "bold", color: "#00d2d3" }}>🐣 Tavuk Kutusu (Chicken Box)</div>
-                    <div className="shop-item__cost" style={{ fontSize: "11px", color: "#ced6e0" }}>Maliyeti: <span style={{ color: "#00d2d3", fontWeight: "bold" }}>100 SPT Token</span></div>
-                    <p style={{ fontSize: "9px", color: "#a4b0be", margin: 0, lineHeight: "1.4" }}>
-                      Açıldığında rastgele renkte bir tavuk çıkar ve çiftlik alanına otomatik yerleşir. 1 saatte 1 yumurta üretir (Max 48 yumurta sonra ömrü biter). (Limit: Max 10 Tavuk)
-                    </p>
-                    <div style={{ fontSize: "9px", color: "#f1c40f", marginTop: "2px" }}>
-                      Mevcut Tavuk Sayınız: {chickensList.filter((c: any) => c.ownerName === meta?.playerName || c.ownerId === room?.sessionId).length} / 10
-                    </div>
-                  </div>
-                  <div className="shop-item__action" style={{ display: "flex", alignItems: "center" }}>
-                    <button
-                      className="shop-item__btn shop-item__btn--buy"
-                      disabled={tokens < 100}
-                      onClick={() => {
-                        if (tokens >= 100 && room) {
-                          room.send("buy_chicken_box");
-                        }
-                      }}
-                      style={{
-                        padding: "10px 16px",
-                        fontSize: "9px",
-                        background: tokens >= 100 ? "linear-gradient(90deg, #00d2d3, #0abde3)" : "#747d8c",
-                        color: "black",
-                        fontWeight: "bold",
-                        border: "none",
-                        borderRadius: "6px",
-                        cursor: tokens >= 100 ? "pointer" : "not-allowed"
-                      }}
-                    >
-                      SATIN AL & AÇ (100 SPT)
-                    </button>
-                  </div>
-                </div>
-              )}
+
 
               {shopTab === "farming" && (
                 <>
@@ -2478,6 +2436,73 @@ export default function App() {
                   })}
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 5b. Dedicated SHOP Building Overlay Modal ── */}
+      {phase === "connected" && isBuildingShopOpen && (
+        <div className="shop-overlay" onClick={() => setIsBuildingShopOpen(false)}>
+          <div className="shop-modal glass" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "520px" }}>
+            <div className="shop-modal__header">
+              <div className="shop-modal__header-left">
+                <span className="shop-modal__title">🏪 SHOP / ÇİFTLİK MAĞAZASI</span>
+                <span className="shop-modal__gold" style={{ background: "rgba(0, 210, 211, 0.2)", borderColor: "#00d2d3", color: "#00d2d3" }}>
+                  🪙 {tokens.toLocaleString()} SPT
+                </span>
+              </div>
+              <button className="shop-modal__close" onClick={() => setIsBuildingShopOpen(false)}>✕</button>
+            </div>
+
+            <div style={{ padding: "16px 8px 8px 8px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "16px" }}>
+                <div 
+                  className="shop-item glass"
+                  style={{
+                    padding: "20px",
+                    display: "flex",
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: "16px",
+                    borderColor: "#00d2d3",
+                    background: "rgba(0, 210, 211, 0.05)"
+                  }}
+                >
+                  <div style={{ fontSize: "52px", filter: "drop-shadow(0 0 10px rgba(0,210,211,0.5))" }}>
+                    📦
+                  </div>
+                  <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <div style={{ fontWeight: "bold", fontSize: "16px", color: "#00d2d3" }}>
+                      🐣 Tavuk Kutusu
+                    </div>
+                    <div style={{ fontSize: "12px", color: "#c8d6e5", lineHeight: "1.4" }}>
+                      Kutuyu açarak 16 farklı renkten bir tavuk kazanırsınız. Tavuk çitli alana yerleşir ve 1 saatte 1 yumurta üretir.
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "8px" }}>
+                      <span style={{ fontWeight: "bold", color: "#f1c40f", fontSize: "14px" }}>
+                        🪙 100 SPT
+                      </span>
+                      <button
+                        className="shop-item__btn"
+                        style={{
+                          background: "linear-gradient(90deg, #00d2d3, #0abde3)",
+                          color: "black",
+                          fontWeight: "bold",
+                          padding: "10px 18px",
+                          fontSize: "13px",
+                          borderRadius: "8px"
+                        }}
+                        onClick={() => {
+                          if (room) room.send("buy_chicken_box");
+                        }}
+                      >
+                        📦 KUTUYU AÇ (100 SPT)
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

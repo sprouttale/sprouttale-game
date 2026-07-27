@@ -5400,7 +5400,11 @@ export class GameScene extends Phaser.Scene {
           event?.stopPropagation?.();
           const config = (window as any).editorConfig;
           if (config && config.active) return;
-          window.dispatchEvent(new CustomEvent("open_shop"));
+          if (obj.assetId === "house_shop") {
+            window.dispatchEvent(new CustomEvent("open_building_shop"));
+          } else {
+            window.dispatchEvent(new CustomEvent("open_shop"));
+          }
         });
       }
     } else if (obj.assetId && obj.assetId.startsWith("maple_tree_")) {

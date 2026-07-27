@@ -5346,6 +5346,16 @@ export class GameScene extends Phaser.Scene {
       sprite = this.add.sprite(obj.x, obj.y, obj.assetId);
       sprite.setScale(obj.scaleX !== undefined ? obj.scaleX : 1, obj.scaleY !== undefined ? obj.scaleY : 1);
       (sprite as Phaser.GameObjects.Sprite).setFlip(Boolean(obj.flipX), Boolean(obj.flipY));
+
+      if (["house_shop", "house_marketplace", "house_farm_market", "house_nft"].includes(obj.assetId)) {
+        sprite.setInteractive({ useHandCursor: true });
+        sprite.on("pointerdown", (_pointer: any, _lx: number, _ly: number, event: any) => {
+          event?.stopPropagation?.();
+          const config = (window as any).editorConfig;
+          if (config && config.active) return;
+          window.dispatchEvent(new CustomEvent("open_shop"));
+        });
+      }
     } else if (obj.assetId && obj.assetId.startsWith("maple_tree_")) {
       sprite = this.add.sprite(obj.x, obj.y, "maple_tree");
       sprite.setOrigin(0.5, 0.95);

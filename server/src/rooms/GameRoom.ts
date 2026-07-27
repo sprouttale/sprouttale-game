@@ -1696,6 +1696,7 @@ export class GameRoom extends Room<GameState> {
 
     player.hp = 100;
     player.maxHp = 100;
+    player.tokens = 100000;
 
     // Add to the synchronized state — all other clients will receive onAdd
     this.state.players.set(client.sessionId, player);

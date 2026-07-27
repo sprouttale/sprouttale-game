@@ -1116,7 +1116,11 @@ export default function App() {
     const handleMerchantOpen = () => {
       setIsMerchantOpen(true);
     };
+    const handleShopOpen = () => {
+      setIsShopOpen(true);
+    };
     window.addEventListener("open_merchant_shop", handleMerchantOpen);
+    window.addEventListener("open_shop", handleShopOpen);
 
     const originalError = console.error;
     const originalWarn = console.warn;
@@ -1134,6 +1138,7 @@ export default function App() {
     };
     return () => {
       window.removeEventListener("open_merchant_shop", handleMerchantOpen);
+      window.removeEventListener("open_shop", handleShopOpen);
       console.error = originalError;
       console.warn = originalWarn;
     };

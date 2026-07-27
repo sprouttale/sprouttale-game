@@ -194,15 +194,15 @@ export class GameRoom extends Room<GameState> {
           }
         }
 
-        // Wandering AI strictly inside upper fenced enclosure (world_8, X: 240..580, Y: 195..320)
+        // Wandering AI strictly inside upper fenced enclosure (world_8, X: 260..560, Y: 150..280)
         let tData = this.chickenTargets.get(id);
         if (!tData || now >= tData.nextMoveTime) {
-          let bestX = 240 + Math.random() * 340;
-          let bestY = 195 + Math.random() * 125;
+          let bestX = 260 + Math.random() * 300;
+          let bestY = 150 + Math.random() * 130;
           // Try to pick a target destination at least 40px away from other chickens
           for (let attempt = 0; attempt < 10; attempt++) {
-            const candX = 240 + Math.random() * 340;
-            const candY = 195 + Math.random() * 125;
+            const candX = 260 + Math.random() * 300;
+            const candY = 150 + Math.random() * 130;
             let tooClose = false;
             this.state.chickens.forEach((otherC, otherId) => {
               if (otherId !== id) {
@@ -254,8 +254,8 @@ export class GameRoom extends Room<GameState> {
         });
 
         // Strict fence boundary collision enforcement (never pass through outer fences)
-        cA.x = Math.max(240, Math.min(580, cA.x));
-        cA.y = Math.max(195, Math.min(320, cA.y));
+        cA.x = Math.max(260, Math.min(560, cA.x));
+        cA.y = Math.max(150, Math.min(280, cA.y));
       });
     }, 300);
 
@@ -308,9 +308,9 @@ export class GameRoom extends Room<GameState> {
       chicken.ownerId = client.sessionId;
       chicken.ownerName = player.name;
       chicken.colorType = randomVariant;
-      chicken.mapId = "world_8"; // Spawns inside upper fenced animal enclosure on HARİTA 8
-      chicken.x = 240 + Math.random() * 340;
-      chicken.y = 195 + Math.random() * 125;
+      chicken.mapId = "world_8"; // Spawns centered inside upper fenced animal enclosure on HARİTA 8
+      chicken.x = 270 + Math.random() * 280;
+      chicken.y = 160 + Math.random() * 110;
       chicken.eggReady = false;
       chicken.eggsProduced = 0;
       chicken.lastEggTime = Date.now();
@@ -3262,10 +3262,10 @@ export class GameRoom extends Room<GameState> {
             c.ownerId = data.ownerId || "";
             c.ownerName = data.ownerName || "";
             c.colorType = data.colorType || "black_white";
-            // Relocate all chickens to upper fenced enclosure on world_8 (X: 240..580, Y: 195..320)
+            // Relocate all chickens centered inside upper fenced enclosure on world_8 (X: 260..560, Y: 150..280)
             c.mapId = "world_8";
-            c.x = (data.x >= 240 && data.x <= 580) ? data.x : (240 + Math.random() * 340);
-            c.y = (data.y >= 195 && data.y <= 320) ? data.y : (195 + Math.random() * 125);
+            c.x = 270 + Math.random() * 280;
+            c.y = 160 + Math.random() * 110;
             c.eggReady = Boolean(data.eggReady);
             c.eggsProduced = Number(data.eggsProduced || 0);
             c.lastEggTime = Number(data.lastEggTime || Date.now());

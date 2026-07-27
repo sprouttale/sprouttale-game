@@ -112,9 +112,48 @@ export class PlayerState extends Schema {
   @type({ map: "int32" })
   harvests = new MapSchema<number>();
 
+  /** Player token balance (for token economy) */
+  @type("int32")
+  tokens: number = 100000;
+
   /** Current map ID e.g. "world_1" (1500x2500) or "world_2" (2000x2000) */
   @type("string")
   currentMap: string = "world_1";
+}
+
+// ---------------------------------------------------------------------------
+// ChickenState — represents a chicken animal placed in the farm pen.
+// ---------------------------------------------------------------------------
+export class ChickenState extends Schema {
+  @type("string")
+  id: string = "";
+
+  @type("string")
+  ownerId: string = "";
+
+  @type("string")
+  ownerName: string = "";
+
+  @type("string")
+  colorType: string = "black_white"; // e.g. "black_white", "blonde", "pink", "evil", "universe", etc.
+
+  @type("string")
+  mapId: string = "world_1";
+
+  @type("float32")
+  x: number = 0;
+
+  @type("float32")
+  y: number = 0;
+
+  @type("boolean")
+  eggReady: boolean = false;
+
+  @type("int32")
+  eggsProduced: number = 0; // Max 48 total eggs produced before chicken dies/disappears
+
+  @type("number")
+  lastEggTime: number = 0; // Timestamp (ms) when current egg timer started
 }
 
 // ---------------------------------------------------------------------------
@@ -290,4 +329,7 @@ export class GameState extends Schema {
 
   @type({ map: EnemyState })
   enemies = new MapSchema<EnemyState>();
+
+  @type({ map: ChickenState })
+  chickens = new MapSchema<ChickenState>();
 }

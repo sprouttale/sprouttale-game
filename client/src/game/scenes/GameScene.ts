@@ -230,6 +230,7 @@ export class GameScene extends Phaser.Scene {
   private playerSprites = new Map<string, PlayerSprite>();
   private enemySprites = new Map<string, EnemySpriteData>();
   private petSprites = new Map<string, { sprite: Phaser.GameObjects.Sprite; targetX: number; targetY: number }>();
+  private chickenSprites = new Map<string, { container: Phaser.GameObjects.Container; sprite: Phaser.GameObjects.Sprite; eggIcon: Phaser.GameObjects.Text; data: any }>();
 
   // ---- Input ---------------------------------------------------------------
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -4597,6 +4598,17 @@ export class GameScene extends Phaser.Scene {
       });
     }
 
+    // Update chickens visibility
+    if (this.room?.state?.chickens) {
+      this.room.state.chickens.forEach((chk: any, id: string) => {
+        const cSprite = this.chickenSprites.get(id);
+        if (cSprite && cSprite.container) {
+          const cMap = chk.mapId || "world_1";
+          cSprite.container.setVisible(cMap === this.currentMapId);
+        }
+      });
+    }
+
     window.dispatchEvent(new CustomEvent("map_switched", {
       detail: { mapId: this.currentMapId, width: mapW, height: mapH }
     }));
@@ -4690,6 +4702,44 @@ export class GameScene extends Phaser.Scene {
 
     enemies?.onRemove?.((_enemy: any, id: string) => {
       this.despawnEnemy(id);
+    });
+
+    // --- Chicken bindings ---
+    const { chickens } = this.room.state;
+    chickens?.onAdd?.((chicken: any, id: string) => {
+      this.spawnChicken(chicken, id);
+      chicken.onChange?.(() => {
+        this.updateChicken(chicken, id);
+      });
+    });
+
+    chickens?.onRemove?.((_chicken: any, id: string) => {
+      this.despawnChicken(id);
+    });
+
+    this.room.onMessage("chicken_box_opened", (data: any) => {
+      if (data?.message) {
+        const px = this.localSprite?.container?.x || 450;
+        const py = this.localSprite?.container?.y || 350;
+        this.showFloatingText(px, py - 30, data.message, "#f1c40f");
+      }
+    });
+
+    this.room.onMessage("egg_collected", (data: any) => {
+      if (data?.message) {
+        const cSprite = this.chickenSprites.get(data.chickenId);
+        const cx = cSprite?.container?.x || this.localSprite?.container?.x || 450;
+        const cy = cSprite?.container?.y || this.localSprite?.container?.y || 350;
+        this.showFloatingText(cx, cy - 20, data.message, "#2ecc71");
+      }
+    });
+
+    this.room.onMessage("chicken_died", (data: any) => {
+      if (data?.message) {
+        const px = this.localSprite?.container?.x || 450;
+        const py = this.localSprite?.container?.y || 350;
+        this.showFloatingText(px, py - 40, data.message, "#ff4757");
+      }
     });
 
     // --- Map Objects bindings ---
@@ -5032,6 +5082,62 @@ export class GameScene extends Phaser.Scene {
 
     if (sessionId === this.localSessionId) {
       this.localSprite = null;
+    }
+  }
+
+  private spawnChicken(chicken: any, id: string): void {
+    if (this.chickenSprites.has(id)) return;
+
+    const textureKey = `animal_chicken_${chicken.colorType || "black_white"}`;
+    const keyToUse = this.textures.exists(textureKey) ? textureKey : "animal_chicken_white";
+
+    const sprite = this.add.sprite(0, 0, keyToUse, 0);
+    sprite.setScale(1.5);
+
+    // Floating egg icon above chicken
+    const eggIcon = this.add.text(0, -18, "🥚", { fontSize: "14px" });
+    eggIcon.setOrigin(0.5);
+    eggIcon.setVisible(Boolean(chicken.eggReady));
+
+    const container = this.add.container(chicken.x, chicken.y, [sprite, eggIcon]);
+    container.setDepth(1.2 + chicken.y / 10000);
+    container.setSize(24, 24);
+    container.setInteractive({ useHandCursor: true });
+
+    const cMap = chicken.mapId || "world_1";
+    container.setVisible(cMap === this.currentMapId);
+
+    container.on("pointerdown", (_pointer: Phaser.Input.Pointer, _localX: number, _localY: number, event: Phaser.Types.Input.EventData) => {
+      event.stopPropagation();
+      const config = (window as any).editorConfig;
+      if (config && config.active) return;
+
+      if (chicken.eggReady) {
+        this.room.send("collect_chicken_egg", { chickenId: id });
+      } else {
+        this.showFloatingText(container.x, container.y - 20, `🥚 Henüz hazır değil (${chicken.eggsProduced || 0}/48)`, "#f1c40f");
+      }
+    });
+
+    this.chickenSprites.set(id, { container, sprite, eggIcon, data: chicken });
+  }
+
+  private updateChicken(chicken: any, id: string): void {
+    const cData = this.chickenSprites.get(id);
+    if (!cData) return;
+
+    cData.container.setPosition(chicken.x, chicken.y);
+    cData.container.setDepth(1.2 + chicken.y / 10000);
+    cData.eggIcon.setVisible(Boolean(chicken.eggReady));
+    const cMap = chicken.mapId || "world_1";
+    cData.container.setVisible(cMap === this.currentMapId);
+  }
+
+  private despawnChicken(id: string): void {
+    const cData = this.chickenSprites.get(id);
+    if (cData) {
+      cData.container.destroy();
+      this.chickenSprites.delete(id);
     }
   }
 

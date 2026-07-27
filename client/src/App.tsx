@@ -539,7 +539,7 @@ export default function App() {
   const [playerHp,       setPlayerHp]      = useState<number>(100);
   const [playerMaxHp,    setPlayerMaxHp]   = useState<number>(100);
   const [isShopOpen,     setIsShopOpen]    = useState(false);
-  const [shopTab,        setShopTab]       = useState<"hats" | "pets" | "farming">("hats");
+  const [shopTab,        setShopTab]       = useState<"hats" | "pets" | "farming" | "chickens">("hats");
   
   // Farming state synced authoritative data
   const [playerSeeds,    setPlayerSeeds]   = useState<Record<string, number>>({});
@@ -570,7 +570,9 @@ export default function App() {
   const [purchasedBroomsticks, setPurchasedBroomsticks] = useState<number[]>([]);
   const [activeBroomstickVariant, setActiveBroomstickVariant] = useState<number>(1);
   const [purchasedTractors,  setPurchasedTractors]  = useState<number[]>([]);
-  const [stableTab,          setStableTab]          = useState<"horses" | "bicycles">("horses");
+  const [stableTab,          setStableTab]          = useState<"horses" | "bicycles" | "chickens">("horses");
+  const [tokens,             setTokens]             = useState<number>(100000);
+  const [chickensList,       setChickensList]       = useState<any[]>([]);
 
   // Map Editor State
   const [isEditorOpen, setIsEditorOpen] = useState(false);
@@ -1339,9 +1341,16 @@ export default function App() {
 
         updateFarmingInventory();
 
+        if (player.tokens !== undefined) {
+          setTokens(player.tokens);
+        }
+
         player.onChange(() => {
           setPlayerHp(player.hp ?? 100);
           setPlayerMaxHp(player.maxHp ?? 100);
+          if (player.tokens !== undefined) {
+            setTokens(player.tokens);
+          }
         });
 
         player.seeds.onAdd(() => updateFarmingInventory());
@@ -1351,6 +1360,31 @@ export default function App() {
         player.harvests.onChange(() => updateFarmingInventory());
       }
     });
+
+    if (room && room.state && room.state.chickens) {
+      const updateChickensList = () => {
+        const list: any[] = [];
+        room.state.chickens.forEach((chk: any) => {
+          list.push({
+            id: chk.id,
+            ownerId: chk.ownerId,
+            ownerName: chk.ownerName,
+            colorType: chk.colorType,
+            mapId: chk.mapId,
+            x: chk.x,
+            y: chk.y,
+            eggReady: chk.eggReady,
+            eggsProduced: chk.eggsProduced,
+            lastEggTime: chk.lastEggTime
+          });
+        });
+        setChickensList(list);
+      };
+      updateChickensList();
+      room.state.chickens.onAdd(() => updateChickensList());
+      room.state.chickens.onRemove(() => updateChickensList());
+      room.state.chickens.onChange(() => updateChickensList());
+    }
 
     return () => {
       listener.clear();
@@ -1490,6 +1524,10 @@ export default function App() {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span style={{ color: "#a4b0be" }}>💰 ALTIN:</span>
                   <span style={{ color: "#f1c40f", fontSize: "9px", fontWeight: "bold" }}>{gold}G</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ color: "#a4b0be" }}>🪙 TOKEN:</span>
+                  <span style={{ color: "#00d2d3", fontSize: "9px", fontWeight: "bold" }}>{tokens.toLocaleString()} SPT</span>
                 </div>
                 {hasGoblinDamageBoost && (
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", color: "#2ed573", fontSize: "7px", marginTop: "2px", background: "rgba(46, 213, 115, 0.15)", padding: "3px 4px", borderRadius: "3px", border: "1px solid rgba(46, 213, 115, 0.4)" }}>
@@ -1999,6 +2037,13 @@ export default function App() {
               >
                 🚲 BICYCLES
               </button>
+              <button 
+                className={`shop-modal__tab ${stableTab === "chickens" ? "shop-modal__tab--active" : ""}`}
+                style={stableTab === "chickens" ? { background: "#10ac84", borderColor: "#1dd1a1" } : {}}
+                onClick={() => setStableTab("chickens")}
+              >
+                🐔 TAVUKLARIM
+              </button>
             </div>
 
             <div className="shop-modal__grid">
@@ -2060,6 +2105,42 @@ export default function App() {
                     </div>
                   );
                 })
+              ) : stableTab === "chickens" ? (
+                <div style={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", gap: "10px" }}>
+                  <div style={{ fontSize: "11px", color: "#1dd1a1", fontWeight: "bold" }}>
+                    🐔 ÇİFTLİK TAVUKLARINIZ ({chickensList.filter((c: any) => c.ownerName === meta?.playerName || c.ownerId === room?.sessionId).length} / 10)
+                  </div>
+                  {chickensList.filter((c: any) => c.ownerName === meta?.playerName || c.ownerId === room?.sessionId).length === 0 ? (
+                    <div style={{ padding: "20px", textAlign: "center", color: "#a4b0be", fontSize: "11px", background: "rgba(0,0,0,0.2)", borderRadius: "8px" }}>
+                      Henüz hiç tavuğunuz yok! Market / Shop kısmından 100 SPT Token karşılığında Tavuk Kutusu satın alabilirsiniz.
+                    </div>
+                  ) : (
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "10px" }}>
+                      {chickensList.filter((c: any) => c.ownerName === meta?.playerName || c.ownerId === room?.sessionId).map((chk: any) => (
+                        <div key={chk.id} className="shop-item glass" style={{ padding: "12px", display: "flex", flexDirection: "column", gap: "6px", borderColor: chk.eggReady ? "#1dd1a1" : "rgba(255,255,255,0.1)" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{ fontWeight: "bold", fontSize: "11px", color: "#f1c40f" }}>🐔 {chk.colorType}</span>
+                            <span style={{ fontSize: "9px", color: "#c8d6e5" }}>📊 {chk.eggsProduced || 0} / 48 Yumurta</span>
+                          </div>
+                          <div style={{ fontSize: "10px", color: chk.eggReady ? "#1dd1a1" : "#ff9f43", fontWeight: "bold" }}>
+                            {chk.eggReady ? "🥚 Yumurta Hazır! (Toplayabilirsiniz)" : "⏳ 1 Saatlik Yumurta Üretimi Sürüyor..."}
+                          </div>
+                          {chk.eggReady && (
+                            <button
+                              className="shop-item__btn"
+                              style={{ background: "linear-gradient(90deg, #1dd1a1, #10ac84)", color: "black", fontWeight: "bold", marginTop: "4px" }}
+                              onClick={() => {
+                                if (room) room.send("collect_chicken_egg", { chickenId: chk.id });
+                              }}
+                            >
+                              🥚 YUMURTAYI TOPLA
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               ) : (
                 BICYCLES_LIST.map((item) => {
                   const isPurchased = purchasedBicycles.includes(item.color);
@@ -2139,6 +2220,13 @@ export default function App() {
                 onClick={() => setShopTab("farming")}
               >
                 🌾 FARMING
+              </button>
+              <button 
+                className={`shop-modal__tab ${shopTab === "chickens" ? "shop-modal__tab--active" : ""}`}
+                style={shopTab === "chickens" ? { background: "#00d2d3", color: "black" } : {}}
+                onClick={() => setShopTab("chickens" as any)}
+              >
+                🐣 TAVUK KUTUSU
               </button>
             </div>
 
@@ -2224,6 +2312,47 @@ export default function App() {
                       }}
                     >
                       SATIN AL & AÇ
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {shopTab === "chickens" && (
+                <div key="chicken-box-shop-item" className="shop-item glass" style={{ width: "100%", gridColumn: "span 2", display: "flex", gap: "16px", padding: "16px", border: "1px solid rgba(0, 210, 211, 0.4)", background: "rgba(0, 210, 211, 0.05)" }}>
+                  <div className="shop-item__preview" style={{ fontSize: "42px", background: "rgba(0,0,0,0.3)", borderRadius: "8px", width: "80px", height: "80px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    🐣
+                  </div>
+                  <div className="shop-item__info" style={{ flex: 1, display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <div className="shop-item__name" style={{ fontSize: "14px", fontWeight: "bold", color: "#00d2d3" }}>🐣 Tavuk Kutusu (Chicken Box)</div>
+                    <div className="shop-item__cost" style={{ fontSize: "11px", color: "#ced6e0" }}>Maliyeti: <span style={{ color: "#00d2d3", fontWeight: "bold" }}>100 SPT Token</span></div>
+                    <p style={{ fontSize: "9px", color: "#a4b0be", margin: 0, lineHeight: "1.4" }}>
+                      Açıldığında rastgele renkte bir tavuk çıkar ve çiftlik alanına otomatik yerleşir. 1 saatte 1 yumurta üretir (Max 48 yumurta sonra ömrü biter). (Limit: Max 10 Tavuk)
+                    </p>
+                    <div style={{ fontSize: "9px", color: "#f1c40f", marginTop: "2px" }}>
+                      Mevcut Tavuk Sayınız: {chickensList.filter((c: any) => c.ownerName === meta?.playerName || c.ownerId === room?.sessionId).length} / 10
+                    </div>
+                  </div>
+                  <div className="shop-item__action" style={{ display: "flex", alignItems: "center" }}>
+                    <button
+                      className="shop-item__btn shop-item__btn--buy"
+                      disabled={tokens < 100}
+                      onClick={() => {
+                        if (tokens >= 100 && room) {
+                          room.send("buy_chicken_box");
+                        }
+                      }}
+                      style={{
+                        padding: "10px 16px",
+                        fontSize: "9px",
+                        background: tokens >= 100 ? "linear-gradient(90deg, #00d2d3, #0abde3)" : "#747d8c",
+                        color: "black",
+                        fontWeight: "bold",
+                        border: "none",
+                        borderRadius: "6px",
+                        cursor: tokens >= 100 ? "pointer" : "not-allowed"
+                      }}
+                    >
+                      SATIN AL & AÇ (100 SPT)
                     </button>
                   </div>
                 </div>
@@ -2541,6 +2670,7 @@ export default function App() {
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "10px" }}>
                       {[
+                        { id: "yumurta", name: "Tavuk Yumurtası", icon: "🥚" },
                         { id: "apple", name: "Elma", icon: "🍎" },
                         { id: "carrot", name: "Havuç", icon: "/assets/mahsul/carrot_icon.png" },
                         { id: "wheat", name: "Buğday", icon: "/assets/mahsul/wheat_icon.png" },

@@ -1,5 +1,5 @@
 import { Room, Client } from "colyseus";
-import { GameState, PlayerState, MapObject, EnemyState } from "../schema/GameState";
+import { GameState, PlayerState, MapObject, EnemyState, ChickenState } from "../schema/GameState";
 import fs from "fs";
 import path from "path";
 import https from "https";
@@ -177,9 +177,133 @@ export class GameRoom extends Room<GameState> {
 
     // Load any saved map objects from disk
     this.loadMapFromDisk();
+    this.loadChickensFromDisk();
+
+    // Check chicken egg production every 10 seconds (1 hour interval per egg)
+    this.setSimulationInterval(() => {
+      const now = Date.now();
+      const EGG_INTERVAL = 3600000; // 1 hour = 3,600,000 ms
+      this.state.chickens.forEach((chicken) => {
+        if (!chicken.eggReady && chicken.eggsProduced < 48) {
+          if (now - chicken.lastEggTime >= EGG_INTERVAL) {
+            chicken.eggReady = true;
+            console.log(`[GameRoom] 🥚 Chicken ${chicken.id} (${chicken.colorType}) produced an egg!`);
+          }
+        }
+      });
+    }, 10000);
 
     // Maximum players per room
     this.maxClients = 50;
+
+    const CHICKEN_VARIANTS = [
+      "black_white",
+      "black",
+      "blonde_green",
+      "blonde",
+      "brown_black",
+      "brown_white",
+      "evil",
+      "full",
+      "green",
+      "pink",
+      "red",
+      "universe",
+      "white"
+    ];
+
+    this.onMessage("buy_chicken_box", (client: Client) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player) return;
+
+      let activeCount = 0;
+      this.state.chickens.forEach((chk) => {
+        if (chk.ownerName === player.name || chk.ownerId === client.sessionId) {
+          activeCount++;
+        }
+      });
+
+      if (activeCount >= 10) {
+        client.send("error", { message: "En fazla 10 tavuk besleyebilirsiniz! Mevcut tavuklarınız ölene kadar yenisini alamazsınız." });
+        return;
+      }
+
+      const BOX_COST = 100;
+      if (player.tokens < BOX_COST) {
+        client.send("error", { message: "Yeterli SPT Tokeniniz yok! (Gerekli: 100 SPT)" });
+        return;
+      }
+
+      player.tokens -= BOX_COST;
+
+      const randomVariant = CHICKEN_VARIANTS[Math.floor(Math.random() * CHICKEN_VARIANTS.length)];
+      const chicken = new ChickenState();
+      chicken.id = `chk_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+      chicken.ownerId = client.sessionId;
+      chicken.ownerName = player.name;
+      chicken.colorType = randomVariant;
+      chicken.mapId = "world_1";
+      chicken.x = 410 + Math.random() * 100;
+      chicken.y = 310 + Math.random() * 120;
+      chicken.eggReady = false;
+      chicken.eggsProduced = 0;
+      chicken.lastEggTime = Date.now();
+
+      this.state.chickens.set(chicken.id, chicken);
+      this.performChickensSave();
+
+      client.send("chicken_box_opened", {
+        colorType: randomVariant,
+        chickenId: chicken.id,
+        tokens: player.tokens,
+        message: `🐣 Tebrikler! Kutudan ${randomVariant} renkli tavuk çıktı ve çiftlik alanına yerleşti!`
+      });
+      console.log(`[GameRoom] Player ${player.name} bought a chicken box and got ${randomVariant}`);
+    });
+
+    this.onMessage("collect_chicken_egg", (client: Client, message: { chickenId: string }) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player || !message?.chickenId) return;
+
+      const chicken = this.state.chickens.get(message.chickenId);
+      if (!chicken) {
+        client.send("error", { message: "Tavuk bulunamadı!" });
+        return;
+      }
+
+      if (!chicken.eggReady) {
+        client.send("error", { message: "Bu tavuğun henüz yumurtası hazır değil!" });
+        return;
+      }
+
+      const current = player.harvests.get("yumurta") || 0;
+      player.harvests.set("yumurta", current + 1);
+
+      chicken.eggReady = false;
+      chicken.lastEggTime = Date.now();
+      chicken.eggsProduced += 1;
+
+      const totalProduced = chicken.eggsProduced;
+      client.send("egg_collected", {
+        chickenId: chicken.id,
+        totalEggs: totalProduced,
+        inventoryEggs: current + 1,
+        message: `+1 🥚 Yumurta toplandı! (${totalProduced}/48)`
+      });
+
+      console.log(`[GameRoom] Player ${player.name} collected egg from chicken ${chicken.id} (${totalProduced}/48)`);
+
+      if (chicken.eggsProduced >= 48) {
+        this.state.chickens.delete(chicken.id);
+        client.send("chicken_died", {
+          chickenId: chicken.id,
+          message: "💀 Tavuğunuz 48 yumurtasını tamamladı ve ömrü tükendi!"
+        });
+        console.log(`[GameRoom] Chicken ${chicken.id} produced 48 eggs and died.`);
+      }
+
+      this.performChickensSave();
+    });
 
     // Static tile request — stream chunks smoothly with 10ms intervals to prevent WebSocket buffer saturation
     this.onMessage("request_static_tiles", (client: Client) => {
@@ -3025,5 +3149,61 @@ export class GameRoom extends Room<GameState> {
     });
     req.on("error", (e) => console.error("[GameRoom] Error fetching from GitHub:", e.message));
     req.end();
+  }
+
+  private performChickensSave(): void {
+    try {
+      const mapDataDir = path.join(process.cwd(), "_mapdata");
+      if (!fs.existsSync(mapDataDir)) {
+        try { fs.mkdirSync(mapDataDir, { recursive: true }); } catch (e) {}
+      }
+      const chickenList: any[] = [];
+      this.state.chickens.forEach((c) => {
+        chickenList.push({
+          id: c.id,
+          ownerId: c.ownerId,
+          ownerName: c.ownerName,
+          colorType: c.colorType,
+          mapId: c.mapId,
+          x: c.x,
+          y: c.y,
+          eggReady: c.eggReady,
+          eggsProduced: c.eggsProduced,
+          lastEggTime: c.lastEggTime
+        });
+      });
+      fs.writeFileSync(path.join(mapDataDir, "chickens_save.json"), JSON.stringify(chickenList), "utf8");
+    } catch (err) {
+      console.error("[GameRoom] Error saving chickens:", err);
+    }
+  }
+
+  private loadChickensFromDisk(): void {
+    try {
+      const savePath = path.join(process.cwd(), "_mapdata", "chickens_save.json");
+      if (fs.existsSync(savePath)) {
+        const raw = fs.readFileSync(savePath, "utf8");
+        const list = JSON.parse(raw);
+        if (Array.isArray(list)) {
+          list.forEach((data: any) => {
+            const c = new ChickenState();
+            c.id = data.id;
+            c.ownerId = data.ownerId || "";
+            c.ownerName = data.ownerName || "";
+            c.colorType = data.colorType || "black_white";
+            c.mapId = data.mapId || "world_1";
+            c.x = data.x || 450;
+            c.y = data.y || 350;
+            c.eggReady = Boolean(data.eggReady);
+            c.eggsProduced = Number(data.eggsProduced || 0);
+            c.lastEggTime = Number(data.lastEggTime || Date.now());
+            this.state.chickens.set(c.id, c);
+          });
+          console.log(`[GameRoom] 🐔 Loaded ${list.length} chickens from disk.`);
+        }
+      }
+    } catch (err) {
+      console.error("[GameRoom] Error loading chickens:", err);
+    }
   }
 }

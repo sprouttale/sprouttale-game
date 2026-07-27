@@ -194,12 +194,12 @@ export class GameRoom extends Room<GameState> {
           }
         }
 
-        // Wandering AI inside world_8 fenced enclosure (X: 350..550, Y: 220..420)
+        // Wandering AI strictly inside upper fenced enclosure (world_8, X: 240..580, Y: 195..320)
         let tData = this.chickenTargets.get(id);
         if (!tData || now >= tData.nextMoveTime) {
           tData = {
-            targetX: 350 + Math.random() * 200,
-            targetY: 220 + Math.random() * 200,
+            targetX: 240 + Math.random() * 340,
+            targetY: 195 + Math.random() * 125,
             nextMoveTime: now + 3000 + Math.random() * 5000 // New destination every 3-8 seconds
           };
           this.chickenTargets.set(id, tData);
@@ -214,6 +214,10 @@ export class GameRoom extends Room<GameState> {
           chicken.x += (dx / dist) * Math.min(dist, speed);
           chicken.y += (dy / dist) * Math.min(dist, speed);
         }
+
+        // Strict fence boundary collision enforcement (never pass through fences)
+        chicken.x = Math.max(240, Math.min(580, chicken.x));
+        chicken.y = Math.max(195, Math.min(320, chicken.y));
       });
     }, 300);
 
@@ -266,9 +270,9 @@ export class GameRoom extends Room<GameState> {
       chicken.ownerId = client.sessionId;
       chicken.ownerName = player.name;
       chicken.colorType = randomVariant;
-      chicken.mapId = "world_8"; // Spawns inside fenced animal enclosure on HARİTA 8
-      chicken.x = 350 + Math.random() * 200;
-      chicken.y = 220 + Math.random() * 200;
+      chicken.mapId = "world_8"; // Spawns inside upper fenced animal enclosure on HARİTA 8
+      chicken.x = 240 + Math.random() * 340;
+      chicken.y = 195 + Math.random() * 125;
       chicken.eggReady = false;
       chicken.eggsProduced = 0;
       chicken.lastEggTime = Date.now();
@@ -3216,10 +3220,10 @@ export class GameRoom extends Room<GameState> {
             c.ownerId = data.ownerId || "";
             c.ownerName = data.ownerName || "";
             c.colorType = data.colorType || "black_white";
-            // Migrate any chickens originally placed on world_1 to the fenced enclosure on world_8
-            c.mapId = (data.mapId === "world_1" || !data.mapId) ? "world_8" : data.mapId;
-            c.x = (data.mapId === "world_1" || !data.x || data.x > 800 || data.x < 200) ? (350 + Math.random() * 200) : data.x;
-            c.y = (data.mapId === "world_1" || !data.y || data.y > 600 || data.y < 100) ? (220 + Math.random() * 200) : data.y;
+            // Relocate all chickens to upper fenced enclosure on world_8 (X: 240..580, Y: 195..320)
+            c.mapId = "world_8";
+            c.x = (data.x >= 240 && data.x <= 580) ? data.x : (240 + Math.random() * 340);
+            c.y = (data.y >= 195 && data.y <= 320) ? data.y : (195 + Math.random() * 125);
             c.eggReady = Boolean(data.eggReady);
             c.eggsProduced = Number(data.eggsProduced || 0);
             c.lastEggTime = Number(data.lastEggTime || Date.now());

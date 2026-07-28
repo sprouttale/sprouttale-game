@@ -340,11 +340,11 @@ export class GameRoom extends Room<GameState> {
 
         let tData = this.sheepTargets.get(id);
         if (!tData || now >= tData.nextMoveTime) {
-          let bestX = 325 + Math.random() * 125;
-          let bestY = 320 + Math.random() * 60;
+          let bestX = 330 + Math.random() * 120;
+          let bestY = 350 + Math.random() * 90;
           for (let attempt = 0; attempt < 10; attempt++) {
-            const candX = 325 + Math.random() * 125;
-            const candY = 320 + Math.random() * 60;
+            const candX = 330 + Math.random() * 120;
+            const candY = 350 + Math.random() * 90;
             let tooClose = false;
             this.state.sheeps.forEach((otherS, otherId) => {
               if (otherId !== id && Math.hypot(candX - otherS.x, candY - otherS.y) < 35) {
@@ -382,8 +382,8 @@ export class GameRoom extends Room<GameState> {
             }
           }
         });
-        sA.x = Math.max(325, Math.min(450, sA.x));
-        sA.y = Math.max(320, Math.min(380, sA.y));
+        sA.x = Math.max(330, Math.min(450, sA.x));
+        sA.y = Math.max(350, Math.min(440, sA.y));
       });
     }, 300);
 
@@ -634,8 +634,8 @@ export class GameRoom extends Room<GameState> {
       sheep.ownerName = player.name;
       sheep.colorType = randomVariant;
       sheep.mapId = "world_8";
-      sheep.x = 325 + Math.random() * 125;
-      sheep.y = 320 + Math.random() * 60;
+      sheep.x = 330 + Math.random() * 120;
+      sheep.y = 350 + Math.random() * 90;
       sheep.woolReady = false;
       sheep.woolProduced = 0;
       sheep.lastWoolTime = Date.now();
@@ -3673,8 +3673,8 @@ export class GameRoom extends Room<GameState> {
             s.ownerName = data.ownerName || "";
             s.colorType = data.colorType || "white";
             s.mapId = "world_8";
-            s.x = 325 + Math.random() * 125;
-            s.y = 320 + Math.random() * 60;
+            s.x = Math.max(330, Math.min(450, Number(data.x) || (330 + Math.random() * 120)));
+            s.y = Math.max(350, Math.min(440, Number(data.y) || (350 + Math.random() * 90)));
             s.woolReady = Boolean(data.woolReady);
             s.woolProduced = Number(data.woolProduced || 0);
             s.lastWoolTime = Number(data.lastWoolTime || Date.now());

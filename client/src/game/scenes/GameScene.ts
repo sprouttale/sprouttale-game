@@ -5627,6 +5627,13 @@ export class GameScene extends Phaser.Scene {
 
         const cropSprite = this.add.sprite(0, 0, cropTextureKey, frameIndex);
         cropSprite.setScale(2.5);
+        if (stage === 0) {
+          cropSprite.setOrigin(0.5, 0.70);
+        } else if (stage === 1) {
+          cropSprite.setOrigin(0.5, 0.68);
+        } else {
+          cropSprite.setOrigin(0.5, 0.62);
+        }
         container.add(cropSprite);
 
         // 💧 Su ihtiyacı göstergesi: Sulanmamış + ekin var + henüz olgunlaşmamış

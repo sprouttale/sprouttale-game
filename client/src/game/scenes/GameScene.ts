@@ -2076,7 +2076,7 @@ export class GameScene extends Phaser.Scene {
     ];
 
     const sheepDirs = ["down", "up", "left", "right"];
-    const sheepDirOffsets: Record<string, number> = { down: 0, up: 4, left: 8, right: 12 };
+    const sheepDirOffsets: Record<string, number> = { down: 4, up: 8, left: 16, right: 24 };
 
     sheepTypes.forEach((typeKey) => {
       sheepDirs.forEach((dir) => {
@@ -5399,7 +5399,7 @@ export class GameScene extends Phaser.Scene {
     const keyToUse = this.textures.exists(textureKey) ? textureKey : "animal_sheep_white";
 
     const sprite = this.add.sprite(0, 0, keyToUse, 0);
-    sprite.setScale(1.8);
+    sprite.setScale(1.5);
 
     const idleAnim = `${keyToUse}_idle_down`;
     if (this.anims.exists(idleAnim)) {

@@ -231,6 +231,7 @@ export class GameScene extends Phaser.Scene {
   private enemySprites = new Map<string, EnemySpriteData>();
   private petSprites = new Map<string, { sprite: Phaser.GameObjects.Sprite; targetX: number; targetY: number }>();
   private chickenSprites = new Map<string, { container: Phaser.GameObjects.Container; sprite: Phaser.GameObjects.Sprite; eggIcon: Phaser.GameObjects.Text; data: any }>();
+  private cowSprites     = new Map<string, { container: Phaser.GameObjects.Container; sprite: Phaser.GameObjects.Sprite; milkIcon: Phaser.GameObjects.Text; data: any }>();
 
   // ---- Input ---------------------------------------------------------------
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -4609,6 +4610,17 @@ export class GameScene extends Phaser.Scene {
       });
     }
 
+    // Update cows visibility
+    if (this.room?.state?.cows) {
+      this.room.state.cows.forEach((cow: any, id: string) => {
+        const cSprite = this.cowSprites.get(id);
+        if (cSprite && cSprite.container) {
+          const cMap = cow.mapId || "world_8";
+          cSprite.container.setVisible(cMap === this.currentMapId);
+        }
+      });
+    }
+
     window.dispatchEvent(new CustomEvent("map_switched", {
       detail: { mapId: this.currentMapId, width: mapW, height: mapH }
     }));
@@ -4735,6 +4747,44 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.room.onMessage("chicken_died", (data: any) => {
+      if (data?.message) {
+        const px = this.localSprite?.container?.x || 450;
+        const py = this.localSprite?.container?.y || 350;
+        this.showFloatingText(px, py - 40, data.message, "#ff4757");
+      }
+    });
+
+    // --- Cow bindings ---
+    const { cows } = this.room.state;
+    cows?.onAdd?.((cow: any, id: string) => {
+      this.spawnCow(cow, id);
+      cow.onChange?.(() => {
+        this.updateCow(cow, id);
+      });
+    });
+
+    cows?.onRemove?.((_cow: any, id: string) => {
+      this.despawnCow(id);
+    });
+
+    this.room.onMessage("cow_box_opened", (data: any) => {
+      if (data?.message) {
+        const px = this.localSprite?.container?.x || 450;
+        const py = this.localSprite?.container?.y || 350;
+        this.showFloatingText(px, py - 30, data.message, "#d4a017");
+      }
+    });
+
+    this.room.onMessage("milk_collected", (data: any) => {
+      if (data?.message) {
+        const cSprite = this.cowSprites.get(data.cowId);
+        const cx = cSprite?.container?.x || this.localSprite?.container?.x || 450;
+        const cy = cSprite?.container?.y || this.localSprite?.container?.y || 350;
+        this.showFloatingText(cx, cy - 20, data.message, "#2ecc71");
+      }
+    });
+
+    this.room.onMessage("cow_died", (data: any) => {
       if (data?.message) {
         const px = this.localSprite?.container?.x || 450;
         const py = this.localSprite?.container?.y || 350;
@@ -5185,6 +5235,109 @@ export class GameScene extends Phaser.Scene {
     if (cData) {
       cData.container.destroy();
       this.chickenSprites.delete(id);
+    }
+  }
+
+  // ── Cow Spawn / Update / Despawn ──────────────────────────────────────────
+  private spawnCow(cow: any, id: string): void {
+    if (this.cowSprites.has(id)) return;
+
+    const textureKey = `animal_cow_${cow.colorType || "black"}`;
+    const keyToUse = this.textures.exists(textureKey) ? textureKey : "animal_cow_black";
+
+    const sprite = this.add.sprite(0, 0, keyToUse, 0);
+    sprite.setScale(2.0); // Cows are bigger than chickens
+
+    const idleAnim = `${keyToUse}_idle_down`;
+    if (this.anims.exists(idleAnim)) {
+      sprite.play(idleAnim);
+    }
+
+    // Floating milk icon above cow
+    const milkIcon = this.add.text(0, -26, "🥛", { fontSize: "16px" });
+    milkIcon.setOrigin(0.5);
+    milkIcon.setVisible(Boolean(cow.milkReady));
+
+    const container = this.add.container(cow.x, cow.y, [sprite, milkIcon]);
+    container.setDepth(1.2 + cow.y / 10000);
+    container.setSize(32, 32);
+    container.setInteractive({ useHandCursor: true });
+
+    const cMap = cow.mapId || "world_8";
+    container.setVisible(cMap === this.currentMapId);
+
+    container.on("pointerdown", (_pointer: Phaser.Input.Pointer, _localX: number, _localY: number, event: Phaser.Types.Input.EventData) => {
+      event.stopPropagation();
+      const config = (window as any).editorConfig;
+      if (config && config.active) return;
+
+      if (cow.milkReady) {
+        this.room.send("collect_cow_milk", { cowId: id });
+      } else {
+        const lastTime = Number(cow.lastMilkTime || Date.now());
+        const MILK_INTERVAL_MS = 3600000;
+        const remainingMs = Math.max(0, MILK_INTERVAL_MS - (Date.now() - lastTime));
+        const remainingSec = Math.ceil(remainingMs / 1000);
+        let timeStr = "";
+        if (remainingSec >= 60) {
+          const mins = Math.floor(remainingSec / 60);
+          const secs = remainingSec % 60;
+          timeStr = `⏳ ${mins}dk ${secs}sn`;
+        } else {
+          timeStr = `⏳ ${remainingSec}sn`;
+        }
+        this.showFloatingText(container.x, container.y - 25, timeStr, "#d4a017");
+      }
+    });
+
+    this.cowSprites.set(id, { container, sprite, milkIcon, data: cow });
+  }
+
+  private updateCow(cow: any, id: string): void {
+    const cData = this.cowSprites.get(id);
+    if (!cData) return;
+
+    const oldX = cData.container.x;
+    const oldY = cData.container.y;
+    const newX = cow.x;
+    const newY = cow.y;
+    const dx = newX - oldX;
+    const dy = newY - oldY;
+
+    cData.container.setPosition(newX, newY);
+    cData.container.setDepth(1.2 + newY / 10000);
+    cData.milkIcon.setVisible(Boolean(cow.milkReady));
+
+    const cMap = cow.mapId || "world_8";
+    cData.container.setVisible(cMap === this.currentMapId);
+
+    const textureKey = `animal_cow_${cow.colorType || "black"}`;
+    const keyToUse = this.textures.exists(textureKey) ? textureKey : "animal_cow_black";
+
+    if (Math.abs(dx) > 0.3 || Math.abs(dy) > 0.3) {
+      let dir = "down";
+      if (Math.abs(dx) > Math.abs(dy)) {
+        dir = dx > 0 ? "right" : "left";
+      } else {
+        dir = dy > 0 ? "down" : "up";
+      }
+      const walkAnim = `${keyToUse}_walk_${dir}`;
+      if (this.anims.exists(walkAnim) && cData.sprite.anims.currentAnim?.key !== walkAnim) {
+        cData.sprite.play(walkAnim);
+      }
+    } else {
+      const idleAnim = `${keyToUse}_idle_down`;
+      if (this.anims.exists(idleAnim) && cData.sprite.anims.currentAnim?.key !== idleAnim) {
+        cData.sprite.play(idleAnim);
+      }
+    }
+  }
+
+  private despawnCow(id: string): void {
+    const cData = this.cowSprites.get(id);
+    if (cData) {
+      cData.container.destroy();
+      this.cowSprites.delete(id);
     }
   }
 

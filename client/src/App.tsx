@@ -1329,6 +1329,37 @@ export default function App() {
     const harvestedListener = room.onMessage("harvested", handleHarvested);
     const seedPlantedListener = room.onMessage("seed_planted", handleSeedPlanted);
 
+    // ── Server error messages ──
+    room.onMessage("error", (msg: any) => {
+      console.warn("[Server Error]", msg?.message || msg);
+      // Show as toast/alert so the user sees it
+      if (msg?.message) {
+        alert(`⚠️ ${msg.message}`);
+      }
+    });
+
+    // ── Chicken messages ──
+    room.onMessage("egg_collected", (msg: any) => {
+      console.log("[Chicken] Egg collected:", msg?.message);
+    });
+    room.onMessage("chicken_died", (msg: any) => {
+      console.log("[Chicken] Died:", msg?.message);
+      if (msg?.message) alert(`🪦 ${msg.message}`);
+    });
+
+    // ── Cow messages ──
+    room.onMessage("cow_box_opened", (msg: any) => {
+      console.log("[Cow] Box opened:", msg?.message);
+    });
+    room.onMessage("milk_collected", (msg: any) => {
+      console.log("[Cow] Milk collected:", msg?.message);
+    });
+    room.onMessage("cow_died", (msg: any) => {
+      console.log("[Cow] Died:", msg?.message);
+      if (msg?.message) alert(`🪦 ${msg.message}`);
+    });
+
+
     // Track local player HP and inventories from state
     room.state.players.onAdd((player: any, sessionId: string) => {
       if (sessionId === room.sessionId) {

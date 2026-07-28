@@ -232,6 +232,7 @@ export class GameScene extends Phaser.Scene {
   private petSprites = new Map<string, { sprite: Phaser.GameObjects.Sprite; targetX: number; targetY: number }>();
   private chickenSprites = new Map<string, { container: Phaser.GameObjects.Container; sprite: Phaser.GameObjects.Sprite; eggIcon: Phaser.GameObjects.Text; data: any }>();
   private cowSprites     = new Map<string, { container: Phaser.GameObjects.Container; sprite: Phaser.GameObjects.Sprite; milkIcon: Phaser.GameObjects.Text; data: any }>();
+  private sheepSprites   = new Map<string, { container: Phaser.GameObjects.Container; sprite: Phaser.GameObjects.Sprite; woolIcon: Phaser.GameObjects.Text; data: any }>();
 
   // ---- Input ---------------------------------------------------------------
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -4621,6 +4622,17 @@ export class GameScene extends Phaser.Scene {
       });
     }
 
+    // Update sheeps visibility
+    if (this.room?.state?.sheeps) {
+      this.room.state.sheeps.forEach((shp: any, id: string) => {
+        const sSprite = this.sheepSprites.get(id);
+        if (sSprite && sSprite.container) {
+          const sMap = shp.mapId || "world_8";
+          sSprite.container.setVisible(sMap === this.currentMapId);
+        }
+      });
+    }
+
     window.dispatchEvent(new CustomEvent("map_switched", {
       detail: { mapId: this.currentMapId, width: mapW, height: mapH }
     }));
@@ -4785,6 +4797,44 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.room.onMessage("cow_died", (data: any) => {
+      if (data?.message) {
+        const px = this.localSprite?.container?.x || 450;
+        const py = this.localSprite?.container?.y || 350;
+        this.showFloatingText(px, py - 40, data.message, "#ff4757");
+      }
+    });
+
+    // --- Sheep bindings ---
+    const { sheeps } = this.room.state;
+    sheeps?.onAdd?.((sheep: any, id: string) => {
+      this.spawnSheep(sheep, id);
+      sheep.onChange?.(() => {
+        this.updateSheep(sheep, id);
+      });
+    });
+
+    sheeps?.onRemove?.((_sheep: any, id: string) => {
+      this.despawnSheep(id);
+    });
+
+    this.room.onMessage("sheep_box_opened", (data: any) => {
+      if (data?.message) {
+        const px = this.localSprite?.container?.x || 450;
+        const py = this.localSprite?.container?.y || 350;
+        this.showFloatingText(px, py - 30, data.message, "#c8d6e5");
+      }
+    });
+
+    this.room.onMessage("wool_collected", (data: any) => {
+      if (data?.message) {
+        const sSprite = this.sheepSprites.get(data.sheepId);
+        const cx = sSprite?.container?.x || this.localSprite?.container?.x || 450;
+        const cy = sSprite?.container?.y || this.localSprite?.container?.y || 350;
+        this.showFloatingText(cx, cy - 20, data.message, "#2ecc71");
+      }
+    });
+
+    this.room.onMessage("sheep_died", (data: any) => {
       if (data?.message) {
         const px = this.localSprite?.container?.x || 450;
         const py = this.localSprite?.container?.y || 350;
@@ -5338,6 +5388,109 @@ export class GameScene extends Phaser.Scene {
     if (cData) {
       cData.container.destroy();
       this.cowSprites.delete(id);
+    }
+  }
+
+  // ── Sheep Spawn / Update / Despawn ─────────────────────────────────────────
+  private spawnSheep(sheep: any, id: string): void {
+    if (this.sheepSprites.has(id)) return;
+
+    const textureKey = `animal_sheep_${sheep.colorType || "white"}`;
+    const keyToUse = this.textures.exists(textureKey) ? textureKey : "animal_sheep_white";
+
+    const sprite = this.add.sprite(0, 0, keyToUse, 0);
+    sprite.setScale(1.8);
+
+    const idleAnim = `${keyToUse}_idle_down`;
+    if (this.anims.exists(idleAnim)) {
+      sprite.play(idleAnim);
+    }
+
+    // Floating wool icon above sheep
+    const woolIcon = this.add.text(0, -22, "🧶", { fontSize: "15px" });
+    woolIcon.setOrigin(0.5);
+    woolIcon.setVisible(Boolean(sheep.woolReady));
+
+    const container = this.add.container(sheep.x, sheep.y, [sprite, woolIcon]);
+    container.setDepth(1.2 + sheep.y / 10000);
+    container.setSize(28, 28);
+    container.setInteractive({ useHandCursor: true });
+
+    const sMap = sheep.mapId || "world_8";
+    container.setVisible(sMap === this.currentMapId);
+
+    container.on("pointerdown", (_pointer: Phaser.Input.Pointer, _localX: number, _localY: number, event: Phaser.Types.Input.EventData) => {
+      event.stopPropagation();
+      const config = (window as any).editorConfig;
+      if (config && config.active) return;
+
+      if (sheep.woolReady) {
+        this.room.send("collect_sheep_wool", { sheepId: id });
+      } else {
+        const lastTime = Number(sheep.lastWoolTime || Date.now());
+        const WOOL_INTERVAL_MS = 3600000;
+        const remainingMs = Math.max(0, WOOL_INTERVAL_MS - (Date.now() - lastTime));
+        const remainingSec = Math.ceil(remainingMs / 1000);
+        let timeStr = "";
+        if (remainingSec >= 60) {
+          const mins = Math.floor(remainingSec / 60);
+          const secs = remainingSec % 60;
+          timeStr = `⏳ ${mins}dk ${secs}sn`;
+        } else {
+          timeStr = `⏳ ${remainingSec}sn`;
+        }
+        this.showFloatingText(container.x, container.y - 25, timeStr, "#c8d6e5");
+      }
+    });
+
+    this.sheepSprites.set(id, { container, sprite, woolIcon, data: sheep });
+  }
+
+  private updateSheep(sheep: any, id: string): void {
+    const sData = this.sheepSprites.get(id);
+    if (!sData) return;
+
+    const oldX = sData.container.x;
+    const oldY = sData.container.y;
+    const newX = sheep.x;
+    const newY = sheep.y;
+    const dx = newX - oldX;
+    const dy = newY - oldY;
+
+    sData.container.setPosition(newX, newY);
+    sData.container.setDepth(1.2 + newY / 10000);
+    sData.woolIcon.setVisible(Boolean(sheep.woolReady));
+
+    const sMap = sheep.mapId || "world_8";
+    sData.container.setVisible(sMap === this.currentMapId);
+
+    const textureKey = `animal_sheep_${sheep.colorType || "white"}`;
+    const keyToUse = this.textures.exists(textureKey) ? textureKey : "animal_sheep_white";
+
+    if (Math.abs(dx) > 0.3 || Math.abs(dy) > 0.3) {
+      let dir = "down";
+      if (Math.abs(dx) > Math.abs(dy)) {
+        dir = dx > 0 ? "right" : "left";
+      } else {
+        dir = dy > 0 ? "down" : "up";
+      }
+      const walkAnim = `${keyToUse}_walk_${dir}`;
+      if (this.anims.exists(walkAnim) && sData.sprite.anims.currentAnim?.key !== walkAnim) {
+        sData.sprite.play(walkAnim);
+      }
+    } else {
+      const idleAnim = `${keyToUse}_idle_down`;
+      if (this.anims.exists(idleAnim) && sData.sprite.anims.currentAnim?.key !== idleAnim) {
+        sData.sprite.play(idleAnim);
+      }
+    }
+  }
+
+  private despawnSheep(id: string): void {
+    const sData = this.sheepSprites.get(id);
+    if (sData) {
+      sData.container.destroy();
+      this.sheepSprites.delete(id);
     }
   }
 

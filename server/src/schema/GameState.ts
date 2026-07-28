@@ -193,6 +193,42 @@ export class CowState extends Schema {
 }
 
 // ---------------------------------------------------------------------------
+// SheepState — represents a sheep animal placed in the bottom-left farm pen.
+// Produces wool every hour (up to 48 times before dying).
+// ---------------------------------------------------------------------------
+export class SheepState extends Schema {
+  @type("string")
+  id: string = "";
+
+  @type("string")
+  ownerId: string = "";
+
+  @type("string")
+  ownerName: string = "";
+
+  @type("string")
+  colorType: string = "white"; // e.g. "white", "spotted"
+
+  @type("string")
+  mapId: string = "world_8";
+
+  @type("float32")
+  x: number = 0;
+
+  @type("float32")
+  y: number = 0;
+
+  @type("boolean")
+  woolReady: boolean = false;
+
+  @type("int32")
+  woolProduced: number = 0; // Max 48 total wool produced before sheep dies
+
+  @type("number")
+  lastWoolTime: number = 0; // Timestamp (ms) when current wool timer started
+}
+
+// ---------------------------------------------------------------------------
 // MapObject — represents a placed decorative or collidable asset on the map.
 // ---------------------------------------------------------------------------
 export class MapObject extends Schema {
@@ -371,4 +407,7 @@ export class GameState extends Schema {
 
   @type({ map: CowState })
   cows = new MapSchema<CowState>();
+
+  @type({ map: SheepState })
+  sheeps = new MapSchema<SheepState>();
 }

@@ -1,5 +1,5 @@
 import { Room, Client } from "colyseus";
-import { GameState, PlayerState, MapObject, EnemyState, ChickenState, CowState } from "../schema/GameState";
+import { GameState, PlayerState, MapObject, EnemyState, ChickenState, CowState, SheepState } from "../schema/GameState";
 import fs from "fs";
 import path from "path";
 import https from "https";
@@ -90,6 +90,7 @@ export class GameRoom extends Room<GameState> {
   private playerPetIdleTime = new Map<string, number>();
   private chickenTargets = new Map<string, { targetX: number; targetY: number; nextMoveTime: number }>();
   private cowTargets    = new Map<string, { targetX: number; targetY: number; nextMoveTime: number }>();
+  private sheepTargets  = new Map<string, { targetX: number; targetY: number; nextMoveTime: number }>();
   private cropAccumulator = 0;
 
   /** Cooldown timestamps for map transitions (sessionId -> last transition time ms)
@@ -181,6 +182,7 @@ export class GameRoom extends Room<GameState> {
     this.loadMapFromDisk();
     this.loadChickensFromDisk();
     this.loadCowsFromDisk();
+    this.loadSheepFromDisk();
 
     // Chicken tick loop: egg production check + wandering AI (300ms)
     this.setSimulationInterval(() => {
@@ -320,6 +322,68 @@ export class GameRoom extends Room<GameState> {
         });
         cA.x = Math.max(540, Math.min(680, cA.x));
         cA.y = Math.max(190, Math.min(235, cA.y));
+      });
+    }, 300);
+
+    // Sheep tick loop: wool production check + wandering AI (300ms)
+    this.setSimulationInterval(() => {
+      const now = Date.now();
+      const WOOL_INTERVAL = 3600000; // 1 hour
+
+      this.state.sheeps.forEach((sheep, id) => {
+        if (!sheep.woolReady && sheep.woolProduced < 48) {
+          if (now - sheep.lastWoolTime >= WOOL_INTERVAL) {
+            sheep.woolReady = true;
+            console.log(`[GameRoom] 🧶 Sheep ${sheep.id} (${sheep.colorType}) produced wool!`);
+          }
+        }
+
+        let tData = this.sheepTargets.get(id);
+        if (!tData || now >= tData.nextMoveTime) {
+          let bestX = 305 + Math.random() * 165;
+          let bestY = 310 + Math.random() * 85;
+          for (let attempt = 0; attempt < 10; attempt++) {
+            const candX = 305 + Math.random() * 165;
+            const candY = 310 + Math.random() * 85;
+            let tooClose = false;
+            this.state.sheeps.forEach((otherS, otherId) => {
+              if (otherId !== id && Math.hypot(candX - otherS.x, candY - otherS.y) < 35) {
+                tooClose = true;
+              }
+            });
+            if (!tooClose) { bestX = candX; bestY = candY; break; }
+          }
+          tData = { targetX: bestX, targetY: bestY, nextMoveTime: now + 4000 + Math.random() * 6000 };
+          this.sheepTargets.set(id, tData);
+        }
+
+        const dx = tData.targetX - sheep.x;
+        const dy = tData.targetY - sheep.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist > 3) {
+          const speed = 0.9;
+          sheep.x += (dx / dist) * Math.min(dist, speed);
+          sheep.y += (dy / dist) * Math.min(dist, speed);
+        }
+      });
+
+      // Sheep-to-Sheep Separation Force
+      const SHEEP_MIN_DIST = 35;
+      this.state.sheeps.forEach((sA, idA) => {
+        this.state.sheeps.forEach((sB, idB) => {
+          if (idA !== idB && sA.mapId === sB.mapId) {
+            const dx = sA.x - sB.x;
+            const dy = sA.y - sB.y;
+            const dist = Math.hypot(dx, dy);
+            if (dist > 0 && dist < SHEEP_MIN_DIST) {
+              const overlap = SHEEP_MIN_DIST - dist;
+              sA.x += (dx / dist) * (overlap * 0.35);
+              sA.y += (dy / dist) * (overlap * 0.35);
+            }
+          }
+        });
+        sA.x = Math.max(305, Math.min(470, sA.x));
+        sA.y = Math.max(310, Math.min(395, sA.y));
       });
     }, 300);
 
@@ -533,6 +597,105 @@ export class GameRoom extends Room<GameState> {
       }
 
       this.performCowsSave();
+      this.performPlayersSave();
+    });
+
+    // ──────────────────────────────────────────────────────────────
+    // SHEEP: buy_sheep_box — Spend 200 SPT tokens, receive a random sheep
+    // ──────────────────────────────────────────────────────────────
+    const SHEEP_VARIANTS = ["white", "spotted"];
+
+    this.onMessage("buy_sheep_box", (client: Client) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player) return;
+
+      let sheepCount = 0;
+      this.state.sheeps.forEach((s) => {
+        if (s.ownerName === player.name || s.ownerId === client.sessionId) sheepCount++;
+      });
+
+      if (sheepCount >= 10) {
+        client.send("error", { message: "En fazla 10 koyun besleyebilirsiniz!" });
+        return;
+      }
+
+      const SHEEP_COST = 200;
+      if (player.tokens < SHEEP_COST) {
+        client.send("error", { message: "Yeterli SPT Tokeniniz yok! (Gerekli: 200 SPT)" });
+        return;
+      }
+
+      player.tokens -= SHEEP_COST;
+
+      const randomVariant = SHEEP_VARIANTS[Math.floor(Math.random() * SHEEP_VARIANTS.length)];
+      const sheep = new SheepState();
+      sheep.id = `sheep_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+      sheep.ownerId = client.sessionId;
+      sheep.ownerName = player.name;
+      sheep.colorType = randomVariant;
+      sheep.mapId = "world_8";
+      sheep.x = 305 + Math.random() * 165;
+      sheep.y = 310 + Math.random() * 85;
+      sheep.woolReady = false;
+      sheep.woolProduced = 0;
+      sheep.lastWoolTime = Date.now();
+
+      this.state.sheeps.set(sheep.id, sheep);
+      this.performSheepSave();
+      this.performPlayersSave();
+
+      client.send("sheep_box_opened", {
+        colorType: randomVariant,
+        message: `📦 Koyun Kutusu Açıldı! ${randomVariant === "white" ? "Beyaz" : "Kıvırcık"} bir koyun çiftlik alanına yerleşti!`
+      });
+      console.log(`[GameRoom] Player ${player.name} opened a sheep box: ${randomVariant}`);
+    });
+
+    // ──────────────────────────────────────────────────────────────
+    // SHEEP: collect_sheep_wool — Collect wool from a ready sheep
+    // ──────────────────────────────────────────────────────────────
+    this.onMessage("collect_sheep_wool", (client: Client, message: { sheepId: string }) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player || !message?.sheepId) return;
+
+      const sheep = this.state.sheeps.get(message.sheepId);
+      if (!sheep) {
+        client.send("error", { message: "Koyun bulunamadı!" });
+        return;
+      }
+
+      if (!sheep.woolReady) {
+        client.send("error", { message: "Bu koyunun henüz yünü hazır değil!" });
+        return;
+      }
+
+      const current = player.harvests.get("yun") || 0;
+      player.harvests.set("yun", current + 1);
+
+      sheep.woolReady = false;
+      sheep.lastWoolTime = Date.now();
+      sheep.woolProduced += 1;
+
+      const totalProduced = sheep.woolProduced;
+      client.send("wool_collected", {
+        sheepId: sheep.id,
+        totalWool: totalProduced,
+        inventoryWool: current + 1,
+        message: "+1 🧶 Yün toplandı!"
+      });
+
+      console.log(`[GameRoom] Player ${player.name} collected wool from sheep ${sheep.id} (${totalProduced}/48)`);
+
+      if (sheep.woolProduced >= 48) {
+        this.state.sheeps.delete(sheep.id);
+        client.send("sheep_died", {
+          sheepId: sheep.id,
+          message: "💀 Koyununuz 48 yününü tamamladı ve ömrü tükendi!"
+        });
+        console.log(`[GameRoom] Sheep ${sheep.id} produced 48 wools and died.`);
+      }
+
+      this.performSheepSave();
       this.performPlayersSave();
     });
 
@@ -3466,6 +3629,62 @@ export class GameRoom extends Room<GameState> {
       fs.writeFileSync(path.join(mapDataDir, "cows_save.json"), JSON.stringify(cowList), "utf8");
     } catch (err) {
       console.error("[GameRoom] Error saving cows:", err);
+    }
+  }
+
+  private performSheepSave(): void {
+    try {
+      const mapDataDir = path.join(process.cwd(), "_mapdata");
+      if (!fs.existsSync(mapDataDir)) {
+        try { fs.mkdirSync(mapDataDir, { recursive: true }); } catch (e) {}
+      }
+      const sheepList: any[] = [];
+      this.state.sheeps.forEach((s) => {
+        sheepList.push({
+          id: s.id,
+          ownerId: s.ownerId,
+          ownerName: s.ownerName,
+          colorType: s.colorType,
+          mapId: s.mapId,
+          x: s.x,
+          y: s.y,
+          woolReady: s.woolReady,
+          woolProduced: s.woolProduced,
+          lastWoolTime: s.lastWoolTime
+        });
+      });
+      fs.writeFileSync(path.join(mapDataDir, "sheep_save.json"), JSON.stringify(sheepList), "utf8");
+    } catch (err) {
+      console.error("[GameRoom] Error saving sheep:", err);
+    }
+  }
+
+  private loadSheepFromDisk(): void {
+    try {
+      const savePath = path.join(process.cwd(), "_mapdata", "sheep_save.json");
+      if (fs.existsSync(savePath)) {
+        const raw = fs.readFileSync(savePath, "utf8");
+        const list = JSON.parse(raw);
+        if (Array.isArray(list)) {
+          list.forEach((data: any) => {
+            const s = new SheepState();
+            s.id = data.id;
+            s.ownerId = data.ownerId || "";
+            s.ownerName = data.ownerName || "";
+            s.colorType = data.colorType || "white";
+            s.mapId = "world_8";
+            s.x = 305 + Math.random() * 165;
+            s.y = 310 + Math.random() * 85;
+            s.woolReady = Boolean(data.woolReady);
+            s.woolProduced = Number(data.woolProduced || 0);
+            s.lastWoolTime = Number(data.lastWoolTime || Date.now());
+            this.state.sheeps.set(s.id, s);
+          });
+          console.log(`[GameRoom] 🐑 Loaded ${list.length} sheep from disk.`);
+        }
+      }
+    } catch (err) {
+      console.error("[GameRoom] Error loading sheep:", err);
     }
   }
 

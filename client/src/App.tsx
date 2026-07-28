@@ -571,10 +571,11 @@ export default function App() {
   const [purchasedBroomsticks, setPurchasedBroomsticks] = useState<number[]>([]);
   const [activeBroomstickVariant, setActiveBroomstickVariant] = useState<number>(1);
   const [purchasedTractors,  setPurchasedTractors]  = useState<number[]>([]);
-  const [stableTab,          setStableTab]          = useState<"horses" | "bicycles" | "chickens" | "cows">("horses");
+  const [stableTab,          setStableTab]          = useState<"horses" | "bicycles" | "chickens" | "cows" | "sheeps">("horses");
   const [tokens,             setTokens]             = useState<number>(100000);
   const [chickensList,       setChickensList]       = useState<any[]>([]);
   const [cowsList,           setCowsList]           = useState<any[]>([]);
+  const [sheepsList,         setSheepsList]         = useState<any[]>([]);
 
   // Map Editor State
   const [isEditorOpen, setIsEditorOpen] = useState(false);
@@ -1359,6 +1360,18 @@ export default function App() {
       if (msg?.message) alert(`🪦 ${msg.message}`);
     });
 
+    // ── Sheep messages ──
+    room.onMessage("sheep_box_opened", (msg: any) => {
+      console.log("[Sheep] Box opened:", msg?.message);
+    });
+    room.onMessage("wool_collected", (msg: any) => {
+      console.log("[Sheep] Wool collected:", msg?.message);
+    });
+    room.onMessage("sheep_died", (msg: any) => {
+      console.log("[Sheep] Died:", msg?.message);
+      if (msg?.message) alert(`🪦 ${msg.message}`);
+    });
+
 
     // Track local player HP and inventories from state
     room.state.players.onAdd((player: any, sessionId: string) => {
@@ -1448,6 +1461,29 @@ export default function App() {
       room.state.cows.onAdd(() => updateCowsList());
       room.state.cows.onRemove(() => updateCowsList());
       room.state.cows.onChange(() => updateCowsList());
+    }
+
+    if (room && room.state && room.state.sheeps) {
+      const updateSheepsList = () => {
+        const list: any[] = [];
+        room.state.sheeps.forEach((shp: any) => {
+          list.push({
+            id: shp.id,
+            ownerId: shp.ownerId,
+            ownerName: shp.ownerName,
+            colorType: shp.colorType,
+            mapId: shp.mapId,
+            woolReady: shp.woolReady,
+            woolProduced: shp.woolProduced,
+            lastWoolTime: shp.lastWoolTime
+          });
+        });
+        setSheepsList(list);
+      };
+      updateSheepsList();
+      room.state.sheeps.onAdd(() => updateSheepsList());
+      room.state.sheeps.onRemove(() => updateSheepsList());
+      room.state.sheeps.onChange(() => updateSheepsList());
     }
 
     return () => {
@@ -2113,7 +2149,14 @@ export default function App() {
                 style={stableTab === "cows" ? { background: "#8b4513", borderColor: "#d4a017" } : {}}
                 onClick={() => setStableTab("cows")}
               >
-                🐄 İNEKLЕРİM
+                🐄 İNEKLERİM
+              </button>
+              <button 
+                className={`shop-modal__tab ${stableTab === "sheeps" ? "shop-modal__tab--active" : ""}`}
+                style={stableTab === "sheeps" ? { background: "#576574", borderColor: "#c8d6e5" } : {}}
+                onClick={() => setStableTab("sheeps")}
+              >
+                🐑 KOYUNLARIM
               </button>
             </div>
 
@@ -2258,6 +2301,51 @@ export default function App() {
                               }}
                             >
                               🥛 SÜTÜ TOPLA
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : stableTab === "sheeps" ? (
+                <div style={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", gap: "10px" }}>
+                  <div style={{ fontSize: "11px", color: "#c8d6e5", fontWeight: "bold" }}>
+                    🐑 ÇİFTLİK KOYUNLARINIZ ({sheepsList.filter((s: any) => s.ownerName === meta?.playerName || s.ownerId === room?.sessionId).length} / 10)
+                  </div>
+                  {sheepsList.filter((s: any) => s.ownerName === meta?.playerName || s.ownerId === room?.sessionId).length === 0 ? (
+                    <div style={{ padding: "20px", textAlign: "center", color: "#a4b0be", fontSize: "11px", background: "rgba(0,0,0,0.2)", borderRadius: "8px" }}>
+                      Henüz hiç koyununuz yok! SHOP binasından 200 SPT Token karşılığında Koyun Kutusu satın alabilirsiniz.
+                    </div>
+                  ) : (
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "10px" }}>
+                      {sheepsList.filter((s: any) => s.ownerName === meta?.playerName || s.ownerId === room?.sessionId).map((shp: any) => (
+                        <div key={shp.id} className="shop-item glass" style={{ padding: "12px", display: "flex", flexDirection: "column", gap: "6px", borderColor: shp.woolReady ? "#c8d6e5" : "rgba(255,255,255,0.1)" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{ fontWeight: "bold", fontSize: "11px", color: "#c8d6e5" }}>🐑 {shp.colorType === "white" ? "Beyaz" : "Kıvırcık"} Koyun</span>
+                            <span style={{ fontSize: "9px", color: "#a4b0be" }}>{shp.woolProduced}/48 Yün</span>
+                          </div>
+                          <div style={{ fontSize: "10px", color: shp.woolReady ? "#c8d6e5" : "#ff9f43", fontWeight: "bold" }}>
+                            {shp.woolReady ? "🧶 Yün Hazır! (Toplayabilirsiniz)" : (() => {
+                              const remainingMs = Math.max(0, 3600000 - (Date.now() - (shp.lastWoolTime || Date.now())));
+                              const remainingSec = Math.ceil(remainingMs / 1000);
+                              if (remainingSec >= 60) {
+                                const mins = Math.floor(remainingSec / 60);
+                                const secs = remainingSec % 60;
+                                return `⏳ Yünlenmeye Kalan: ${mins}dk ${secs}sn`;
+                              }
+                              return `⏳ Yünlenmeye Kalan: ${remainingSec}sn`;
+                            })()}
+                          </div>
+                          {shp.woolReady && (
+                            <button
+                              className="shop-item__btn"
+                              style={{ background: "linear-gradient(90deg, #c8d6e5, #8395a7)", color: "black", fontWeight: "bold", marginTop: "4px" }}
+                              onClick={() => {
+                                if (room) room.send("collect_sheep_wool", { sheepId: shp.id });
+                              }}
+                            >
+                              🧶 YÜNÜ TOPLA
                             </button>
                           )}
                         </div>
@@ -2608,6 +2696,30 @@ export default function App() {
                         onClick={() => { if (room) room.send("buy_cow_box"); }}
                       >
                         📦 KUTUYU AÇ (150 SPT)
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Koyun Kutusu */}
+                <div 
+                  className="shop-item glass"
+                  style={{ padding: "20px", display: "flex", flexDirection: "row", alignItems: "center", gap: "16px", borderColor: "#c8d6e5", background: "rgba(200, 214, 229, 0.05)" }}
+                >
+                  <div style={{ fontSize: "52px", filter: "drop-shadow(0 0 10px rgba(200,214,229,0.5))" }}>📦</div>
+                  <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <div style={{ fontWeight: "bold", fontSize: "16px", color: "#c8d6e5" }}>🐑 Koyun Kutusu</div>
+                    <div style={{ fontSize: "12px", color: "#c8d6e5", lineHeight: "1.4" }}>
+                      Kutuyu açarak 2 farklı türden bir koyun kazanırsınız. Koyun çitli alana yerleşir ve 1 saatte 1 yün üretir. (Max 10 Koyun)
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "8px" }}>
+                      <span style={{ fontWeight: "bold", color: "#f1c40f", fontSize: "14px" }}>🪙 200 SPT</span>
+                      <button
+                        className="shop-item__btn"
+                        style={{ background: "linear-gradient(90deg, #c8d6e5, #8395a7)", color: "black", fontWeight: "bold", padding: "10px 18px", fontSize: "13px", borderRadius: "8px" }}
+                        onClick={() => { if (room) room.send("buy_sheep_box"); }}
+                      >
+                        📦 KUTUYU AÇ (200 SPT)
                       </button>
                     </div>
                   </div>

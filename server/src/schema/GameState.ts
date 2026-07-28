@@ -112,6 +112,23 @@ export class PlayerState extends Schema {
   @type({ map: "int32" })
   harvests = new MapSchema<number>();
 
+  // --- Player Resources (Odun + Madenler) ---
+  // keys: "wood", "copper", "silver", "gold_ore", "amethyst", "ruby", "emerald", "sapphire", "obsidian"
+  @type({ map: "int32" })
+  resources = new MapSchema<number>();
+
+  // --- Owned crafted items (craft edilmiş eşyaların id listesi) ---
+  // key: "pickaxe_1", "axe_2", "helmet_3" etc. → value: 1 if owned
+  @type({ map: "int32" })
+  ownedItems = new MapSchema<number>();
+
+  // --- Player Level & XP ---
+  @type("int32")
+  playerLevel: number = 1;
+
+  @type("int32")
+  playerXp: number = 0;
+
   /** Player token balance (for token economy) */
   @type("int32")
   tokens: number = 100000;

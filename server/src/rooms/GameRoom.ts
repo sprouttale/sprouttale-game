@@ -390,6 +390,9 @@ export class GameRoom extends Room<GameState> {
     // Maximum players per room
     this.maxClients = 50;
 
+    // Register craft system message handlers
+    this.registerCraftHandler();
+
     const CHICKEN_VARIANTS = [
       "black_white",
       "black",
@@ -1105,6 +1108,14 @@ export class GameRoom extends Room<GameState> {
                 // Transition directly to stump state
                 tree.treeState = "stump";
                 tree.treeHp = 0;
+
+                // Add wood resource to player inventory
+                const curWood = player.resources.get("wood") || 0;
+                player.resources.set("wood", curWood + 1);
+
+                // XP & Level: +10 XP per wood
+                this.addXpToPlayer(player, 10);
+
                 client.send("wood_cut", { gold: 25, item: "Akçaağaç Odunu", message: "kutuk" });
                 console.log(`[GameRoom] Tree ${tree.id} turned stump`);
 
@@ -1161,22 +1172,29 @@ export class GameRoom extends Room<GameState> {
                 const typeIdx = parseInt(mine.assetId.replace("mineral_mine_", ""), 10) || 1;
 
                 // Mineral types and reward definitions (8 types matching client's standing crystals)
-                const minerals: { [key: number]: { name: string, gold: number } } = {
-                  1: { name: "Bakır Cevheri",   gold: 50  },
-                  2: { name: "Gümüş Cevheri",   gold: 80  },
-                  3: { name: "Altın Cevheri",   gold: 100 },
-                  4: { name: "Ametist Cevheri",  gold: 120 },
-                  5: { name: "Yakut Cevheri",   gold: 150 },
-                  6: { name: "Zümrüt Cevheri",  gold: 180 },
-                  7: { name: "Safir Cevheri",   gold: 160 },
-                  8: { name: "Obsidyen Cevheri", gold: 40  }
+                const minerals: { [key: number]: { name: string, gold: number, resourceKey: string } } = {
+                  1: { name: "Bakır Cevheri",    gold: 50,  resourceKey: "copper"    },
+                  2: { name: "Gümüş Cevheri",    gold: 80,  resourceKey: "silver"    },
+                  3: { name: "Altın Cevheri",     gold: 100, resourceKey: "gold_ore"  },
+                  4: { name: "Ametist Cevheri",   gold: 120, resourceKey: "amethyst"  },
+                  5: { name: "Yakut Cevheri",     gold: 150, resourceKey: "ruby"      },
+                  6: { name: "Zümrüt Cevheri",   gold: 180, resourceKey: "emerald"   },
+                  7: { name: "Safir Cevheri",     gold: 160, resourceKey: "sapphire"  },
+                  8: { name: "Obsidyen Cevheri",  gold: 40,  resourceKey: "obsidian"  }
                 };
 
-                const minInfo = minerals[typeIdx] || { name: "Değerli Maden", gold: 50 };
+                const minInfo = minerals[typeIdx] || { name: "Değerli Maden", gold: 50, resourceKey: "copper" };
                 const rewardGold = minInfo.gold;
                 const rewardName = minInfo.name;
 
-                client.send("mine_mined", { gold: rewardGold, item: rewardName });
+                // Add mineral resource to player inventory
+                const curMineral = player.resources.get(minInfo.resourceKey) || 0;
+                player.resources.set(minInfo.resourceKey, curMineral + 1);
+
+                // XP & Level: +15 XP per mineral
+                this.addXpToPlayer(player, 15);
+
+                client.send("mine_mined", { gold: rewardGold, item: rewardName, resourceKey: minInfo.resourceKey });
                 console.log(`[GameRoom] Mine ${mine.id} depleted. Reward: ${rewardName}`);
 
                 // Start 30-second regrowth timer (updated to 30s as requested)
@@ -3734,14 +3752,22 @@ export class GameRoom extends Room<GameState> {
       this.state.players.forEach((p) => {
         if (!p.name) return;
         const hObj: Record<string, number> = {};
-        p.harvests.forEach((v, k) => {
-          hObj[k] = v;
-        });
+        p.harvests.forEach((v, k) => { hObj[k] = v; });
+
+        const rObj: Record<string, number> = {};
+        p.resources.forEach((v, k) => { rObj[k] = v; });
+
+        const oObj: Record<string, number> = {};
+        p.ownedItems.forEach((v, k) => { oObj[k] = v; });
 
         allPlayerData[p.name] = {
           tokens: p.tokens,
           harvests: hObj,
-          equippedTool: p.equippedTool
+          equippedTool: p.equippedTool,
+          playerLevel: p.playerLevel,
+          playerXp: p.playerXp,
+          resources: rObj,
+          ownedItems: oObj
         };
       });
 
@@ -3761,16 +3787,253 @@ export class GameRoom extends Room<GameState> {
         if (pData) {
           if (pData.tokens !== undefined) player.tokens = Number(pData.tokens);
           if (pData.equippedTool) player.equippedTool = String(pData.equippedTool);
+          if (pData.playerLevel !== undefined) player.playerLevel = Number(pData.playerLevel);
+          if (pData.playerXp !== undefined) player.playerXp = Number(pData.playerXp);
           if (pData.harvests && typeof pData.harvests === "object") {
             Object.entries(pData.harvests).forEach(([k, v]) => {
               player.harvests.set(k, Number(v));
             });
           }
-          console.log(`[GameRoom] 💾 Restored saved data for player ${player.name}: Tokens=${player.tokens}, Harvests=`, pData.harvests);
+          if (pData.resources && typeof pData.resources === "object") {
+            Object.entries(pData.resources).forEach(([k, v]) => {
+              player.resources.set(k, Number(v));
+            });
+          }
+          if (pData.ownedItems && typeof pData.ownedItems === "object") {
+            Object.entries(pData.ownedItems).forEach(([k, v]) => {
+              player.ownedItems.set(k, Number(v));
+            });
+          }
+          console.log(`[GameRoom] 💾 Restored saved data for player ${player.name}: Tokens=${player.tokens}, Level=${player.playerLevel}`);
         }
       }
     } catch (err) {
       console.error("[GameRoom] Error loading player state from disk:", err);
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // XP & Level System
+  // Formula: Level N requires N*100 XP total. Each resource action grants XP.
+  // ---------------------------------------------------------------------------
+  private addXpToPlayer(player: PlayerState, xpAmount: number): void {
+    player.playerXp += xpAmount;
+    // Level up formula: level = floor(sqrt(playerXp / 50)) + 1, capped at 40
+    const newLevel = Math.min(40, Math.floor(Math.sqrt(player.playerXp / 50)) + 1);
+    if (newLevel > player.playerLevel) {
+      const oldLevel = player.playerLevel;
+      player.playerLevel = newLevel;
+      console.log(`[GameRoom] Player ${player.name} leveled up! ${oldLevel} → ${newLevel}`);
+      // Notify the specific client about the level up
+      this.state.players.forEach((p, sessionId) => {
+        if (p === player) {
+          const client = this.clients.find(c => c.sessionId === sessionId);
+          if (client) {
+            client.send("level_up", { newLevel, oldLevel });
+          }
+        }
+      });
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Craft System — called via "craft_item" message from client
+  // ---------------------------------------------------------------------------
+  private registerCraftHandler(): void {
+    // Craft recipes: itemId → { level, costs: { resourceKey: amount } }
+    const CRAFT_RECIPES: Record<string, { level: number; costs: Record<string, number> }> = {
+      // === KAZMA (Pickaxe) ===
+      "pickaxe_1":  { level: 1,  costs: { wood: 20 } },
+      "pickaxe_2":  { level: 5,  costs: { wood: 30, copper: 20 } },
+      "pickaxe_3":  { level: 10, costs: { wood: 40, silver: 30 } },
+      "pickaxe_4":  { level: 15, costs: { wood: 50, gold_ore: 40 } },
+      "pickaxe_6":  { level: 20, costs: { wood: 60, amethyst: 50 } },
+      "pickaxe_7":  { level: 25, costs: { wood: 70, ruby: 60 } },
+      "pickaxe_8":  { level: 30, costs: { wood: 80, emerald: 70 } },
+      "pickaxe_9":  { level: 35, costs: { wood: 90, sapphire: 80 } },
+      "pickaxe_10": { level: 40, costs: { wood: 100, obsidian: 100 } },
+      // === BALTA (Axe) ===
+      "axe_1":  { level: 1,  costs: { wood: 20 } },
+      "axe_2":  { level: 5,  costs: { wood: 30, copper: 20 } },
+      "axe_3":  { level: 10, costs: { wood: 40, silver: 30 } },
+      "axe_4":  { level: 15, costs: { wood: 50, gold_ore: 40 } },
+      "axe_6":  { level: 20, costs: { wood: 60, amethyst: 50 } },
+      "axe_7":  { level: 25, costs: { wood: 70, ruby: 60 } },
+      "axe_8":  { level: 30, costs: { wood: 80, emerald: 70 } },
+      "axe_9":  { level: 35, costs: { wood: 90, sapphire: 80 } },
+      "axe_10": { level: 40, costs: { wood: 100, obsidian: 100 } },
+      // === KÜREK (Shovel) ===
+      "shovel_1":  { level: 1,  costs: { wood: 15 } },
+      "shovel_2":  { level: 5,  costs: { wood: 25, copper: 20 } },
+      "shovel_3":  { level: 10, costs: { wood: 35, silver: 30 } },
+      "shovel_4":  { level: 15, costs: { wood: 45, gold_ore: 40 } },
+      "shovel_6":  { level: 20, costs: { wood: 55, amethyst: 50 } },
+      "shovel_7":  { level: 25, costs: { wood: 65, ruby: 60 } },
+      "shovel_8":  { level: 30, costs: { wood: 75, emerald: 70 } },
+      "shovel_9":  { level: 35, costs: { wood: 85, sapphire: 80 } },
+      "shovel_10": { level: 40, costs: { wood: 95, obsidian: 90 } },
+      // === ÇAPA (Hoe) ===
+      "hoe_1":  { level: 1,  costs: { wood: 15 } },
+      "hoe_2":  { level: 5,  costs: { wood: 25, copper: 20 } },
+      "hoe_3":  { level: 10, costs: { wood: 35, silver: 30 } },
+      "hoe_4":  { level: 15, costs: { wood: 45, gold_ore: 40 } },
+      "hoe_6":  { level: 20, costs: { wood: 55, amethyst: 50 } },
+      "hoe_7":  { level: 25, costs: { wood: 65, ruby: 60 } },
+      "hoe_8":  { level: 30, costs: { wood: 75, emerald: 70 } },
+      "hoe_9":  { level: 35, costs: { wood: 85, sapphire: 80 } },
+      "hoe_10": { level: 40, costs: { wood: 95, obsidian: 90 } },
+      // === SULAMA KABI (Watering Can) ===
+      "watering_1":  { level: 1,  costs: { wood: 10 } },
+      "watering_2":  { level: 5,  costs: { wood: 20, copper: 15 } },
+      "watering_3":  { level: 10, costs: { wood: 30, silver: 25 } },
+      "watering_4":  { level: 15, costs: { wood: 40, gold_ore: 35 } },
+      "watering_6":  { level: 20, costs: { wood: 50, amethyst: 40 } },
+      "watering_7":  { level: 25, costs: { wood: 60, ruby: 50 } },
+      "watering_8":  { level: 30, costs: { wood: 70, emerald: 60 } },
+      "watering_9":  { level: 35, costs: { wood: 80, sapphire: 70 } },
+      "watering_10": { level: 40, costs: { wood: 90, obsidian: 80 } },
+      // === ORAK (Sickle) ===
+      "sickle_1":  { level: 1,  costs: { wood: 15 } },
+      "sickle_2":  { level: 5,  costs: { wood: 25, copper: 20 } },
+      "sickle_3":  { level: 10, costs: { wood: 35, silver: 30 } },
+      "sickle_4":  { level: 15, costs: { wood: 45, gold_ore: 40 } },
+      "sickle_6":  { level: 20, costs: { wood: 55, amethyst: 50 } },
+      "sickle_7":  { level: 25, costs: { wood: 65, ruby: 60 } },
+      "sickle_8":  { level: 30, costs: { wood: 75, emerald: 70 } },
+      "sickle_9":  { level: 35, costs: { wood: 85, sapphire: 80 } },
+      "sickle_10": { level: 40, costs: { wood: 95, obsidian: 90 } },
+      // === OLTA (Fishing Rod) ===
+      "fishing_1":  { level: 1,  costs: { wood: 12 } },
+      "fishing_2":  { level: 5,  costs: { wood: 22, copper: 15 } },
+      "fishing_3":  { level: 10, costs: { wood: 32, silver: 25 } },
+      "fishing_4":  { level: 15, costs: { wood: 42, gold_ore: 35 } },
+      "fishing_6":  { level: 20, costs: { wood: 52, amethyst: 40 } },
+      "fishing_7":  { level: 25, costs: { wood: 62, ruby: 50 } },
+      "fishing_8":  { level: 30, costs: { wood: 72, emerald: 60 } },
+      "fishing_9":  { level: 35, costs: { wood: 82, sapphire: 70 } },
+      "fishing_10": { level: 40, costs: { wood: 92, obsidian: 80 } },
+      // === KILICI (Sword) ===
+      "sword_1":  { level: 1,  costs: { wood: 15, copper: 10 } },
+      "sword_2":  { level: 5,  costs: { wood: 20, copper: 30 } },
+      "sword_3":  { level: 10, costs: { wood: 30, silver: 40 } },
+      "sword_4":  { level: 15, costs: { wood: 40, gold_ore: 50 } },
+      "sword_6":  { level: 20, costs: { wood: 50, amethyst: 60 } },
+      "sword_7":  { level: 25, costs: { wood: 60, ruby: 70 } },
+      "sword_8":  { level: 30, costs: { wood: 70, emerald: 80 } },
+      "sword_9":  { level: 35, costs: { wood: 80, sapphire: 90 } },
+      "sword_10": { level: 40, costs: { wood: 90, obsidian: 100 } },
+      // === YAY (Archer/Bow) ===
+      "archer_1":  { level: 1,  costs: { wood: 20 } },
+      "archer_2":  { level: 5,  costs: { wood: 30, copper: 20 } },
+      "archer_3":  { level: 10, costs: { wood: 40, silver: 30 } },
+      "archer_4":  { level: 15, costs: { wood: 50, gold_ore: 40 } },
+      "archer_6":  { level: 20, costs: { wood: 60, amethyst: 50 } },
+      "archer_7":  { level: 25, costs: { wood: 70, ruby: 60 } },
+      "archer_8":  { level: 30, costs: { wood: 80, emerald: 70 } },
+      "archer_9":  { level: 35, costs: { wood: 90, sapphire: 80 } },
+      "archer_10": { level: 40, costs: { wood: 100, obsidian: 90 } },
+      // === ASA (Staff) ===
+      "staff_1":  { level: 1,  costs: { wood: 18 } },
+      "staff_2":  { level: 5,  costs: { wood: 28, copper: 20 } },
+      "staff_3":  { level: 10, costs: { wood: 38, silver: 30 } },
+      "staff_4":  { level: 15, costs: { wood: 48, gold_ore: 40 } },
+      "staff_6":  { level: 20, costs: { wood: 58, amethyst: 50 } },
+      "staff_7":  { level: 25, costs: { wood: 68, ruby: 60 } },
+      "staff_8":  { level: 30, costs: { wood: 78, emerald: 70 } },
+      "staff_9":  { level: 35, costs: { wood: 88, sapphire: 80 } },
+      "staff_10": { level: 40, costs: { wood: 98, obsidian: 90 } },
+      // === KASK (Helmet) ===
+      "helmet_2":  { level: 5,  costs: { copper: 25, wood: 10 } },
+      "helmet_3":  { level: 10, costs: { silver: 35, wood: 15 } },
+      "helmet_4":  { level: 15, costs: { gold_ore: 45, wood: 20 } },
+      "helmet_6":  { level: 20, costs: { amethyst: 55, wood: 25 } },
+      "helmet_7":  { level: 25, costs: { ruby: 65, wood: 30 } },
+      "helmet_8":  { level: 30, costs: { emerald: 75, wood: 35 } },
+      "helmet_9":  { level: 35, costs: { sapphire: 85, wood: 40 } },
+      "helmet_10": { level: 40, costs: { obsidian: 100, wood: 50 } },
+      // === GÖĞÜS ZIRHI (Chestplate) ===
+      "chestplate_2":  { level: 5,  costs: { copper: 35, wood: 15 } },
+      "chestplate_3":  { level: 10, costs: { silver: 45, wood: 20 } },
+      "chestplate_4":  { level: 15, costs: { gold_ore: 55, wood: 25 } },
+      "chestplate_6":  { level: 20, costs: { amethyst: 65, wood: 30 } },
+      "chestplate_7":  { level: 25, costs: { ruby: 75, wood: 35 } },
+      "chestplate_8":  { level: 30, costs: { emerald: 85, wood: 40 } },
+      "chestplate_9":  { level: 35, costs: { sapphire: 95, wood: 45 } },
+      "chestplate_10": { level: 40, costs: { obsidian: 120, wood: 60 } },
+      // === PANTOLON (Leggings) ===
+      "leggings_2":  { level: 5,  costs: { copper: 25, wood: 10 } },
+      "leggings_3":  { level: 10, costs: { silver: 35, wood: 15 } },
+      "leggings_4":  { level: 15, costs: { gold_ore: 45, wood: 20 } },
+      "leggings_6":  { level: 20, costs: { amethyst: 55, wood: 25 } },
+      "leggings_7":  { level: 25, costs: { ruby: 65, wood: 30 } },
+      "leggings_8":  { level: 30, costs: { emerald: 75, wood: 35 } },
+      "leggings_9":  { level: 35, costs: { sapphire: 85, wood: 40 } },
+      "leggings_10": { level: 40, costs: { obsidian: 100, wood: 50 } },
+      // === BOTLAR (Boots) ===
+      "boots_2":  { level: 5,  costs: { copper: 20, wood: 10 } },
+      "boots_3":  { level: 10, costs: { silver: 28, wood: 12 } },
+      "boots_4":  { level: 15, costs: { gold_ore: 35, wood: 15 } },
+      "boots_6":  { level: 20, costs: { amethyst: 45, wood: 20 } },
+      "boots_7":  { level: 25, costs: { ruby: 55, wood: 25 } },
+      "boots_8":  { level: 30, costs: { emerald: 65, wood: 30 } },
+      "boots_9":  { level: 35, costs: { sapphire: 75, wood: 35 } },
+      "boots_10": { level: 40, costs: { obsidian: 90, wood: 45 } },
+    };
+
+    this.onMessage("craft_item", (client: Client, message: { itemId: string }) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player) return;
+
+      const itemId = String(message?.itemId ?? "");
+      const recipe = CRAFT_RECIPES[itemId];
+
+      if (!recipe) {
+        client.send("craft_result", { success: false, reason: "Bilinmeyen eşya!" });
+        return;
+      }
+
+      // Level check
+      if (player.playerLevel < recipe.level) {
+        client.send("craft_result", {
+          success: false,
+          reason: `Bu eşya için Seviye ${recipe.level} gereklidir! (Mevcut: ${player.playerLevel})`
+        });
+        return;
+      }
+
+      // Already owned check
+      if ((player.ownedItems.get(itemId) || 0) > 0) {
+        client.send("craft_result", { success: false, reason: "Bu eşyaya zaten sahipsiniz!" });
+        return;
+      }
+
+      // Resource check
+      for (const [resKey, needed] of Object.entries(recipe.costs)) {
+        const have = player.resources.get(resKey) || 0;
+        if (have < needed) {
+          const resNames: Record<string, string> = {
+            wood: "Odun", copper: "Bakır", silver: "Gümüş", gold_ore: "Altın Cevheri",
+            amethyst: "Ametist", ruby: "Yakut", emerald: "Zümrüt", sapphire: "Safir", obsidian: "Obsidyen"
+          };
+          client.send("craft_result", {
+            success: false,
+            reason: `Yetersiz kaynak: ${resNames[resKey] || resKey} (${have}/${needed})`
+          });
+          return;
+        }
+      }
+
+      // Deduct resources
+      for (const [resKey, needed] of Object.entries(recipe.costs)) {
+        const have = player.resources.get(resKey) || 0;
+        player.resources.set(resKey, have - needed);
+      }
+
+      // Grant item
+      player.ownedItems.set(itemId, 1);
+
+      console.log(`[GameRoom] Player ${player.name} crafted: ${itemId}`);
+      client.send("craft_result", { success: true, itemId });
+    });
   }
 }

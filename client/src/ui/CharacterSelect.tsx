@@ -11,6 +11,8 @@ export type ClothesColor = "Blue" | "Green" | "Pink" | "Purple" | "Red";
 export type HairStyle = "Fawn" | "Iridessa" | "Josh" | "Lyria" | "Sebastian" | "Silvermist" | "Standart";
 export type HairColor = "Black" | "Blonde" | "Brown" | "Ginger";
 
+import { Language, LANGUAGES, getTranslation } from "../i18n/translations";
+
 export interface CharacterSelectData {
   username:     string;
   gender:       Gender;
@@ -23,6 +25,8 @@ export interface CharacterSelectData {
 
 interface CharacterSelectProps {
   onConfirm: (data: CharacterSelectData) => void;
+  currentLanguage: Language;
+  onOpenLanguageSelect: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -137,7 +141,7 @@ function drawCharacterFrame(
 // ---------------------------------------------------------------------------
 // CharacterSelect Component
 // ---------------------------------------------------------------------------
-export function CharacterSelect({ onConfirm }: CharacterSelectProps) {
+export function CharacterSelect({ onConfirm, currentLanguage, onOpenLanguageSelect }: CharacterSelectProps) {
   const [step,          setStep        ] = useState<number>(1); // 1: Skin, 2: Eyes, 3: Hair, 4: Clothes & Name
   const [gender,        setGender      ] = useState<Gender>("male");
   const [skinTone,      setSkinTone    ] = useState<SkinTone>(1);
@@ -149,6 +153,8 @@ export function CharacterSelect({ onConfirm }: CharacterSelectProps) {
   const [frame,         setFrame       ] = useState(0);
   const [error,         setError       ] = useState("");
   const [entering,      setEntering    ] = useState(false);
+
+  const t = (key: string) => getTranslation(currentLanguage, key);
 
 
   const previewRef = useRef<HTMLCanvasElement>(null);
@@ -348,11 +354,56 @@ export function CharacterSelect({ onConfirm }: CharacterSelectProps) {
         ))}
       </div>
 
-      <div className={`cs-panel ${entering ? "cs-panel--exit" : ""}`}>
+      <div className={`cs-panel ${entering ? "cs-panel--exit" : ""}`} style={{ position: "relative" }}>
+        {/* Language Quick Switcher Flags top right */}
+        <div
+          style={{
+            position: "absolute",
+            top: "16px",
+            right: "16px",
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            background: "rgba(15, 23, 42, 0.85)",
+            border: "1px solid rgba(255, 255, 255, 0.2)",
+            borderRadius: "10px",
+            padding: "4px 8px",
+            zIndex: 10
+          }}
+        >
+          {LANGUAGES.map((lang) => {
+            const isSelected = currentLanguage === lang.code;
+            return (
+              <button
+                key={lang.code}
+                onClick={onOpenLanguageSelect}
+                style={{
+                  background: isSelected ? "rgba(99, 102, 241, 0.6)" : "transparent",
+                  border: isSelected ? "1px solid #818cf8" : "1px solid transparent",
+                  borderRadius: "6px",
+                  padding: "4px 6px",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  transition: "all 0.2s ease"
+                }}
+                title={`${lang.name} (${lang.nativeName})`}
+              >
+                <span>{lang.flag}</span>
+                <span style={{ fontSize: "9px", fontFamily: "'Press Start 2P'", color: isSelected ? "#fff" : "#94a3b8" }}>
+                  {lang.code.toUpperCase()}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
         {/* Title */}
         <div className="cs-title">
           <span className="cs-title__icon">⚔</span>
-          <span className="cs-title__text">CREATE CHARACTER</span>
+          <span className="cs-title__text">{t("createCharacter")}</span>
         </div>
 
         {/* Gender pills */}
@@ -361,13 +412,13 @@ export function CharacterSelect({ onConfirm }: CharacterSelectProps) {
             className={`cs-pill ${gender === "male" ? "cs-pill--active cs-pill--male" : ""}`}
             onClick={() => handleGenderSwitch("male")}
           >
-            ♂ MALE
+            ♂ {t("male")}
           </button>
           <button
             className={`cs-pill ${gender === "female" ? "cs-pill--active cs-pill--female" : ""}`}
             onClick={() => handleGenderSwitch("female")}
           >
-            ♀ FEMALE
+            ♀ {t("female")}
           </button>
         </div>
 
@@ -396,13 +447,13 @@ export function CharacterSelect({ onConfirm }: CharacterSelectProps) {
           <div className="cs-customization-panel">
             {/* Step indicators */}
             <div className="cs-wizard-steps">
-              <div className={`cs-wizard-step ${step === 1 ? "cs-wizard-step--active" : ""}`}>1. SKIN</div>
+              <div className={`cs-wizard-step ${step === 1 ? "cs-wizard-step--active" : ""}`}>{t("stepSkin")}</div>
               <div className="cs-wizard-arrow">›</div>
-              <div className={`cs-wizard-step ${step === 2 ? "cs-wizard-step--active" : ""}`}>2. EYES</div>
+              <div className={`cs-wizard-step ${step === 2 ? "cs-wizard-step--active" : ""}`}>{t("stepEyes")}</div>
               <div className="cs-wizard-arrow">›</div>
-              <div className={`cs-wizard-step ${step === 3 ? "cs-wizard-step--active" : ""}`}>3. HAIR</div>
+              <div className={`cs-wizard-step ${step === 3 ? "cs-wizard-step--active" : ""}`}>{t("stepHair")}</div>
               <div className="cs-wizard-arrow">›</div>
-              <div className={`cs-wizard-step ${step === 4 ? "cs-wizard-step--active" : ""}`}>4. CLOTHES</div>
+              <div className={`cs-wizard-step ${step === 4 ? "cs-wizard-step--active" : ""}`}>{t("stepClothes")}</div>
             </div>
 
             {/* Customization Options Content */}
@@ -410,7 +461,7 @@ export function CharacterSelect({ onConfirm }: CharacterSelectProps) {
               {/* Step 1: Skin Tone Selector */}
               {step === 1 && (
                 <div className="cs-option-section">
-                  <span className="cs-option-label">SELECT SKIN TONE</span>
+                  <span className="cs-option-label">{t("selectSkinTone")}</span>
                   <div className="cs-swatch-row">
                     {SKIN_TONES.map((tone, idx) => (
                       <button
@@ -438,7 +489,7 @@ export function CharacterSelect({ onConfirm }: CharacterSelectProps) {
               {/* Step 2: Eye Selector */}
               {step === 2 && (
                 <div className="cs-option-section">
-                  <span className="cs-option-label">SELECT EYE COLOR</span>
+                  <span className="cs-option-label">{t("selectEyeColor")}</span>
                   <div className="cs-color-row">
                     {EYE_COLORS.map((color) => (
                       <button
@@ -464,7 +515,7 @@ export function CharacterSelect({ onConfirm }: CharacterSelectProps) {
                 <>
                   {/* Hair Color Selector */}
                   <div className="cs-option-section">
-                    <span className="cs-option-label">SELECT HAIR COLOR</span>
+                    <span className="cs-option-label">{t("selectHairColor")}</span>
                     <div className="cs-color-row">
                       {HAIR_COLORS.map((color) => (
                         <button
@@ -486,7 +537,7 @@ export function CharacterSelect({ onConfirm }: CharacterSelectProps) {
 
                   {/* Hair Style Selector */}
                   <div className="cs-option-section" style={{ marginTop: "8px" }}>
-                    <span className="cs-option-label">SELECT HAIR STYLE</span>
+                    <span className="cs-option-label">{t("selectHairStyle")}</span>
                     <div className="cs-hair-grid">
                       {HAIR_STYLES.map((style, idx) => (
                         <button
@@ -517,7 +568,7 @@ export function CharacterSelect({ onConfirm }: CharacterSelectProps) {
               {step === 4 && (
                 <>
                   <div className="cs-option-section">
-                    <span className="cs-option-label">SELECT CLOTHES COLOR</span>
+                    <span className="cs-option-label">{t("selectClothesColor")}</span>
                     <div className="cs-color-row">
                       {CLOTHES_COLORS.map((color) => (
                         <button
@@ -538,12 +589,12 @@ export function CharacterSelect({ onConfirm }: CharacterSelectProps) {
                   </div>
 
                   <div className="cs-input-group" style={{ marginTop: "16px" }}>
-                    <label className="cs-label" htmlFor="cs-username">CHARACTER NAME</label>
+                    <label className="cs-label" htmlFor="cs-username">{t("characterName")}</label>
                     <input
                       id="cs-username"
                       className={`cs-input ${error ? "cs-input--error" : ""}`}
                       type="text"
-                      placeholder="Enter your name..."
+                      placeholder={t("enterNamePlaceholder")}
                       value={username}
                       maxLength={16}
                       onChange={(e) => { setUsername(e.target.value); setError(""); }}
@@ -565,7 +616,7 @@ export function CharacterSelect({ onConfirm }: CharacterSelectProps) {
         <div className="cs-wizard-controls">
           {step > 1 ? (
             <button className="cs-wizard-btn cs-wizard-btn--secondary" onClick={() => setStep(step - 1)}>
-              ◀ BACK
+              {t("back")}
             </button>
           ) : (
             <div style={{ flex: 1 }} />
@@ -578,9 +629,9 @@ export function CharacterSelect({ onConfirm }: CharacterSelectProps) {
             id="cs-enter-button"
           >
             {step === 4 ? (
-              entering ? "ENTERING WORLD..." : "ENTER THE WORLD ▶"
+              entering ? t("enteringWorld") : t("enterWorld")
             ) : (
-              "NEXT STEP ▶"
+              t("nextStep")
             )}
           </button>
         </div>

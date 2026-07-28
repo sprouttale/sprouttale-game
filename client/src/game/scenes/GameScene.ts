@@ -5709,7 +5709,7 @@ export class GameScene extends Phaser.Scene {
       sprite.setScale(obj.scaleX !== undefined ? obj.scaleX : 1, obj.scaleY !== undefined ? obj.scaleY : 1);
       (sprite as Phaser.GameObjects.Sprite).setFlip(Boolean(obj.flipX), Boolean(obj.flipY));
 
-      if (["house_shop", "house_marketplace", "house_farm_market", "house_nft"].includes(obj.assetId)) {
+      if (["house_shop", "house_marketplace", "house_farm_market", "house_nft", "house_blacksmith"].includes(obj.assetId)) {
         sprite.setInteractive({ useHandCursor: true });
         sprite.on("pointerdown", (_pointer: any, _lx: number, _ly: number, event: any) => {
           event?.stopPropagation?.();
@@ -5717,6 +5717,8 @@ export class GameScene extends Phaser.Scene {
           if (config && config.active) return;
           if (obj.assetId === "house_shop") {
             window.dispatchEvent(new CustomEvent("open_building_shop"));
+          } else if (obj.assetId === "house_blacksmith") {
+            window.dispatchEvent(new CustomEvent("open_blacksmith"));
           } else {
             window.dispatchEvent(new CustomEvent("open_shop"));
           }

@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { PhaserGame, type ConnectionStatus, type GameMeta } from "./game/PhaserGame";
 import { CharacterSelect, type CharacterSelectData } from "./ui/CharacterSelect";
+import { LanguageSelect } from "./ui/LanguageSelect";
+import { Language } from "./i18n/translations";
 import { TerrainEditorPanel } from "./ui/TerrainEditorPanel";
 import { Minimap } from "./ui/Minimap";
 import { type Room } from "colyseus.js";
@@ -536,6 +538,24 @@ export default function App() {
   const [charData,       setChar]          = useState<CharacterSelectData | null>(null);
   const [meta,           setMeta]          = useState<GameMeta | null>(null);
   const [room,           setRoom]          = useState<Room | null>(null);
+
+  // Language State (en, tr, es, pt, ru)
+  const [language, setLanguage] = useState<Language>(() => {
+    const saved = localStorage.getItem("game_language") as Language;
+    return (saved && ["en", "tr", "es", "pt", "ru"].includes(saved)) ? saved : "tr";
+  });
+  const [showLangSelect, setShowLangSelect] = useState<boolean>(() => {
+    return !localStorage.getItem("game_language");
+  });
+
+  const handleSelectLanguage = useCallback((lang: Language) => {
+    setLanguage(lang);
+    localStorage.setItem("game_language", lang);
+  }, []);
+
+  const handleConfirmLanguage = useCallback(() => {
+    setShowLangSelect(false);
+  }, []);
   const [playerHp,       setPlayerHp]      = useState<number>(100);
   const [playerMaxHp,    setPlayerMaxHp]   = useState<number>(100);
   const [isShopOpen,     setIsShopOpen]    = useState(false);
@@ -559,7 +579,17 @@ export default function App() {
   const [consoleErrors,  setConsoleErrors]  = useState<string[]>([]);
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);
   const [isMerchantOpen,  setIsMerchantOpen]  = useState(false);
+  const [isCraftOpen,     setIsCraftOpen]     = useState(false);
+  const [craftTab,        setCraftTab]        = useState<"pickaxe"|"axe"|"shovel"|"hoe"|"watering"|"sickle"|"fishing"|"sword"|"archer"|"staff"|"helmet"|"chestplate"|"leggings"|"boots">("pickaxe");
   const [hasGoblinDamageBoost, setHasGoblinDamageBoost] = useState(false);
+  // Player resources synced from server
+  const [playerResources, setPlayerResources] = useState<Record<string,number>>({
+    wood: 0, copper: 0, silver: 0, gold_ore: 0,
+    amethyst: 0, ruby: 0, emerald: 0, sapphire: 0, obsidian: 0
+  });
+  const [playerLevel, setPlayerLevel] = useState<number>(1);
+  const [playerXp,    setPlayerXp]    = useState<number>(0);
+  const [ownedItems,  setOwnedItems]  = useState<Record<string,boolean>>({});
   const [invTab,          setInvTab]          = useState<"pickaxe" | "axe" | "hoe" | "sickle" | "shovel" | "watering" | "sword" | "archer" | "bug_net" | "fishing" | "crops" | "staff" | "arrow" | "helmet" | "chestplate" | "leggings" | "boots">("pickaxe");
   const [isStableOpen,    setIsStableOpen]    = useState(false);
   const [purchasedHorses, setPurchasedHorses] = useState<number[]>([1]); // Starts with variant 1 (White Stallion)
@@ -1123,9 +1153,11 @@ export default function App() {
       setIsShopOpen(true);
     };
     const handleBuildingShopOpen = () => setIsBuildingShopOpen(true);
+    const handleBlacksmithOpen = () => setIsCraftOpen(true);
     window.addEventListener("open_merchant_shop", handleMerchantOpen);
     window.addEventListener("open_shop", handleShopOpen);
     window.addEventListener("open_building_shop", handleBuildingShopOpen);
+    window.addEventListener("open_blacksmith", handleBlacksmithOpen);
 
     const originalError = console.error;
     const originalWarn = console.warn;
@@ -1145,6 +1177,7 @@ export default function App() {
       window.removeEventListener("open_merchant_shop", handleMerchantOpen);
       window.removeEventListener("open_shop", handleShopOpen);
       window.removeEventListener("open_building_shop", handleBuildingShopOpen);
+      window.removeEventListener("open_blacksmith", handleBlacksmithOpen);
       console.error = originalError;
       console.warn = originalWarn;
     };
@@ -1373,27 +1406,64 @@ export default function App() {
     });
 
 
-    // Track local player HP and inventories from state
+    room.onMessage("craft_result", (msg: any) => {
+      console.log("[Craft Result]", msg);
+      if (msg?.success) {
+        // Show success toast / alert
+      }
+    });
+
+    room.onMessage("level_up", (msg: any) => {
+      console.log("[Level Up]", msg);
+      if (msg?.message) {
+        alert(`🎉 ${msg.message}`);
+      }
+    });
+
+    // Track local player HP, resources, level, xp, and inventories from state
     room.state.players.onAdd((player: any, sessionId: string) => {
       if (sessionId === room.sessionId) {
         setPlayerHp(player.hp ?? 100);
         setPlayerMaxHp(player.maxHp ?? 100);
-        
+        setPlayerLevel(player.playerLevel ?? 1);
+        setPlayerXp(player.playerXp ?? 0);
+
         const updateFarmingInventory = () => {
           const seedsObj: Record<string, number> = {};
-          player.seeds.forEach((val: number, key: string) => {
+          player.seeds?.forEach((val: number, key: string) => {
             seedsObj[key] = val;
           });
           setPlayerSeeds(seedsObj);
 
           const harvestsObj: Record<string, number> = {};
-          player.harvests.forEach((val: number, key: string) => {
+          player.harvests?.forEach((val: number, key: string) => {
             harvestsObj[key] = val;
           });
           setPlayerHarvests(harvestsObj);
         };
 
+        const updateResources = () => {
+          const resObj: Record<string, number> = {
+            wood: 0, copper: 0, silver: 0, gold_ore: 0,
+            amethyst: 0, ruby: 0, emerald: 0, sapphire: 0, obsidian: 0
+          };
+          player.resources?.forEach((val: number, key: string) => {
+            resObj[key] = val;
+          });
+          setPlayerResources(resObj);
+        };
+
+        const updateOwnedItems = () => {
+          const itemsObj: Record<string, boolean> = {};
+          player.ownedItems?.forEach((val: number, key: string) => {
+            if (val > 0) itemsObj[key] = true;
+          });
+          setOwnedItems(itemsObj);
+        };
+
         updateFarmingInventory();
+        updateResources();
+        updateOwnedItems();
 
         if (player.tokens !== undefined) {
           setTokens(player.tokens);
@@ -1402,16 +1472,26 @@ export default function App() {
         player.onChange(() => {
           setPlayerHp(player.hp ?? 100);
           setPlayerMaxHp(player.maxHp ?? 100);
+          setPlayerLevel(player.playerLevel ?? 1);
+          setPlayerXp(player.playerXp ?? 0);
           if (player.tokens !== undefined) {
             setTokens(player.tokens);
           }
+          updateResources();
+          updateOwnedItems();
         });
 
-        player.seeds.onAdd(() => updateFarmingInventory());
-        player.seeds.onChange(() => updateFarmingInventory());
+        player.seeds?.onAdd(() => updateFarmingInventory());
+        player.seeds?.onChange(() => updateFarmingInventory());
 
-        player.harvests.onAdd(() => updateFarmingInventory());
-        player.harvests.onChange(() => updateFarmingInventory());
+        player.harvests?.onAdd(() => updateFarmingInventory());
+        player.harvests?.onChange(() => updateFarmingInventory());
+
+        player.resources?.onAdd(() => updateResources());
+        player.resources?.onChange(() => updateResources());
+
+        player.ownedItems?.onAdd(() => updateOwnedItems());
+        player.ownedItems?.onChange(() => updateOwnedItems());
       }
     });
 
@@ -1531,9 +1611,21 @@ export default function App() {
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
 
-      {/* ── 1. Character Selection ── */}
+      {/* ── 1. Character Selection & Language Selection ── */}
       {phase === "select" && (
-        <CharacterSelect onConfirm={handleCharConfirm} />
+        showLangSelect ? (
+          <LanguageSelect
+            currentLanguage={language}
+            onSelectLanguage={handleSelectLanguage}
+            onConfirm={handleConfirmLanguage}
+          />
+        ) : (
+          <CharacterSelect
+            onConfirm={handleCharConfirm}
+            currentLanguage={language}
+            onOpenLanguageSelect={() => setShowLangSelect(true)}
+          />
+        )
       )}
 
       {/* ── Game canvas ── */}
@@ -1568,12 +1660,17 @@ export default function App() {
           {meta && (
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
               <div className="hud__player-info glass" id="hud-player-info" style={{ marginBottom: 0 }}>
-                <div className="hud__player-name">
-                  <span
-                    className="hud__player-color-swatch"
-                    style={{ backgroundColor: meta.playerColor, color: meta.playerColor }}
-                  />
-                  {meta.playerName}
+                <div className="hud__player-name" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span
+                      className="hud__player-color-swatch"
+                      style={{ backgroundColor: meta.playerColor, color: meta.playerColor }}
+                    />
+                    {meta.playerName}
+                  </div>
+                  <span style={{ fontSize: "8px", background: "rgba(243, 156, 18, 0.2)", color: "#f39c12", border: "1px solid rgba(243, 156, 18, 0.5)", padding: "1px 5px", borderRadius: "4px", fontFamily: "'Press Start 2P'" }}>
+                    LVL {playerLevel}
+                  </span>
                 </div>
                 {/* Health Bar (HP) */}
                 <div style={{ marginTop: "6px", width: "100%" }}>
@@ -1587,6 +1684,23 @@ export default function App() {
                         width: `${Math.max(0, Math.min(100, (playerHp / playerMaxHp) * 100))}%`, 
                         height: "100%", 
                         background: "linear-gradient(90deg, #ff4757, #ff6b81)", 
+                        transition: "width 0.3s ease" 
+                      }} 
+                    />
+                  </div>
+                </div>
+                {/* Level & XP Bar */}
+                <div style={{ marginTop: "5px", width: "100%" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "7px", marginBottom: "2px", color: "#f39c12", fontFamily: "'Press Start 2P'" }}>
+                    <span>⭐ XP:</span>
+                    <span>{playerXp}/{playerLevel * 100}</span>
+                  </div>
+                  <div style={{ width: "100%", height: "6px", background: "rgba(0,0,0,0.5)", borderRadius: "3px", overflow: "hidden", border: "1px solid rgba(243, 156, 18, 0.3)" }}>
+                    <div 
+                      style={{ 
+                        width: `${Math.min(100, (playerXp / (playerLevel * 100)) * 100)}%`, 
+                        height: "100%", 
+                        background: "linear-gradient(90deg, #f39c12, #e67e22)", 
                         transition: "width 0.3s ease" 
                       }} 
                     />
@@ -1640,7 +1754,13 @@ export default function App() {
           )}
 
           {/* Top-right action buttons (positioned cleanly to the left of the Minimap) */}
-          <div className="hud__top-right-group" style={{ right: "230px", top: "12px" }}>
+          <div className="hud__top-right-group" style={{ right: "230px", top: "12px", display: "flex", gap: "6px" }}>
+            {/* Crafting / Blacksmith Button */}
+            <button className="hud__shop-btn glass" style={{ borderColor: "#f39c12", color: "#f1c40f" }} onClick={() => setIsCraftOpen(prev => !prev)}>
+              <span className="hud__shop-icon">⚒️</span>
+              <span>CRAFT</span>
+            </button>
+
             {/* Inventory Button */}
             <button className="hud__inventory-btn glass" onClick={() => setIsInventoryOpen(prev => !prev)}>
               <span className="hud__inventory-icon">🎒</span>
@@ -2105,6 +2225,265 @@ export default function App() {
               >
                 Kapat
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Blacksmith Crafting Modal ── */}
+      {isCraftOpen && (
+        <div style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0,0,0,0.8)",
+          backdropFilter: "blur(6px)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 2500
+        }}>
+          <div className="glass" style={{
+            width: "720px",
+            maxHeight: "85vh",
+            padding: "24px",
+            borderRadius: "16px",
+            border: "2px solid #e67e22",
+            boxShadow: "0 0 30px rgba(230, 126, 34, 0.4)",
+            display: "flex",
+            flexDirection: "column",
+            gap: "16px",
+            color: "white",
+            fontFamily: "'Outfit', sans-serif"
+          }}>
+            {/* Header */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid rgba(255,255,255,0.15)", paddingBottom: "12px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <span style={{ fontSize: "24px" }}>⚒️</span>
+                <div>
+                  <h3 style={{ margin: 0, fontFamily: "'Press Start 2P'", fontSize: "14px", color: "#e67e22" }}>DEMİRCİ (BLACKSMITH CRAFT)</h3>
+                  <span style={{ fontSize: "11px", color: "#bdc3c7" }}>Silah, Zırh ve Alet Üretimi</span>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsCraftOpen(false)}
+                style={{ background: "transparent", border: "none", color: "#a4b0be", fontSize: "20px", cursor: "pointer", fontWeight: "bold" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Level & XP Info Bar */}
+            <div style={{ background: "rgba(0,0,0,0.4)", borderRadius: "10px", padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <span style={{ fontSize: "12px", fontWeight: "bold", color: "#f39c12", fontFamily: "'Press Start 2P'" }}>LVL {playerLevel}</span>
+                <div style={{ width: "140px", height: "10px", background: "#34495e", borderRadius: "5px", overflow: "hidden", border: "1px solid rgba(255,255,255,0.2)" }}>
+                  <div style={{ width: `${Math.min(100, (playerXp / (playerLevel * 100)) * 100)}%`, height: "100%", background: "linear-gradient(90deg, #f39c12, #e67e22)", transition: "width 0.3s" }}></div>
+                </div>
+                <span style={{ fontSize: "10px", color: "#95a5a6" }}>{playerXp} / {playerLevel * 100} XP</span>
+              </div>
+              {/* Material Inventory Overview */}
+              <div style={{ display: "flex", gap: "8px", fontSize: "11px", flexWrap: "wrap" }}>
+                <span title="Odun">🪵 {playerResources.wood || 0}</span>
+                <span title="Bakır Madeni">🟤 {playerResources.copper || 0}</span>
+                <span title="Gümüş Madeni">⚪ {playerResources.silver || 0}</span>
+                <span title="Altın Madeni">🟡 {playerResources.gold_ore || 0}</span>
+                <span title="Ametist">🟣 {playerResources.amethyst || 0}</span>
+                <span title="Yakut">🔴 {playerResources.ruby || 0}</span>
+                <span title="Zümrüt">🟢 {playerResources.emerald || 0}</span>
+                <span title="Safir">🔵 {playerResources.sapphire || 0}</span>
+                <span title="Obsidyen">⚫ {playerResources.obsidian || 0}</span>
+              </div>
+            </div>
+
+            {/* Category Tabs */}
+            <div style={{ display: "flex", gap: "8px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+              {[
+                { id: "pickaxe", label: "⛏️ Kazmalar" },
+                { id: "axe", label: "🪓 Baltalar" },
+                { id: "shovel", label: "🪵 Kürekler" },
+                { id: "sword", label: "⚔️ Kılıçlar" },
+                { id: "armor", label: "🛡️ Zırhlar" }
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setCraftTab(tab.id as any)}
+                  style={{
+                    padding: "8px 14px",
+                    borderRadius: "8px 8px 0 0",
+                    border: "none",
+                    background: craftTab === tab.id ? "#e67e22" : "rgba(255,255,255,0.05)",
+                    color: craftTab === tab.id ? "#fff" : "#a4b0be",
+                    fontWeight: craftTab === tab.id ? "bold" : "normal",
+                    cursor: "pointer",
+                    fontSize: "12px",
+                    transition: "all 0.2s"
+                  }}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Craft Items List */}
+            <div style={{ overflowY: "auto", display: "flex", flexDirection: "column", gap: "10px", paddingRight: "6px", maxHeight: "380px" }}>
+              {(craftTab === "pickaxe" ? [
+                { id: "pickaxe_wood", name: "Ahşap Kazma", level: 1, req: { wood: 20 }, desc: "Temel kazma" },
+                { id: "pickaxe_copper", name: "Bakır Kazma", level: 5, req: { wood: 30, copper: 20 }, desc: "Hızlı maden çıkarma" },
+                { id: "pickaxe_silver", name: "Gümüş Kazma", level: 10, req: { wood: 40, silver: 30 }, desc: "Yüksek verimli kazma" },
+                { id: "pickaxe_gold", name: "Altın Kazma", level: 15, req: { wood: 50, gold_ore: 40 }, desc: "Ekstra altın & maden şansı" },
+                { id: "pickaxe_amethyst", name: "Ametist Kazma", level: 20, req: { wood: 60, amethyst: 50 }, desc: "Nadir taş kırıcı" },
+                { id: "pickaxe_ruby", name: "Yakut Kazma", level: 25, req: { wood: 70, ruby: 60 }, desc: "Alevli madenci" },
+                { id: "pickaxe_emerald", name: "Zümrüt Kazma", level: 30, req: { wood: 80, emerald: 70 }, desc: "Usta kazması" },
+                { id: "pickaxe_sapphire", name: "Safir Kazma", level: 35, req: { wood: 90, sapphire: 80 }, desc: "Kristal kazma" },
+                { id: "pickaxe_obsidian", name: "Obsidyen Kazma", level: 40, req: { wood: 100, obsidian: 100 }, desc: "Efsanevi çift verim" }
+              ] : craftTab === "axe" ? [
+                { id: "axe_wood", name: "Ahşap Balta", level: 1, req: { wood: 20 }, desc: "Temel balta" },
+                { id: "axe_copper", name: "Bakır Balta", level: 5, req: { wood: 30, copper: 20 }, desc: "Hızlı odun kesme" },
+                { id: "axe_silver", name: "Gümüş Balta", level: 10, req: { wood: 40, silver: 30 }, desc: "Keskin balta" },
+                { id: "axe_gold", name: "Altın Balta", level: 15, req: { wood: 50, gold_ore: 40 }, desc: "Çift odun düşürme şansı" },
+                { id: "axe_amethyst", name: "Ametist Balta", level: 20, req: { wood: 60, amethyst: 50 }, desc: "Büyülü oduncu baltası" },
+                { id: "axe_ruby", name: "Yakut Balta", level: 25, req: { wood: 70, ruby: 60 }, desc: "Sert ağaç kırıcı" },
+                { id: "axe_emerald", name: "Zümrüt Balta", level: 30, req: { wood: 80, emerald: 70 }, desc: "Ormancı baltası" },
+                { id: "axe_sapphire", name: "Safir Balta", level: 35, req: { wood: 90, sapphire: 80 }, desc: "Buz kesici balta" },
+                { id: "axe_obsidian", name: "Obsidyen Balta", level: 40, req: { wood: 100, obsidian: 100 }, desc: "Efsanevi ağaç kıyma" }
+              ] : craftTab === "shovel" ? [
+                { id: "shovel_wood", name: "Ahşap Kürek", level: 1, req: { wood: 15 }, desc: "Temel tarım küreği" },
+                { id: "shovel_copper", name: "Bakır Kürek", level: 5, req: { wood: 25, copper: 20 }, desc: "Hızlı toprak ekimi" },
+                { id: "shovel_silver", name: "Gümüş Kürek", level: 10, req: { wood: 35, silver: 30 }, desc: "Toprak işleme küreği" },
+                { id: "shovel_gold", name: "Altın Kürek", level: 15, req: { wood: 45, gold_ore: 40 }, desc: "Verimli ekim" },
+                { id: "shovel_amethyst", name: "Ametist Kürek", level: 20, req: { wood: 55, amethyst: 50 }, desc: "Büyülü kürek" },
+                { id: "shovel_ruby", name: "Yakut Kürek", level: 25, req: { wood: 65, ruby: 60 }, desc: "Usta çiftçi küreği" },
+                { id: "shovel_emerald", name: "Zümrüt Kürek", level: 30, req: { wood: 75, emerald: 70 }, desc: "Bereketli ürün küreği" },
+                { id: "shovel_sapphire", name: "Safir Kürek", level: 35, req: { wood: 85, sapphire: 80 }, desc: "Kristal kürek" },
+                { id: "shovel_obsidian", name: "Obsidyen Kürek", level: 40, req: { wood: 95, obsidian: 90 }, desc: "Efsanevi kürek" }
+              ] : craftTab === "sword" ? [
+                { id: "sword_wood", name: "Ahşap Kılıç", level: 1, req: { wood: 25 }, desc: "+10 Hasar" },
+                { id: "sword_copper", name: "Bakır Kılıç", level: 5, req: { wood: 35, copper: 25 }, desc: "+20 Hasar" },
+                { id: "sword_silver", name: "Gümüş Kılıç", level: 10, req: { wood: 45, silver: 35 }, desc: "+35 Hasar" },
+                { id: "sword_gold", name: "Altın Kılıç", level: 15, req: { wood: 55, gold_ore: 45 }, desc: "+50 Hasar" },
+                { id: "sword_amethyst", name: "Ametist Kılıç", level: 20, req: { wood: 65, amethyst: 55 }, desc: "+70 Hasar" },
+                { id: "sword_ruby", name: "Yakut Kılıç", level: 25, req: { wood: 75, ruby: 65 }, desc: "+95 Hasar" },
+                { id: "sword_emerald", name: "Zümrüt Kılıç", level: 30, req: { wood: 85, emerald: 75 }, desc: "+125 Hasar" },
+                { id: "sword_sapphire", name: "Safir Kılıç", level: 35, req: { wood: 95, sapphire: 85 }, desc: "+160 Hasar" },
+                { id: "sword_obsidian", name: "Obsidyen Kılıç", level: 40, req: { wood: 110, obsidian: 100 }, desc: "+200 Kritik Hasar" }
+              ] : [
+                { id: "armor_copper", name: "Bakır Zırh Seti", level: 5, req: { wood: 50, copper: 40 }, desc: "+15 Max HP, +5 Savunma" },
+                { id: "armor_silver", name: "Gümüş Zırh Seti", level: 10, req: { wood: 60, silver: 50 }, desc: "+30 Max HP, +10 Savunma" },
+                { id: "armor_gold", name: "Altın Zırh Seti", level: 15, req: { wood: 70, gold_ore: 60 }, desc: "+50 Max HP, +18 Savunma" },
+                { id: "armor_amethyst", name: "Ametist Zırh Seti", level: 20, req: { wood: 80, amethyst: 70 }, desc: "+75 Max HP, +28 Savunma" },
+                { id: "armor_ruby", name: "Yakut Zırh Seti", level: 25, req: { wood: 90, ruby: 80 }, desc: "+100 Max HP, +40 Savunma" },
+                { id: "armor_emerald", name: "Zümrüt Zırh Seti", level: 30, req: { wood: 100, emerald: 90 }, desc: "+140 Max HP, +55 Savunma" },
+                { id: "armor_sapphire", name: "Safir Zırh Seti", level: 35, req: { wood: 110, sapphire: 100 }, desc: "+180 Max HP, +75 Savunma" },
+                { id: "armor_obsidian", name: "Obsidyen Zırh Seti", level: 40, req: { wood: 120, obsidian: 120 }, desc: "+250 Max HP, +100 Savunma" }
+              ]).map((item: any) => {
+                const isOwned = Boolean(ownedItems[item.id]);
+                const meetsLevel = playerLevel >= item.level;
+                let meetsResources = true;
+                const costTokens: string[] = [];
+
+                if (item.req.wood) {
+                  const has = playerResources.wood || 0;
+                  costTokens.push(`🪵 ${has}/${item.req.wood} Odun`);
+                  if (has < item.req.wood) meetsResources = false;
+                }
+                if (item.req.copper) {
+                  const has = playerResources.copper || 0;
+                  costTokens.push(`🟤 ${has}/${item.req.copper} Bakır`);
+                  if (has < item.req.copper) meetsResources = false;
+                }
+                if (item.req.silver) {
+                  const has = playerResources.silver || 0;
+                  costTokens.push(`⚪ ${has}/${item.req.silver} Gümüş`);
+                  if (has < item.req.silver) meetsResources = false;
+                }
+                if (item.req.gold_ore) {
+                  const has = playerResources.gold_ore || 0;
+                  costTokens.push(`🟡 ${has}/${item.req.gold_ore} Altın`);
+                  if (has < item.req.gold_ore) meetsResources = false;
+                }
+                if (item.req.amethyst) {
+                  const has = playerResources.amethyst || 0;
+                  costTokens.push(`🟣 ${has}/${item.req.amethyst} Ametist`);
+                  if (has < item.req.amethyst) meetsResources = false;
+                }
+                if (item.req.ruby) {
+                  const has = playerResources.ruby || 0;
+                  costTokens.push(`🔴 ${has}/${item.req.ruby} Yakut`);
+                  if (has < item.req.ruby) meetsResources = false;
+                }
+                if (item.req.emerald) {
+                  const has = playerResources.emerald || 0;
+                  costTokens.push(`🟢 ${has}/${item.req.emerald} Zümrüt`);
+                  if (has < item.req.emerald) meetsResources = false;
+                }
+                if (item.req.sapphire) {
+                  const has = playerResources.sapphire || 0;
+                  costTokens.push(`🔵 ${has}/${item.req.sapphire} Safir`);
+                  if (has < item.req.sapphire) meetsResources = false;
+                }
+                if (item.req.obsidian) {
+                  const has = playerResources.obsidian || 0;
+                  costTokens.push(`⚫ ${has}/${item.req.obsidian} Obsidyen`);
+                  if (has < item.req.obsidian) meetsResources = false;
+                }
+
+                const canCraft = meetsLevel && meetsResources;
+
+                return (
+                  <div key={item.id} style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "12px 16px",
+                    background: isOwned ? "rgba(46, 204, 113, 0.15)" : canCraft ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.3)",
+                    borderRadius: "10px",
+                    border: isOwned ? "1px solid rgba(46, 204, 113, 0.5)" : canCraft ? "1px solid rgba(230, 126, 34, 0.4)" : "1px solid rgba(255,255,255,0.08)",
+                    opacity: meetsLevel ? 1 : 0.6
+                  }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <span style={{ fontWeight: "bold", fontSize: "14px", color: meetsLevel ? "#f39c12" : "#95a5a6" }}>{item.name}</span>
+                        <span style={{ fontSize: "10px", background: meetsLevel ? "rgba(243, 156, 18, 0.2)" : "rgba(255,255,255,0.1)", color: meetsLevel ? "#f39c12" : "#7f8c8d", padding: "2px 6px", borderRadius: "4px" }}>
+                          Gerekli Lvl {item.level}
+                        </span>
+                        {isOwned && (
+                          <span style={{ fontSize: "10px", background: "rgba(46, 204, 113, 0.3)", color: "#2ecc71", padding: "2px 6px", borderRadius: "4px", fontWeight: "bold" }}>
+                            ✓ Üretildi
+                          </span>
+                        )}
+                      </div>
+                      <span style={{ fontSize: "11px", color: "#bdc3c7" }}>{item.desc}</span>
+                      <div style={{ display: "flex", gap: "10px", fontSize: "11px", color: "#e67e22", marginTop: "2px" }}>
+                        {costTokens.map((costStr, idx) => (
+                          <span key={idx}>{costStr}</span>
+                        ))}
+                      </div>
+                    </div>
+
+                    <button
+                      disabled={!canCraft}
+                      onClick={() => {
+                        if (room && canCraft) {
+                          room.send("craft_item", { itemId: item.id });
+                        }
+                      }}
+                      style={{
+                        padding: "8px 18px",
+                        borderRadius: "8px",
+                        border: "none",
+                        background: isOwned ? "#2ecc71" : canCraft ? "#e67e22" : "#7f8c8d",
+                        color: "white",
+                        fontWeight: "bold",
+                        fontSize: "12px",
+                        cursor: canCraft ? "pointer" : "not-allowed",
+                        boxShadow: canCraft ? "0 2px 8px rgba(230, 126, 34, 0.4)" : "none"
+                      }}
+                    >
+                      {isOwned ? "Yeniden Üret" : !meetsLevel ? `Lvl ${item.level} Gerekli` : !meetsResources ? "Yetersiz Kaynak" : "⚒️ Üret"}
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>

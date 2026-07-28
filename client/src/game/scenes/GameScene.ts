@@ -2014,8 +2014,8 @@ export class GameScene extends Phaser.Scene {
       "animal_chicken_white"
     ];
 
-    const dirs = ["down", "left", "right", "up"];
-    const dirOffsets: Record<string, number> = { down: 0, left: 4, right: 8, up: 12 };
+    const dirs = ["down", "up", "left", "right"];
+    const dirOffsets: Record<string, number> = { down: 0, up: 4, left: 8, right: 12 };
 
     animalTypes.forEach((typeKey) => {
       dirs.forEach((dir) => {
@@ -2045,8 +2045,8 @@ export class GameScene extends Phaser.Scene {
       "animal_cow_pink"
     ];
 
-    const cowDirs = ["left", "down", "up", "right"];
-    const cowDirOffsets: Record<string, number> = { left: 0, down: 4, up: 8, right: 12 };
+    const cowDirs = ["down", "up", "left", "right"];
+    const cowDirOffsets: Record<string, number> = { down: 0, up: 4, left: 8, right: 12 };
 
     cowTypes.forEach((typeKey) => {
       cowDirs.forEach((dir) => {
@@ -2074,8 +2074,8 @@ export class GameScene extends Phaser.Scene {
       "animal_sheep_spotted"
     ];
 
-    const sheepDirs = ["left", "down", "up", "right"];
-    const sheepDirOffsets: Record<string, number> = { left: 0, down: 4, up: 8, right: 12 };
+    const sheepDirs = ["down", "up", "left", "right"];
+    const sheepDirOffsets: Record<string, number> = { down: 0, up: 4, left: 8, right: 12 };
 
     sheepTypes.forEach((typeKey) => {
       sheepDirs.forEach((dir) => {
@@ -2105,8 +2105,8 @@ export class GameScene extends Phaser.Scene {
       "animal_pig_pink"
     ];
 
-    const pigDirs = ["left", "down", "up", "right"];
-    const pigDirOffsets: Record<string, number> = { left: 0, down: 4, up: 8, right: 12 };
+    const pigDirs = ["down", "up", "left", "right"];
+    const pigDirOffsets: Record<string, number> = { down: 0, up: 4, left: 8, right: 12 };
 
     pigTypes.forEach((typeKey) => {
       pigDirs.forEach((dir) => {

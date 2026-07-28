@@ -276,11 +276,11 @@ export class GameRoom extends Room<GameState> {
 
         let tData = this.cowTargets.get(id);
         if (!tData || now >= tData.nextMoveTime) {
-          let bestX = 285 + Math.random() * 205;
-          let bestY = 420 + Math.random() * 100;
+          let bestX = 510 + Math.random() * 205;
+          let bestY = 160 + Math.random() * 105;
           for (let attempt = 0; attempt < 10; attempt++) {
-            const candX = 285 + Math.random() * 205;
-            const candY = 420 + Math.random() * 100;
+            const candX = 510 + Math.random() * 205;
+            const candY = 160 + Math.random() * 105;
             let tooClose = false;
             this.state.cows.forEach((otherC, otherId) => {
               if (otherId !== id && Math.hypot(candX - otherC.x, candY - otherC.y) < 40) {
@@ -318,8 +318,8 @@ export class GameRoom extends Room<GameState> {
             }
           }
         });
-        cA.x = Math.max(285, Math.min(490, cA.x));
-        cA.y = Math.max(420, Math.min(520, cA.y));
+        cA.x = Math.max(510, Math.min(715, cA.x));
+        cA.y = Math.max(160, Math.min(265, cA.y));
       });
     }, 300);
 
@@ -471,8 +471,8 @@ export class GameRoom extends Room<GameState> {
       cow.ownerName = player.name;
       cow.colorType = randomVariant;
       cow.mapId = "world_8";
-      cow.x = 285 + Math.random() * 205;
-      cow.y = 420 + Math.random() * 100;
+      cow.x = 510 + Math.random() * 205;
+      cow.y = 160 + Math.random() * 105;
       cow.milkReady = false;
       cow.milkProduced = 0;
       cow.lastMilkTime = Date.now();
@@ -3483,8 +3483,8 @@ export class GameRoom extends Room<GameState> {
             c.ownerName = data.ownerName || "";
             c.colorType = data.colorType || "black";
             c.mapId = "world_8";
-            c.x = 285 + Math.random() * 205;
-            c.y = 420 + Math.random() * 100;
+            c.x = 510 + Math.random() * 205;
+            c.y = 160 + Math.random() * 105;
             c.milkReady = Boolean(data.milkReady);
             c.milkProduced = Number(data.milkProduced || 0);
             c.lastMilkTime = Number(data.lastMilkTime || Date.now());

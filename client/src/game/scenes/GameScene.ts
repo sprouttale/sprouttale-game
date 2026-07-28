@@ -5607,30 +5607,32 @@ export class GameScene extends Phaser.Scene {
           cropTextureKey = "crop_carrot";
         }
 
-        const texture = this.textures.get(cropTextureKey);
-        const frameTotal = texture.frameTotal - 1;
-        const stage = Math.min(obj.cropStage, 3);
-        const frameIndex = Math.min(Math.floor((stage / 3) * (frameTotal - 1)), frameTotal - 1);
-        const cropSprite = this.add.sprite(0, 0, cropTextureKey, Math.max(0, frameIndex));
-        cropSprite.setScale(2.5);
-        container.add(cropSprite);
-
-        // If stage 3 (fully grown) also show harvest icon above
-        if (stage >= 3) {
-          const iconKey = cropTextureKey + "_icon";
-          if (this.textures.exists(iconKey)) {
-            const harvestIcon = this.add.image(0, -24, iconKey).setScale(2);
-            container.add(harvestIcon);
+        const stage = Math.min(Math.max(0, Number(obj.cropStage) || 0), 3);
+        let frameIndex = 0;
+        if (stage === 0) {
+          frameIndex = 0;
+        } else if (stage === 1) {
+          frameIndex = 1;
+        } else if (stage === 2) {
+          frameIndex = 2;
+        } else {
+          // Stage 3 (Fully Ripe Harvestable Crop)
+          const type = obj.cropType;
+          if (type === "tomato" || type === "wheat" || type === "onion" || type === "watermelon" || type === "cabbage") {
+            frameIndex = 5;
+          } else {
+            frameIndex = 4;
           }
         }
 
-        // 💧 Su istiyorum göstergesi: Sulanmamış + ekin var + henüz büyümemiş
-        if (!obj.cropWatered && obj.cropStage < 3) {
-          const waterLabel = this.add.text(0, -20, "💧 SU!", {
-            fontSize: "8px",
-            color: "#74b9ff",
-            stroke: "#000",
-            strokeThickness: 2
+        const cropSprite = this.add.sprite(0, 0, cropTextureKey, frameIndex);
+        cropSprite.setScale(2.5);
+        container.add(cropSprite);
+
+        // 💧 Su ihtiyacı göstergesi: Sulanmamış + ekin var + henüz olgunlaşmamış
+        if (!obj.cropWatered && stage < 3) {
+          const waterLabel = this.add.text(0, -20, "💧", {
+            fontSize: "12px"
           }).setOrigin(0.5);
           container.add(waterLabel);
         }

@@ -157,6 +157,42 @@ export class ChickenState extends Schema {
 }
 
 // ---------------------------------------------------------------------------
+// CowState — represents a cow animal placed in the lower farm pen.
+// Produces milk every hour (up to 48 times before dying).
+// ---------------------------------------------------------------------------
+export class CowState extends Schema {
+  @type("string")
+  id: string = "";
+
+  @type("string")
+  ownerId: string = "";
+
+  @type("string")
+  ownerName: string = "";
+
+  @type("string")
+  colorType: string = "black"; // e.g. "black", "yellow", "brown", "pink", "white"
+
+  @type("string")
+  mapId: string = "world_1";
+
+  @type("float32")
+  x: number = 0;
+
+  @type("float32")
+  y: number = 0;
+
+  @type("boolean")
+  milkReady: boolean = false;
+
+  @type("int32")
+  milkProduced: number = 0; // Max 48 total milks produced before cow dies
+
+  @type("number")
+  lastMilkTime: number = 0; // Timestamp (ms) when current milk timer started
+}
+
+// ---------------------------------------------------------------------------
 // MapObject — represents a placed decorative or collidable asset on the map.
 // ---------------------------------------------------------------------------
 export class MapObject extends Schema {
@@ -332,4 +368,7 @@ export class GameState extends Schema {
 
   @type({ map: ChickenState })
   chickens = new MapSchema<ChickenState>();
+
+  @type({ map: CowState })
+  cows = new MapSchema<CowState>();
 }

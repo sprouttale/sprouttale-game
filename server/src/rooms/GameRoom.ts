@@ -1,5 +1,5 @@
 import { Room, Client } from "colyseus";
-import { GameState, PlayerState, MapObject, EnemyState, ChickenState } from "../schema/GameState";
+import { GameState, PlayerState, MapObject, EnemyState, ChickenState, CowState } from "../schema/GameState";
 import fs from "fs";
 import path from "path";
 import https from "https";
@@ -89,6 +89,7 @@ export class GameRoom extends Room<GameState> {
   private playerFishingTimeout = new Map<string, any>();
   private playerPetIdleTime = new Map<string, number>();
   private chickenTargets = new Map<string, { targetX: number; targetY: number; nextMoveTime: number }>();
+  private cowTargets    = new Map<string, { targetX: number; targetY: number; nextMoveTime: number }>();
   private cropAccumulator = 0;
 
   /** Cooldown timestamps for map transitions (sessionId -> last transition time ms)
@@ -179,6 +180,7 @@ export class GameRoom extends Room<GameState> {
     // Load any saved map objects from disk
     this.loadMapFromDisk();
     this.loadChickensFromDisk();
+    this.loadCowsFromDisk();
 
     // Chicken tick loop: egg production check + wandering AI (300ms)
     this.setSimulationInterval(() => {
@@ -256,6 +258,68 @@ export class GameRoom extends Room<GameState> {
         // Strict fence boundary collision enforcement (never pass through outer fences)
         cA.x = Math.max(285, Math.min(490, cA.x));
         cA.y = Math.max(160, Math.min(265, cA.y));
+      });
+    }, 300);
+
+    // Cow tick loop: milk production check + wandering AI (300ms)
+    this.setSimulationInterval(() => {
+      const now = Date.now();
+      const MILK_INTERVAL = 3600000; // 1 hour
+
+      this.state.cows.forEach((cow, id) => {
+        if (!cow.milkReady && cow.milkProduced < 48) {
+          if (now - cow.lastMilkTime >= MILK_INTERVAL) {
+            cow.milkReady = true;
+            console.log(`[GameRoom] 🥛 Cow ${cow.id} (${cow.colorType}) produced milk!`);
+          }
+        }
+
+        let tData = this.cowTargets.get(id);
+        if (!tData || now >= tData.nextMoveTime) {
+          let bestX = 285 + Math.random() * 205;
+          let bestY = 420 + Math.random() * 100;
+          for (let attempt = 0; attempt < 10; attempt++) {
+            const candX = 285 + Math.random() * 205;
+            const candY = 420 + Math.random() * 100;
+            let tooClose = false;
+            this.state.cows.forEach((otherC, otherId) => {
+              if (otherId !== id && Math.hypot(candX - otherC.x, candY - otherC.y) < 40) {
+                tooClose = true;
+              }
+            });
+            if (!tooClose) { bestX = candX; bestY = candY; break; }
+          }
+          tData = { targetX: bestX, targetY: bestY, nextMoveTime: now + 4000 + Math.random() * 6000 };
+          this.cowTargets.set(id, tData);
+        }
+
+        const dx = tData.targetX - cow.x;
+        const dy = tData.targetY - cow.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist > 3) {
+          const speed = 0.8;
+          cow.x += (dx / dist) * Math.min(dist, speed);
+          cow.y += (dy / dist) * Math.min(dist, speed);
+        }
+      });
+
+      // Cow-to-Cow Separation Force
+      const COW_MIN_DIST = 40;
+      this.state.cows.forEach((cA, idA) => {
+        this.state.cows.forEach((cB, idB) => {
+          if (idA !== idB && cA.mapId === cB.mapId) {
+            const dx = cA.x - cB.x;
+            const dy = cA.y - cB.y;
+            const dist = Math.hypot(dx, dy);
+            if (dist > 0 && dist < COW_MIN_DIST) {
+              const overlap = COW_MIN_DIST - dist;
+              cA.x += (dx / dist) * (overlap * 0.35);
+              cA.y += (dy / dist) * (overlap * 0.35);
+            }
+          }
+        });
+        cA.x = Math.max(285, Math.min(490, cA.x));
+        cA.y = Math.max(420, Math.min(520, cA.y));
       });
     }, 300);
 
@@ -370,6 +434,105 @@ export class GameRoom extends Room<GameState> {
       }
 
       this.performChickensSave();
+      this.performPlayersSave();
+    });
+
+    // ──────────────────────────────────────────────────────────────
+    // COW: buy_cow_box — Spend 100 SPT tokens, receive a random cow
+    // ──────────────────────────────────────────────────────────────
+    const COW_VARIANTS = ["black", "yellow", "brown", "pink", "white"];
+
+    this.onMessage("buy_cow_box", (client: Client) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player) return;
+
+      let cowCount = 0;
+      this.state.cows.forEach((c) => {
+        if (c.ownerName === player.name || c.ownerId === client.sessionId) cowCount++;
+      });
+
+      if (cowCount >= 10) {
+        client.send("error", { message: "En fazla 10 inek besleyebilirsiniz!" });
+        return;
+      }
+
+      const COW_COST = 150;
+      if (player.tokens < COW_COST) {
+        client.send("error", { message: "Yeterli SPT Tokeniniz yok! (Gerekli: 150 SPT)" });
+        return;
+      }
+
+      player.tokens -= COW_COST;
+
+      const randomVariant = COW_VARIANTS[Math.floor(Math.random() * COW_VARIANTS.length)];
+      const cow = new CowState();
+      cow.id = `cow_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+      cow.ownerId = client.sessionId;
+      cow.ownerName = player.name;
+      cow.colorType = randomVariant;
+      cow.mapId = "world_8";
+      cow.x = 285 + Math.random() * 205;
+      cow.y = 420 + Math.random() * 100;
+      cow.milkReady = false;
+      cow.milkProduced = 0;
+      cow.lastMilkTime = Date.now();
+
+      this.state.cows.set(cow.id, cow);
+      this.performCowsSave();
+      this.performPlayersSave();
+
+      client.send("cow_box_opened", {
+        colorType: randomVariant,
+        message: `📦 İnek Kutusu Açıldı! ${randomVariant} renkli bir inek çiftlik alanına yerleşti!`
+      });
+      console.log(`[GameRoom] Player ${player.name} opened a cow box: ${randomVariant}`);
+    });
+
+    // ──────────────────────────────────────────────────────────────
+    // COW: collect_cow_milk — Collect milk from a ready cow
+    // ──────────────────────────────────────────────────────────────
+    this.onMessage("collect_cow_milk", (client: Client, message: { cowId: string }) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player || !message?.cowId) return;
+
+      const cow = this.state.cows.get(message.cowId);
+      if (!cow) {
+        client.send("error", { message: "İnek bulunamadı!" });
+        return;
+      }
+
+      if (!cow.milkReady) {
+        client.send("error", { message: "Bu ineğin henüz sütü hazır değil!" });
+        return;
+      }
+
+      const current = player.harvests.get("sut") || 0;
+      player.harvests.set("sut", current + 1);
+
+      cow.milkReady = false;
+      cow.lastMilkTime = Date.now();
+      cow.milkProduced += 1;
+
+      const totalProduced = cow.milkProduced;
+      client.send("milk_collected", {
+        cowId: cow.id,
+        totalMilk: totalProduced,
+        inventoryMilk: current + 1,
+        message: "+1 🥛 Süt toplandı!"
+      });
+
+      console.log(`[GameRoom] Player ${player.name} collected milk from cow ${cow.id} (${totalProduced}/48)`);
+
+      if (cow.milkProduced >= 48) {
+        this.state.cows.delete(cow.id);
+        client.send("cow_died", {
+          cowId: cow.id,
+          message: "💀 İneğiniz 48 sütünü tamamladı ve ömrü tükendi!"
+        });
+        console.log(`[GameRoom] Cow ${cow.id} produced 48 milks and died.`);
+      }
+
+      this.performCowsSave();
       this.performPlayersSave();
     });
 
@@ -3276,6 +3439,62 @@ export class GameRoom extends Room<GameState> {
       }
     } catch (err) {
       console.error("[GameRoom] Error loading chickens:", err);
+    }
+  }
+
+  private performCowsSave(): void {
+    try {
+      const mapDataDir = path.join(process.cwd(), "_mapdata");
+      if (!fs.existsSync(mapDataDir)) {
+        try { fs.mkdirSync(mapDataDir, { recursive: true }); } catch (e) {}
+      }
+      const cowList: any[] = [];
+      this.state.cows.forEach((c) => {
+        cowList.push({
+          id: c.id,
+          ownerId: c.ownerId,
+          ownerName: c.ownerName,
+          colorType: c.colorType,
+          mapId: c.mapId,
+          x: c.x,
+          y: c.y,
+          milkReady: c.milkReady,
+          milkProduced: c.milkProduced,
+          lastMilkTime: c.lastMilkTime
+        });
+      });
+      fs.writeFileSync(path.join(mapDataDir, "cows_save.json"), JSON.stringify(cowList), "utf8");
+    } catch (err) {
+      console.error("[GameRoom] Error saving cows:", err);
+    }
+  }
+
+  private loadCowsFromDisk(): void {
+    try {
+      const savePath = path.join(process.cwd(), "_mapdata", "cows_save.json");
+      if (fs.existsSync(savePath)) {
+        const raw = fs.readFileSync(savePath, "utf8");
+        const list = JSON.parse(raw);
+        if (Array.isArray(list)) {
+          list.forEach((data: any) => {
+            const c = new CowState();
+            c.id = data.id;
+            c.ownerId = data.ownerId || "";
+            c.ownerName = data.ownerName || "";
+            c.colorType = data.colorType || "black";
+            c.mapId = "world_8";
+            c.x = 285 + Math.random() * 205;
+            c.y = 420 + Math.random() * 100;
+            c.milkReady = Boolean(data.milkReady);
+            c.milkProduced = Number(data.milkProduced || 0);
+            c.lastMilkTime = Number(data.lastMilkTime || Date.now());
+            this.state.cows.set(c.id, c);
+          });
+          console.log(`[GameRoom] 🐄 Loaded ${list.length} cows from disk.`);
+        }
+      }
+    } catch (err) {
+      console.error("[GameRoom] Error loading cows:", err);
     }
   }
 

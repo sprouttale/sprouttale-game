@@ -571,9 +571,10 @@ export default function App() {
   const [purchasedBroomsticks, setPurchasedBroomsticks] = useState<number[]>([]);
   const [activeBroomstickVariant, setActiveBroomstickVariant] = useState<number>(1);
   const [purchasedTractors,  setPurchasedTractors]  = useState<number[]>([]);
-  const [stableTab,          setStableTab]          = useState<"horses" | "bicycles" | "chickens">("horses");
+  const [stableTab,          setStableTab]          = useState<"horses" | "bicycles" | "chickens" | "cows">("horses");
   const [tokens,             setTokens]             = useState<number>(100000);
   const [chickensList,       setChickensList]       = useState<any[]>([]);
+  const [cowsList,           setCowsList]           = useState<any[]>([]);
 
   // Map Editor State
   const [isEditorOpen, setIsEditorOpen] = useState(false);
@@ -1395,6 +1396,29 @@ export default function App() {
       room.state.chickens.onChange(() => updateChickensList());
     }
 
+    if (room && room.state && room.state.cows) {
+      const updateCowsList = () => {
+        const list: any[] = [];
+        room.state.cows.forEach((cow: any) => {
+          list.push({
+            id: cow.id,
+            ownerId: cow.ownerId,
+            ownerName: cow.ownerName,
+            colorType: cow.colorType,
+            mapId: cow.mapId,
+            milkReady: cow.milkReady,
+            milkProduced: cow.milkProduced,
+            lastMilkTime: cow.lastMilkTime
+          });
+        });
+        setCowsList(list);
+      };
+      updateCowsList();
+      room.state.cows.onAdd(() => updateCowsList());
+      room.state.cows.onRemove(() => updateCowsList());
+      room.state.cows.onChange(() => updateCowsList());
+    }
+
     return () => {
       listener.clear();
       woodListener.clear();
@@ -2053,6 +2077,13 @@ export default function App() {
               >
                 🐔 TAVUKLARIM
               </button>
+              <button 
+                className={`shop-modal__tab ${stableTab === "cows" ? "shop-modal__tab--active" : ""}`}
+                style={stableTab === "cows" ? { background: "#8b4513", borderColor: "#d4a017" } : {}}
+                onClick={() => setStableTab("cows")}
+              >
+                🐄 İNEKLЕРİM
+              </button>
             </div>
 
             <div className="shop-modal__grid">
@@ -2151,6 +2182,51 @@ export default function App() {
                               }}
                             >
                               🥚 YUMURTAYI TOPLA
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : stableTab === "cows" ? (
+                <div style={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", gap: "10px" }}>
+                  <div style={{ fontSize: "11px", color: "#d4a017", fontWeight: "bold" }}>
+                    🐄 ÇİFTLİK İNEKLERİNİZ ({cowsList.filter((c: any) => c.ownerName === meta?.playerName || c.ownerId === room?.sessionId).length} / 10)
+                  </div>
+                  {cowsList.filter((c: any) => c.ownerName === meta?.playerName || c.ownerId === room?.sessionId).length === 0 ? (
+                    <div style={{ padding: "20px", textAlign: "center", color: "#a4b0be", fontSize: "11px", background: "rgba(0,0,0,0.2)", borderRadius: "8px" }}>
+                      Henüz hiç ineğiniz yok! SHOP binasından 150 SPT Token karşılığında İnek Kutusu satın alabilirsiniz.
+                    </div>
+                  ) : (
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "10px" }}>
+                      {cowsList.filter((c: any) => c.ownerName === meta?.playerName || c.ownerId === room?.sessionId).map((cow: any) => (
+                        <div key={cow.id} className="shop-item glass" style={{ padding: "12px", display: "flex", flexDirection: "column", gap: "6px", borderColor: cow.milkReady ? "#d4a017" : "rgba(255,255,255,0.1)" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{ fontWeight: "bold", fontSize: "11px", color: "#d4a017" }}>🐄 {cow.colorType}</span>
+                            <span style={{ fontSize: "9px", color: "#a4b0be" }}>{cow.milkProduced}/48 Süt</span>
+                          </div>
+                          <div style={{ fontSize: "10px", color: cow.milkReady ? "#d4a017" : "#ff9f43", fontWeight: "bold" }}>
+                            {cow.milkReady ? "🥛 Süt Hazır! (Toplayabilirsiniz)" : (() => {
+                              const remainingMs = Math.max(0, 3600000 - (Date.now() - (cow.lastMilkTime || Date.now())));
+                              const remainingSec = Math.ceil(remainingMs / 1000);
+                              if (remainingSec >= 60) {
+                                const mins = Math.floor(remainingSec / 60);
+                                const secs = remainingSec % 60;
+                                return `⏳ Sütlenmeye Kalan: ${mins}dk ${secs}sn`;
+                              }
+                              return `⏳ Sütlenmeye Kalan: ${remainingSec}sn`;
+                            })()}
+                          </div>
+                          {cow.milkReady && (
+                            <button
+                              className="shop-item__btn"
+                              style={{ background: "linear-gradient(90deg, #d4a017, #f1c40f)", color: "black", fontWeight: "bold", marginTop: "4px" }}
+                              onClick={() => {
+                                if (room) room.send("collect_cow_milk", { cowId: cow.id });
+                              }}
+                            >
+                              🥛 SÜTÜ TOPLA
                             </button>
                           )}
                         </div>
@@ -2457,51 +2533,55 @@ export default function App() {
 
             <div style={{ padding: "16px 8px 8px 8px" }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "16px" }}>
+
+                {/* Tavuk Kutusu */}
                 <div 
                   className="shop-item glass"
-                  style={{
-                    padding: "20px",
-                    display: "flex",
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: "16px",
-                    borderColor: "#00d2d3",
-                    background: "rgba(0, 210, 211, 0.05)"
-                  }}
+                  style={{ padding: "20px", display: "flex", flexDirection: "row", alignItems: "center", gap: "16px", borderColor: "#00d2d3", background: "rgba(0, 210, 211, 0.05)" }}
                 >
-                  <div style={{ fontSize: "52px", filter: "drop-shadow(0 0 10px rgba(0,210,211,0.5))" }}>
-                    📦
-                  </div>
+                  <div style={{ fontSize: "52px", filter: "drop-shadow(0 0 10px rgba(0,210,211,0.5))" }}>📦</div>
                   <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "6px" }}>
-                    <div style={{ fontWeight: "bold", fontSize: "16px", color: "#00d2d3" }}>
-                      🐣 Tavuk Kutusu
-                    </div>
+                    <div style={{ fontWeight: "bold", fontSize: "16px", color: "#00d2d3" }}>🐣 Tavuk Kutusu</div>
                     <div style={{ fontSize: "12px", color: "#c8d6e5", lineHeight: "1.4" }}>
                       Kutuyu açarak 16 farklı renkten bir tavuk kazanırsınız. Tavuk çitli alana yerleşir ve 1 saatte 1 yumurta üretir.
                     </div>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "8px" }}>
-                      <span style={{ fontWeight: "bold", color: "#f1c40f", fontSize: "14px" }}>
-                        🪙 100 SPT
-                      </span>
+                      <span style={{ fontWeight: "bold", color: "#f1c40f", fontSize: "14px" }}>🪙 100 SPT</span>
                       <button
                         className="shop-item__btn"
-                        style={{
-                          background: "linear-gradient(90deg, #00d2d3, #0abde3)",
-                          color: "black",
-                          fontWeight: "bold",
-                          padding: "10px 18px",
-                          fontSize: "13px",
-                          borderRadius: "8px"
-                        }}
-                        onClick={() => {
-                          if (room) room.send("buy_chicken_box");
-                        }}
+                        style={{ background: "linear-gradient(90deg, #00d2d3, #0abde3)", color: "black", fontWeight: "bold", padding: "10px 18px", fontSize: "13px", borderRadius: "8px" }}
+                        onClick={() => { if (room) room.send("buy_chicken_box"); }}
                       >
                         📦 KUTUYU AÇ (100 SPT)
                       </button>
                     </div>
                   </div>
                 </div>
+
+                {/* İnek Kutusu */}
+                <div 
+                  className="shop-item glass"
+                  style={{ padding: "20px", display: "flex", flexDirection: "row", alignItems: "center", gap: "16px", borderColor: "#d4a017", background: "rgba(212, 160, 23, 0.05)" }}
+                >
+                  <div style={{ fontSize: "52px", filter: "drop-shadow(0 0 10px rgba(212,160,23,0.5))" }}>📦</div>
+                  <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <div style={{ fontWeight: "bold", fontSize: "16px", color: "#d4a017" }}>🐄 İnek Kutusu</div>
+                    <div style={{ fontSize: "12px", color: "#c8d6e5", lineHeight: "1.4" }}>
+                      Kutuyu açarak 5 farklı renkten bir inek kazanırsınız. İnek çitli alana yerleşir ve 1 saatte 1 süt üretir. (Max 10 İnek)
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "8px" }}>
+                      <span style={{ fontWeight: "bold", color: "#f1c40f", fontSize: "14px" }}>🪙 150 SPT</span>
+                      <button
+                        className="shop-item__btn"
+                        style={{ background: "linear-gradient(90deg, #d4a017, #f1c40f)", color: "black", fontWeight: "bold", padding: "10px 18px", fontSize: "13px", borderRadius: "8px" }}
+                        onClick={() => { if (room) room.send("buy_cow_box"); }}
+                      >
+                        📦 KUTUYU AÇ (150 SPT)
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
               </div>
             </div>
           </div>
